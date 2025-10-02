@@ -517,12 +517,26 @@ function makeStars() {
   clusterGroup.add(starPoints);
 }
 
+function disposeTiny() {
+  if (tinyPoints) {
+    clusterGroup.remove(tinyPoints);
+    tinyPoints = undefined;
+  }
+  if (tinyGeometry) {
+    tinyGeometry.dispose();
+    tinyGeometry = undefined;
+  }
+  if (tinyMaterial) {
+    tinyMaterial.dispose();
+    tinyMaterial = undefined;
+  }
+}
+
 /* Create tiny connection points */
 function makeTiny() {
-  if (tinyPoints) {
-    tinyGeometry.dispose();
-    tinyMaterial.dispose();
-    clusterGroup.remove(tinyPoints);
+  disposeTiny();
+  if (!starGeometry || !starGeometry.getAttribute('position')) {
+    return;
   }
   // Determine number of tiny points based on connPercent
   const nTiny = Math.round(params.tinyCount * params.connPercent);
