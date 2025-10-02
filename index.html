@@ -29,6 +29,25 @@
     #panel h3 { margin: .25rem 0 .5rem; font-size: .95rem; }
     .row { margin: .35rem 0 .8rem; }
     .row label { display: block; font-size: .8rem; margin-bottom: .25rem; opacity: .95; }
+    .row button {
+      padding: .35rem .6rem;
+      font-size: .8rem;
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--fg);
+      border: 1px solid #666;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background .2s ease, border-color .2s ease, opacity .2s ease;
+    }
+    .row button[aria-pressed="true"] {
+      background: rgba(40, 160, 220, 0.35);
+      border-color: rgba(90, 190, 255, 0.7);
+    }
+    .row button:disabled,
+    .row button[aria-disabled="true"] {
+      opacity: 0.55;
+      cursor: default;
+    }
     .wrap { display: flex; gap: .5rem; align-items: center; }
     .stack { display: flex; flex-direction: column; gap: .4rem; }
     .tag { min-width: 64px; font-size: .75rem; letter-spacing: .02em; text-transform: uppercase; opacity: .7; }
@@ -83,13 +102,9 @@
       }
     }
     canvas { display: block; cursor: grab; }
-
     canvas:active { cursor: grabbing; }
-    canvas.locked { cursor: grab; }
-    canvas.locked:active { cursor: grabbing; }
-=======
     canvas.locked { cursor: not-allowed; }
-
+    canvas.locked:active { cursor: not-allowed; }
   </style>
   <!-- Load Three.js and OrbitControls from local files -->
   <script src="./three.min.js"></script>
@@ -250,6 +265,29 @@
   </div>
   <div class="row">
     <label><input id="pFilled" type="checkbox" /> Gefüllt (harte Kreise)</label>
+  </div>
+  <hr style="opacity:.25;border:none;border-top:1px solid #444;margin:.75rem 0 .5rem">
+  <h3>Dynamik</h3>
+  <div class="row">
+    <label>Rotation</label>
+    <div class="wrap">
+      <button id="autoSpin" aria-pressed="false">🌀 Auto-Rotation aus</button>
+      <button id="spinStop" aria-disabled="true" disabled>⏹️ Stoppen</button>
+    </div>
+  </div>
+  <div class="row">
+    <label>Trägheit</label>
+    <div class="wrap">
+      <button id="spinInertia" aria-pressed="true">🪁 Trägheit an</button>
+      <div class="val" id="vInertia"></div>
+    </div>
+  </div>
+  <div class="row">
+    <label for="spinDecay">Abklingzeit (s)</label>
+    <div class="wrap">
+      <input id="spinDecay" type="range" min="1" max="30" step="1" />
+      <div class="val" id="vSpinDecay"></div>
+    </div>
   </div>
 </div>
 <script>
@@ -627,20 +665,242 @@ function setPanelVisible(show) {
 
 function setCameraLocked(lock) {
   cameraLocked = lock;
-
-  controls.enabled = true;
+  controls.enabled = !lock;
   controls.enablePan = !lock;
   controls.enableZoom = !lock;
-  controls.enableRotate = true;
+  controls.enableRotate = !lock;
   if (lock) {
     controls.target.copy(clusterGroup.position);
   }
   controls.update();
-=======
-  controls.enabled = !lock;
   lockBtn.textContent = lock ? '🔒 Kamera gesperrt' : '🔓 Kamera frei';
   lockBtn.setAttribute('aria-pressed', lock ? 'true' : 'false');
   renderer.domElement.classList.toggle('locked', lock);
+}
+
+/* Rotation dynamics */
+const autoSpinBtn = $('autoSpin');
+const spinStopBtn = $('spinStop');
+const spinInertiaBtn = $('spinInertia');
+const spinDecaySlider = $('spinDecay');
+const spinDecayValue = $('vSpinDecay');
+const spinInertiaValue = $('vInertia');
+
+const spinState = {
+  autoEnabled: false,
+  inertiaEnabled: true,
+  inertiaDuration: 12,
+  velocity: new THREE.Vector3(),
+  isDragging: false,
+  activePointerId: null,
+  prevPointerTime: 0,
+  decayStartSpeed: 0,
+  decayTime: 0,
+  controlsSnapshot: null,
+};
+
+const spinVectors = {
+  prev: new THREE.Vector3(),
+  curr: new THREE.Vector3(),
+  axis: new THREE.Vector3(),
+};
+
+const defaultSpinSpeed = 0.35;
+const defaultSpinAxis = new THREE.Vector3(0, 1, 0);
+const spinApplyAxis = new THREE.Vector3();
+
+function hasSpinVelocity() {
+  return spinState.velocity.lengthSq() > 1e-8;
+}
+
+function updateRotationUI() {
+  if (!autoSpinBtn) return;
+  autoSpinBtn.setAttribute('aria-pressed', spinState.autoEnabled ? 'true' : 'false');
+  autoSpinBtn.textContent = spinState.autoEnabled ? '🌀 Auto-Rotation an' : '🌀 Auto-Rotation aus';
+  spinInertiaBtn.setAttribute('aria-pressed', spinState.inertiaEnabled ? 'true' : 'false');
+  spinInertiaBtn.textContent = spinState.inertiaEnabled ? '🪁 Trägheit an' : '🪁 Trägheit aus';
+  if (spinDecaySlider) {
+    spinDecaySlider.disabled = !spinState.inertiaEnabled;
+    spinDecaySlider.value = spinState.inertiaDuration;
+  }
+  if (spinDecayValue) {
+    spinDecayValue.textContent = spinState.inertiaDuration.toFixed(0) + ' s';
+  }
+  if (spinInertiaValue) {
+    spinInertiaValue.textContent = spinState.inertiaEnabled ? 'aktiv' : 'aus';
+  }
+  const velocityActive = spinState.autoEnabled && hasSpinVelocity();
+  if (spinStopBtn) {
+    spinStopBtn.disabled = !velocityActive;
+    spinStopBtn.setAttribute('aria-disabled', velocityActive ? 'false' : 'true');
+  }
+}
+
+function stopRotation(updateUI = true) {
+  spinState.velocity.set(0, 0, 0);
+  spinState.decayStartSpeed = 0;
+  spinState.decayTime = 0;
+  if (updateUI) {
+    updateRotationUI();
+  }
+}
+
+function setAutoRotation(enabled) {
+  if (!enabled) {
+    spinState.autoEnabled = false;
+    stopRotation(false);
+    updateRotationUI();
+    return;
+  }
+  spinState.autoEnabled = true;
+  if (!hasSpinVelocity()) {
+    spinState.velocity.copy(defaultSpinAxis).multiplyScalar(defaultSpinSpeed);
+  }
+  spinState.decayStartSpeed = spinState.inertiaEnabled ? spinState.velocity.length() : 0;
+  spinState.decayTime = 0;
+  updateRotationUI();
+}
+
+function setInertiaEnabled(enabled) {
+  spinState.inertiaEnabled = enabled;
+  if (!enabled) {
+    spinState.decayStartSpeed = 0;
+    spinState.decayTime = 0;
+  } else if (hasSpinVelocity() && !spinState.isDragging) {
+    spinState.decayStartSpeed = spinState.velocity.length();
+    spinState.decayTime = 0;
+  }
+  updateRotationUI();
+}
+
+function setInertiaDuration(seconds) {
+  const clamped = Math.max(1, Math.min(30, Math.round(seconds)));
+  spinState.inertiaDuration = clamped;
+  if (spinState.inertiaEnabled && !spinState.isDragging && hasSpinVelocity()) {
+    spinState.decayStartSpeed = spinState.velocity.length();
+    spinState.decayTime = 0;
+  }
+  updateRotationUI();
+}
+
+function projectOnTrackball(clientX, clientY, target) {
+  const rect = renderer.domElement.getBoundingClientRect();
+  const x = ((clientX - rect.left) / rect.width) * 2 - 1;
+  const y = ((clientY - rect.top) / rect.height) * -2 + 1;
+  target.set(x, y, 0);
+  const lengthSq = x * x + y * y;
+  if (lengthSq <= 1) {
+    target.z = Math.sqrt(1 - lengthSq);
+  } else {
+    target.normalize();
+  }
+  return target;
+}
+
+function onSpinPointerDown(e) {
+  if (!spinState.autoEnabled || e.button !== 0) return;
+  spinState.isDragging = true;
+  spinState.activePointerId = e.pointerId;
+  spinState.decayTime = 0;
+  spinState.prevPointerTime = performance.now();
+  projectOnTrackball(e.clientX, e.clientY, spinVectors.prev);
+  spinState.controlsSnapshot = {
+    enabled: controls.enabled,
+    enableRotate: controls.enableRotate,
+  };
+  controls.enabled = false;
+  controls.enableRotate = false;
+  if (renderer.domElement.setPointerCapture) {
+    renderer.domElement.setPointerCapture(e.pointerId);
+  }
+  e.preventDefault();
+}
+
+function onSpinPointerMove(e) {
+  if (!spinState.isDragging || e.pointerId !== spinState.activePointerId) return;
+  projectOnTrackball(e.clientX, e.clientY, spinVectors.curr);
+  const dot = THREE.MathUtils.clamp(spinVectors.prev.dot(spinVectors.curr), -1, 1);
+  const angle = Math.acos(dot);
+  if (angle > 1e-5) {
+    spinVectors.axis.crossVectors(spinVectors.prev, spinVectors.curr);
+    if (spinVectors.axis.lengthSq() > 1e-6) {
+      spinVectors.axis.normalize();
+      clusterGroup.rotateOnAxis(spinVectors.axis, angle);
+      const now = performance.now();
+      const dt = Math.max((now - spinState.prevPointerTime) / 1000, 1e-3);
+      spinState.prevPointerTime = now;
+      spinState.velocity.copy(spinVectors.axis).multiplyScalar(angle / dt);
+    }
+  }
+  spinVectors.prev.copy(spinVectors.curr);
+}
+
+function onSpinPointerUp(e) {
+  if (!spinState.isDragging) return;
+  if (typeof e.pointerId === 'number' && spinState.activePointerId !== null && e.pointerId !== spinState.activePointerId) {
+    return;
+  }
+  if (renderer.domElement.releasePointerCapture && spinState.activePointerId !== null) {
+    try {
+      if (!renderer.domElement.hasPointerCapture || renderer.domElement.hasPointerCapture(spinState.activePointerId)) {
+        renderer.domElement.releasePointerCapture(spinState.activePointerId);
+      }
+    } catch (err) {
+      // ignore release errors
+    }
+  }
+  spinState.isDragging = false;
+  spinState.activePointerId = null;
+  if (!spinState.autoEnabled) {
+    stopRotation(false);
+  } else if (spinState.inertiaEnabled && hasSpinVelocity()) {
+    spinState.decayStartSpeed = spinState.velocity.length();
+    spinState.decayTime = 0;
+  } else {
+    spinState.decayStartSpeed = 0;
+    spinState.decayTime = 0;
+  }
+  if (spinState.controlsSnapshot) {
+    controls.enabled = spinState.controlsSnapshot.enabled;
+    controls.enableRotate = spinState.controlsSnapshot.enableRotate;
+    spinState.controlsSnapshot = null;
+    controls.update();
+  }
+  updateRotationUI();
+}
+
+renderer.domElement.addEventListener('pointerdown', onSpinPointerDown);
+renderer.domElement.addEventListener('pointermove', onSpinPointerMove);
+renderer.domElement.addEventListener('pointerup', onSpinPointerUp);
+renderer.domElement.addEventListener('pointercancel', onSpinPointerUp);
+renderer.domElement.addEventListener('pointerleave', e => {
+  if (spinState.isDragging) {
+    onSpinPointerUp(e);
+  }
+});
+
+if (autoSpinBtn) {
+  autoSpinBtn.addEventListener('click', () => {
+    setAutoRotation(!spinState.autoEnabled);
+  });
+}
+if (spinStopBtn) {
+  spinStopBtn.addEventListener('click', () => {
+    stopRotation();
+  });
+}
+if (spinInertiaBtn) {
+  spinInertiaBtn.addEventListener('click', () => {
+    setInertiaEnabled(!spinState.inertiaEnabled);
+  });
+}
+if (spinDecaySlider) {
+  spinDecaySlider.addEventListener('input', e => {
+    const next = parseInt(e.target.value, 10);
+    if (!Number.isNaN(next)) {
+      setInertiaDuration(next);
+    }
+  });
 }
 
 function setCategoryPercent(kind, value) {
@@ -699,7 +959,6 @@ function getSizeRange() {
   return { min, max, delta: max - min };
 }
 
-=======
 const sliders = {
   pCount:       val => { params.count = parseInt(val, 10); rebuildStars(); },
   pRadius:      val => { params.radius = parseFloat(val); rebuildStars(); },
@@ -747,13 +1006,6 @@ $('pFilled').addEventListener('change', e => {
 /* Toggle panel, lock camera & random button */
 toggleBtn.addEventListener('click', () => {
   setPanelVisible(!panelVisible);
-});
-
-lockBtn.addEventListener('click', () => {
-  setCameraLocked(!cameraLocked);
-});
-
-=======
 });
 
 lockBtn.addEventListener('click', () => {
@@ -819,6 +1071,7 @@ function setSliders() {
   $('pEdgeSoft').value = params.edgeSoftness; $('vEdgeSoft').textContent = params.edgeSoftness.toFixed(2);
   $('pBlending').value = params.blending;
   $('pFilled').checked = params.filled;
+  updateRotationUI();
 }
 
 /* Resize handler */
@@ -829,8 +1082,34 @@ window.addEventListener('resize', () => {
 });
 
 /* Animation loop */
-function animate() {
+let lastFrameTime = performance.now();
+
+function animate(now) {
   requestAnimationFrame(animate);
+  const current = (typeof now === 'number') ? now : performance.now();
+  const delta = Math.min(Math.max((current - lastFrameTime) / 1000, 0), 0.25);
+  lastFrameTime = current;
+
+  if (spinState.autoEnabled && !spinState.isDragging) {
+    if (spinState.inertiaEnabled && spinState.decayStartSpeed > 0 && hasSpinVelocity()) {
+      spinState.decayTime += delta;
+      const duration = Math.max(spinState.inertiaDuration, 0.001);
+      const progress = Math.min(spinState.decayTime / duration, 1);
+      const newSpeed = spinState.decayStartSpeed * (1 - progress);
+      if (newSpeed <= 1e-4) {
+        stopRotation(false);
+        updateRotationUI();
+      } else {
+        spinState.velocity.setLength(newSpeed);
+      }
+    }
+    const speed = spinState.velocity.length();
+    if (speed > 1e-6) {
+      spinApplyAxis.copy(spinState.velocity).normalize();
+      clusterGroup.rotateOnAxis(spinApplyAxis, speed * delta);
+    }
+  }
+
   if (cameraLocked) {
     controls.target.copy(clusterGroup.position);
   }
@@ -842,11 +1121,14 @@ function animate() {
 }
 
 /* Initialization */
+setInertiaDuration(spinState.inertiaDuration);
+setInertiaEnabled(spinState.inertiaEnabled);
+setAutoRotation(true);
 setPanelVisible(window.innerWidth > 580);
 setCameraLocked(false);
 setSliders();
 rebuildStars();
-animate();
+requestAnimationFrame(animate);
 </script>
 </body>
 </html>
