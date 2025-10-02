@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Chaos‑Kugel – erweiterte Kontrolle</title>
+  <style>
+    :root { --panel: rgba(0,0,0,.6); --fg: #ddd; }
+    html, body { margin: 0; height: 100%; overflow: hidden; background: #000; color: var(--fg); font-family: system-ui, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }
+    #panel {
+      position: absolute;
+      top: 56px;
+      right: 10px;
+      z-index: 10;
+      width: 330px;
+      background: var(--panel);
+      border-radius: 10px;
+      padding: 12px;
+      backdrop-filter: blur(2px);
+    }
+    #panel h3 { margin: .25rem 0 .5rem; font-size: .95rem; }
+    .row { margin: .35rem 0 .8rem; }
+    .row label { display: block; font-size: .8rem; margin-bottom: .25rem; opacity: .95; }
+    .wrap { display: flex; gap: .5rem; align-items: center; }
+    input[type=range] { flex: 1; width: 100%; }
+    .val { min-width: 66px; text-align: right; font-variant-numeric: tabular-nums; }
+    select { flex: 1; }
+    #bar { position: absolute; top: 10px; left: 10px; z-index: 12; display: flex; gap: 8px; }
+    #bar button { padding: .45rem .65rem; font-size: .85rem; background: var(--panel); color: #fff; border: 1px solid #666; border-radius: 6px; cursor: pointer; }
+    canvas { display: block; }
+  </style>
+  <!-- Load Three.js and OrbitControls from local files -->
+  <script src="./three.min.js"></script>
+  <script src="./OrbitControls.js"></script>
+</head>
+<body>
+<div id="bar">
+  <button id="toggle">↕ Panel</button>
+  <button id="random">🎲 Random</button>
+</div>
+<div id="panel">
+  <h3>Parameter</h3>
+  <!-- Star parameters -->
+  <div class="row">
+    <label for="pCount">Anzahl Punkte</label>
+    <div class="wrap">
+      <input id="pCount" type="range" min="500" max="8000" step="100" />
+      <div class="val" id="vCount"></div>
+    </div>
+  </div>
+  <div class="row">
+    <label for="pRadius">Radius</label>
+    <div class="wrap">
+      <input id="pRadius" type="range" min="40" max="260" step="1" />
+      <div class="val" id="vRadius"></div>
+    </div>
+  </div>
+  <div class="row">
+    <label for="pSizeVar">Größenvariation</label>
+    <div class="wrap">
+      <input id="pSizeVar" type="range" min="0" max="10" step="0.1" />
+      <div class="val" id="vSizeVar"></div>
+    </div>
+  </div>
+  <div class="row">
+    <label for="pCluster">Clustering</label>
+    <div class="wrap">
+      <input id="pCluster" type="range" min="0" max="1" step="0.01" />
+      <div class="val" id="vCluster"></div>
+    </div>
+  </div>
+  <div class="row">
+    <label for="pPointAlpha">Deckkraft Punkte</label>
+    <div class="wrap">
+      <input id="pPointAlpha" type="range" min="0.3" max="1" step="0.01" />
+      <div class="val" id="vPointAlpha"></div>
+    </div>
+  </div>
+  <div class="row">
+    <label for="pSeedStars">Seed Punkte</label>
+    <div class="wrap">
+      <input id="pSeedStars" type="range" min="1" max="9999" step="1" />
+      <div class="val" id="vSeedStars"></div>
+    </div>
+  </div>
+  <!-- Size factors for normal points -->
+  <div class="row">
+    <label for="pSizeTiny">Größe winzige Punkte</label>
+    <div class="wrap">
+      <input id="pSizeTiny" type="range" min="0.1" max="3" step="0.05" />
+      <div class="val" id="vSizeTiny"></div>
+    </div>
+  </div>
+  <div class="row">
+    <label for="pSizeSmall">Größe kleine Punkte</label>
+    <div class="wrap">
+      <input id="pSizeSmall" type="range" min="0.2" max="3" step="0.05" />
+      <div class="val" id="vSizeSmall"></div>
+    </div>
+  </div>
+  <div class="row">
+    <label for="pSizeMedium">Größe mittlere Punkte</label>
+    <div class="wrap">
+      <input id="pSizeMedium" type="range" min="0.2" max="3" step="0.05" />
+      <div class="val" id="vSizeMedium"></div>
+    </div>
+  </div>
+  <div class="row">
+    <label for="pSizeLarge">Größe große Punkte</label>
+    <div class="wrap">
+      <input id="pSizeLarge" type="range" min="0.2" max="3" step="0.05" />
+      <div class="val" id="vSizeLarge"></div>
+    </div>
+  </div>
+  <!-- Tiny points and connections -->
+  <div class="row">
+    <label for="pTinyCount">Menge winzige Punkte</label>
+    <div class="wrap">
+      <input id="pTinyCount" type="range" min="0" max="5000" step="10" />
+      <div class="val" id="vTinyCount"></div>
+    </div>
+  </div>
+  <div class="row">
+    <label for="pConnPercent">Prozent Verbindungen</label>
+    <div class="wrap">
+      <input id="pConnPercent" type="range" min="0" max="1" step="0.01" />
+      <div class="val" id="vConnPercent"></div>
+    </div>
+  </div>
+  <div class="row">
+    <label for="pTinyAlpha">Deckkraft winzige Punkte</label>
+    <div class="wrap">
+      <input id="pTinyAlpha" type="range" min="0" max="1" step="0.01" />
+      <div class="val" id="vTinyAlpha"></div>
+    </div>
+  </div>
+  <div class="row">
+    <label for="pSeedTiny">Seed winzige Punkte</label>
+    <div class="wrap">
+      <input id="pSeedTiny" type="range" min="1" max="9999" step="1" />
+      <div class="val" id="vSeedTiny"></div>
+    </div>
+  </div>
+  <!-- Edge softness and blending -->
+  <hr style="opacity:.25;border:none;border-top:1px solid #444;margin:.5rem 0">
+  <div class="row">
+    <label for="pEdgeSoft">Randweichheit</label>
+    <div class="wrap">
+      <input id="pEdgeSoft" type="range" min="0" max="1" step="0.01" />
+      <div class="val" id="vEdgeSoft"></div>
+    </div>
+  </div>
+  <div class="row">
+    <label for="pBlending">Blending-Modus</label>
+    <select id="pBlending">
+      <option value="Normal">Normal</option>
+      <option value="Additive">Additiv</option>
+    </select>
+  </div>
+  <div class="row">
+    <label><input id="pFilled" type="checkbox" /> Gefüllt (harte Kreise)</label>
+  </div>
+</div>
+<script>
+/* Utility: HSV→RGB (for potential future color variations) */
+function hsv2rgb(h, s, v) {
+  let c = v * s;
+  let hp = h / 60;
+  let x = c * (1 - Math.abs((hp % 2) - 1));
+  let m = v - c;
+  let r=0,g=0,b=0;
+  if(hp < 1){r=c; g=x;} else
+  if(hp < 2){r=x; g=c;} else
+  if(hp < 3){g=c; b=x;} else
+  if(hp < 4){g=x; b=c;} else
+  if(hp < 5){r=x; b=c;} else{r=c; b=x;}
+  return new THREE.Color(r+m,g+m,b+m);
+}
+
+/* PRNG: Mulberry32 for reproducible random */
+function mulberry32(seed) {
+  return function() {
+    let t = seed += 0x6D2B79F5;
+    t = Math.imul(t ^ (t >>> 15), 1 | t);
+    t ^= t + Math.imul(t ^ (t >>> 7), 61 | t);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/* Renderer/Scene/Camera */
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x000000);
+
+const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 2000);
+camera.position.set(0, 0, 480);
+
+const controls = new THREE.OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.06;
+controls.rotateSpeed = 0.6;
+controls.zoomSpeed = 0.6;
+
+/* Parameters */
+const params = {
+  count: 2500,
+  radius: 140,
+  sizeVar: 4.0,
+  cluster: 0.65,
+  pointAlpha: 0.95,
+  seedStars: 1,
+  // Size factors
+  sizeFactorTiny: 1.0,
+  sizeFactorSmall: 1.0,
+  sizeFactorMedium: 1.5,
+  sizeFactorLarge: 2.0,
+  // Tiny points / connections
+  tinyCount: 2000,
+  connPercent: 0.5,
+  tinyAlpha: 0.5,
+  seedTiny: 1,
+  // Edge & blending
+  edgeSoftness: 0.6,
+  blending: 'Normal',
+  filled: false
+};
+
+/* Globals for stars and tiny connections */
+let starPoints, starGeometry, starMaterial;
+let tinyPoints, tinyGeometry, tinyMaterial;
+
+/* Create stars geometry and material */
+function makeStars() {
+  if (starPoints) {
+    starGeometry.dispose();
+    starMaterial.dispose();
+    scene.remove(starPoints);
+  }
+  starGeometry = new THREE.BufferGeometry();
+  const positions = new Float32Array(params.count * 3);
+  const sizes = new Float32Array(params.count);
+  const cats  = new Float32Array(params.count);
+  // thresholds for categories based on sizeVar
+  const smallThresh  = 1.0 + params.sizeVar * 0.33;
+  const mediumThresh = 1.0 + params.sizeVar * 0.66;
+  // seeded random for star distribution
+  const rand = mulberry32(params.seedStars);
+  for (let i = 0; i < params.count; i++) {
+    // spherical distribution with clustering
+    const u = rand(); const v = rand();
+    const theta = 2 * Math.PI * u;
+    const phi = Math.acos(2 * v - 1);
+    let r = params.radius;
+    if (rand() < params.cluster) r *= rand();
+    const x = r * Math.sin(phi) * Math.cos(theta);
+    const y = r * Math.sin(phi) * Math.sin(theta);
+    const z = r * Math.cos(phi);
+    positions.set([x, y, z], i * 3);
+    // random size
+    const size = 1.0 + rand() * params.sizeVar;
+    sizes[i] = size;
+    // category 0: small, 1: medium, 2: large
+    cats[i] = (size <= smallThresh) ? 0 : (size <= mediumThresh ? 1 : 2);
+  }
+  starGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  starGeometry.setAttribute('aSize', new THREE.BufferAttribute(sizes, 1));
+  starGeometry.setAttribute('aCat', new THREE.BufferAttribute(cats, 1));
+  // Vertex shader for stars
+  const starVert = `
+    attribute float aSize;
+    attribute float aCat;
+    varying float vDepth;
+    // uniforms to scale different point categories
+    uniform float uSizeFactorSmall;
+    uniform float uSizeFactorMedium;
+    uniform float uSizeFactorLarge;
+    void main() {
+      vec4 mv = modelViewMatrix * vec4(position, 1.0);
+      vDepth = -mv.z;
+      float factor;
+      if (aCat < 0.5) {
+        factor = uSizeFactorSmall;
+      } else if (aCat < 1.5) {
+        factor = uSizeFactorMedium;
+      } else {
+        factor = uSizeFactorLarge;
+      }
+      gl_PointSize = aSize * factor * 4.0 * (300.0 / max(1.0, vDepth));
+      gl_Position = projectionMatrix * mv;
+    }
+  `;
+  // Fragment shader for stars
+  const starFrag = `
+    precision highp float;
+    uniform float uAlpha;
+    uniform float uEdgeSoftness;
+    void main() {
+      vec2 uv = gl_PointCoord * 2.0 - 1.0;
+      float d = dot(uv, uv);
+      if (d > 1.0) discard;
+      // compute inner radius where the point is fully opaque
+      float inner = 1.0 - uEdgeSoftness;
+      // fade alpha near the outer edge: inside 'inner' radius alpha=1, outside alpha decreases to 0 at the rim
+      float edge = 1.0 - smoothstep(inner, 1.0, d);
+      gl_FragColor = vec4(1.0, 1.0, 1.0, edge * uAlpha);
+    }
+  `;
+  starMaterial = new THREE.ShaderMaterial({
+    vertexShader: starVert,
+    fragmentShader: starFrag,
+    transparent: true,
+    depthTest: true,
+    // disable depthWrite so points blend properly and do not occlude each other completely
+    depthWrite: false,
+    uniforms: {
+      uAlpha: { value: params.pointAlpha },
+      uEdgeSoftness: { value: params.filled ? 0.0 : params.edgeSoftness },
+      uSizeFactorSmall: { value: params.sizeFactorSmall },
+      uSizeFactorMedium: { value: params.sizeFactorMedium },
+      uSizeFactorLarge: { value: params.sizeFactorLarge }
+    }
+  });
+  starMaterial.blending = (params.blending === 'Additive') ? THREE.AdditiveBlending : THREE.NormalBlending;
+  starPoints = new THREE.Points(starGeometry, starMaterial);
+  scene.add(starPoints);
+}
+
+/* Create tiny connection points */
+function makeTiny() {
+  if (tinyPoints) {
+    tinyGeometry.dispose();
+    tinyMaterial.dispose();
+    scene.remove(tinyPoints);
+  }
+  // Determine number of tiny points based on connPercent
+  const nTiny = Math.round(params.tinyCount * params.connPercent);
+  tinyGeometry = new THREE.BufferGeometry();
+  const positions = new Float32Array(nTiny * 3);
+  // Access star positions for connections
+  const starPos = starGeometry.getAttribute('position');
+  const nStars = starPos.count;
+  const rand = mulberry32(params.seedTiny);
+  for (let i = 0; i < nTiny; i++) {
+    // pick two random stars
+    const idxA = Math.floor(rand() * nStars);
+    const idxB = Math.floor(rand() * nStars);
+    const ax = starPos.getX(idxA), ay = starPos.getY(idxA), az = starPos.getZ(idxA);
+    const bx = starPos.getX(idxB), by = starPos.getY(idxB), bz = starPos.getZ(idxB);
+    const t = rand();
+    // linear interpolation between stars
+    const x = ax + (bx - ax) * t;
+    const y = ay + (by - ay) * t;
+    const z = az + (bz - az) * t;
+    positions.set([x, y, z], i * 3);
+  }
+  tinyGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  tinyMaterial = new THREE.PointsMaterial({
+    color: 0xffffff,
+    size: params.sizeFactorTiny * 2.0,
+    transparent: true,
+    opacity: params.tinyAlpha,
+    depthTest: true,
+    depthWrite: false
+  });
+  tinyMaterial.blending = (params.blending === 'Additive') ? THREE.AdditiveBlending : THREE.NormalBlending;
+  tinyPoints = new THREE.Points(tinyGeometry, tinyMaterial);
+  scene.add(tinyPoints);
+}
+
+/* Update uniforms and materials when parameters change */
+function updateStarUniforms() {
+  if (!starMaterial) return;
+  starMaterial.uniforms.uAlpha.value = params.pointAlpha;
+  starMaterial.uniforms.uEdgeSoftness.value = params.filled ? 0.0 : params.edgeSoftness;
+  starMaterial.uniforms.uSizeFactorSmall.value = params.sizeFactorSmall;
+  starMaterial.uniforms.uSizeFactorMedium.value = params.sizeFactorMedium;
+  starMaterial.uniforms.uSizeFactorLarge.value = params.sizeFactorLarge;
+  starMaterial.blending = (params.blending === 'Additive') ? THREE.AdditiveBlending : THREE.NormalBlending;
+  starMaterial.needsUpdate = true;
+}
+
+function updateTinyMaterial() {
+  if (!tinyMaterial) return;
+  tinyMaterial.size = params.sizeFactorTiny * 2.0;
+  tinyMaterial.opacity = params.tinyAlpha;
+  tinyMaterial.blending = (params.blending === 'Additive') ? THREE.AdditiveBlending : THREE.NormalBlending;
+  tinyMaterial.needsUpdate = true;
+}
+
+/* Rebuild functions */
+function rebuildStars() {
+  makeStars();
+  updateStarUniforms();
+  // regenerate tiny connections as they depend on star positions
+  makeTiny();
+  updateTinyMaterial();
+}
+function rebuildTiny() {
+  makeTiny();
+  updateTinyMaterial();
+}
+
+/* Bind UI elements */
+const $ = id => document.getElementById(id);
+const sliders = {
+  pCount:       val => { params.count = parseInt(val); rebuildStars(); },
+  pRadius:      val => { params.radius = parseFloat(val); rebuildStars(); },
+  pSizeVar:     val => { params.sizeVar = parseFloat(val); rebuildStars(); },
+  pCluster:     val => { params.cluster = parseFloat(val); rebuildStars(); },
+  pPointAlpha:  val => { params.pointAlpha = parseFloat(val); updateStarUniforms(); },
+  pSeedStars:   val => { params.seedStars = parseInt(val); rebuildStars(); },
+  pSizeTiny:    val => { params.sizeFactorTiny = parseFloat(val); updateTinyMaterial(); },
+  pSizeSmall:   val => { params.sizeFactorSmall = parseFloat(val); updateStarUniforms(); },
+  pSizeMedium:  val => { params.sizeFactorMedium = parseFloat(val); updateStarUniforms(); },
+  pSizeLarge:   val => { params.sizeFactorLarge = parseFloat(val); updateStarUniforms(); },
+  pTinyCount:   val => { params.tinyCount = parseInt(val); rebuildTiny(); },
+  pConnPercent: val => { params.connPercent = parseFloat(val); rebuildTiny(); },
+  pTinyAlpha:   val => { params.tinyAlpha = parseFloat(val); updateTinyMaterial(); },
+  pSeedTiny:    val => { params.seedTiny = parseInt(val); rebuildTiny(); },
+  pEdgeSoft:    val => { params.edgeSoftness = parseFloat(val); updateStarUniforms(); },
+};
+// assign input event handlers
+for (const id in sliders) {
+  $(id).addEventListener('input', e => {
+    sliders[id](e.target.value);
+    setSliders();
+  });
+}
+// Blending select
+$('pBlending').addEventListener('change', e => {
+  params.blending = e.target.value;
+  updateStarUniforms();
+  updateTinyMaterial();
+});
+// Filled checkbox
+$('pFilled').addEventListener('change', e => {
+  params.filled = e.target.checked;
+  updateStarUniforms();
+});
+
+/* Toggle panel & random button */
+$('toggle').addEventListener('click', () => {
+  document.getElementById('panel').classList.toggle('mobile');
+});
+$('random').addEventListener('click', () => {
+  // randomize many parameters
+  params.count = 500 + Math.floor(Math.random() * 7500);
+  params.radius = 60 + Math.random() * 180;
+  params.sizeVar = Math.random() * 9.5;
+  params.cluster = Math.random() * 0.95;
+  params.pointAlpha = 0.3 + Math.random() * 0.7;
+  params.seedStars = 1 + Math.floor(Math.random() * 9999);
+  params.sizeFactorSmall = 0.5 + Math.random() * 2.5;
+  params.sizeFactorMedium = 0.5 + Math.random() * 2.5;
+  params.sizeFactorLarge = 0.5 + Math.random() * 2.5;
+  params.sizeFactorTiny = 0.1 + Math.random() * 2.9;
+  params.tinyCount = Math.floor(Math.random() * 5000);
+  params.connPercent = Math.random();
+  params.tinyAlpha = Math.random();
+  params.seedTiny = 1 + Math.floor(Math.random() * 9999);
+  params.edgeSoftness = Math.random();
+  params.blending = (Math.random() < 0.5) ? 'Normal' : 'Additive';
+  params.filled = Math.random() < 0.3;
+  rebuildStars();
+  setSliders();
+});
+
+/* Update slider displays */
+function setSliders() {
+  // star params
+  $('pCount').value = params.count; $('vCount').textContent = params.count;
+  $('pRadius').value = params.radius; $('vRadius').textContent = params.radius;
+  $('pSizeVar').value = params.sizeVar; $('vSizeVar').textContent = params.sizeVar.toFixed(2);
+  $('pCluster').value = params.cluster; $('vCluster').textContent = params.cluster.toFixed(2);
+  $('pPointAlpha').value = params.pointAlpha; $('vPointAlpha').textContent = params.pointAlpha.toFixed(2);
+  $('pSeedStars').value = params.seedStars; $('vSeedStars').textContent = params.seedStars;
+  // size factors
+  $('pSizeTiny').value = params.sizeFactorTiny; $('vSizeTiny').textContent = params.sizeFactorTiny.toFixed(2);
+  $('pSizeSmall').value = params.sizeFactorSmall; $('vSizeSmall').textContent = params.sizeFactorSmall.toFixed(2);
+  $('pSizeMedium').value = params.sizeFactorMedium; $('vSizeMedium').textContent = params.sizeFactorMedium.toFixed(2);
+  $('pSizeLarge').value = params.sizeFactorLarge; $('vSizeLarge').textContent = params.sizeFactorLarge.toFixed(2);
+  // tiny / connection
+  $('pTinyCount').value = params.tinyCount; $('vTinyCount').textContent = params.tinyCount;
+  $('pConnPercent').value = params.connPercent; $('vConnPercent').textContent = (params.connPercent * 100).toFixed(0) + '%';
+  $('pTinyAlpha').value = params.tinyAlpha; $('vTinyAlpha').textContent = params.tinyAlpha.toFixed(2);
+  $('pSeedTiny').value = params.seedTiny; $('vSeedTiny').textContent = params.seedTiny;
+  // edge & blending
+  $('pEdgeSoft').value = params.edgeSoftness; $('vEdgeSoft').textContent = params.edgeSoftness.toFixed(2);
+  $('pBlending').value = params.blending;
+  $('pFilled').checked = params.filled;
+}
+
+/* Resize handler */
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+/* Animation loop */
+function animate() {
+  requestAnimationFrame(animate);
+  controls.update();
+  renderer.render(scene, camera);
+}
+
+/* Initialization */
+setSliders();
+rebuildStars();
+animate();
+</script>
+</body>
+</html>
