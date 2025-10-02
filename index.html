@@ -83,9 +83,13 @@
       }
     }
     canvas { display: block; cursor: grab; }
+
     canvas:active { cursor: grabbing; }
     canvas.locked { cursor: grab; }
     canvas.locked:active { cursor: grabbing; }
+=======
+    canvas.locked { cursor: not-allowed; }
+
   </style>
   <!-- Load Three.js and OrbitControls from local files -->
   <script src="./three.min.js"></script>
@@ -623,6 +627,7 @@ function setPanelVisible(show) {
 
 function setCameraLocked(lock) {
   cameraLocked = lock;
+
   controls.enabled = true;
   controls.enablePan = !lock;
   controls.enableZoom = !lock;
@@ -631,6 +636,8 @@ function setCameraLocked(lock) {
     controls.target.copy(clusterGroup.position);
   }
   controls.update();
+=======
+  controls.enabled = !lock;
   lockBtn.textContent = lock ? '🔒 Kamera gesperrt' : '🔓 Kamera frei';
   lockBtn.setAttribute('aria-pressed', lock ? 'true' : 'false');
   renderer.domElement.classList.toggle('locked', lock);
@@ -692,6 +699,7 @@ function getSizeRange() {
   return { min, max, delta: max - min };
 }
 
+=======
 const sliders = {
   pCount:       val => { params.count = parseInt(val, 10); rebuildStars(); },
   pRadius:      val => { params.radius = parseFloat(val); rebuildStars(); },
@@ -739,6 +747,13 @@ $('pFilled').addEventListener('change', e => {
 /* Toggle panel, lock camera & random button */
 toggleBtn.addEventListener('click', () => {
   setPanelVisible(!panelVisible);
+});
+
+lockBtn.addEventListener('click', () => {
+  setCameraLocked(!cameraLocked);
+});
+
+=======
 });
 
 lockBtn.addEventListener('click', () => {
