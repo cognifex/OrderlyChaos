@@ -30,6 +30,8 @@
     .row { margin: .35rem 0 .8rem; }
     .row label { display: block; font-size: .8rem; margin-bottom: .25rem; opacity: .95; }
     .wrap { display: flex; gap: .5rem; align-items: center; }
+    .stack { display: flex; flex-direction: column; gap: .4rem; }
+    .tag { min-width: 64px; font-size: .75rem; letter-spacing: .02em; text-transform: uppercase; opacity: .7; }
     input[type=range] { flex: 1; width: 100%; }
     .val { min-width: 66px; text-align: right; font-variant-numeric: tabular-nums; }
     select { flex: 1; }
@@ -81,7 +83,13 @@
       }
     }
     canvas { display: block; cursor: grab; }
+
+    canvas:active { cursor: grabbing; }
+    canvas.locked { cursor: grab; }
+    canvas.locked:active { cursor: grabbing; }
+=======
     canvas.locked { cursor: not-allowed; }
+
   </style>
   <!-- Load Three.js and OrbitControls from local files -->
   <script src="./three.min.js"></script>
@@ -111,7 +119,15 @@
     </div>
   </div>
   <div class="row">
-    <label for="pSizeVar">Größenvariation</label>
+    <label for="pDistribution">Verteilungsalgorithmus</label>
+    <select id="pDistribution">
+      <option value="random">Zufall (Sphäre)</option>
+      <option value="fibonacci">Fibonacci-Sphäre</option>
+      <option value="spiral">Galaxie-Spirale</option>
+    </select>
+  </div>
+  <div class="row">
+    <label for="pSizeVar">Größenvariation (Δ)</label>
     <div class="wrap">
       <input id="pSizeVar" type="range" min="0" max="10" step="0.1" />
       <div class="val" id="vSizeVar"></div>
@@ -138,11 +154,31 @@
       <div class="val" id="vSeedStars"></div>
     </div>
   </div>
+  <div class="row">
+    <label>Punktkategorien (%)</label>
+    <div class="stack">
+      <div class="wrap">
+        <span class="tag">Klein</span>
+        <input id="pCatSmall" type="range" min="0" max="100" step="1" />
+        <div class="val" id="vCatSmall"></div>
+      </div>
+      <div class="wrap">
+        <span class="tag">Mittel</span>
+        <input id="pCatMedium" type="range" min="0" max="100" step="1" />
+        <div class="val" id="vCatMedium"></div>
+      </div>
+      <div class="wrap">
+        <span class="tag">Groß</span>
+        <input id="pCatLarge" type="range" min="0" max="100" step="1" />
+        <div class="val" id="vCatLarge"></div>
+      </div>
+    </div>
+  </div>
   <!-- Size factors for normal points -->
   <div class="row">
     <label for="pSizeTiny">Größe winzige Punkte</label>
     <div class="wrap">
-      <input id="pSizeTiny" type="range" min="0.1" max="3" step="0.05" />
+      <input id="pSizeTiny" type="range" min="0.05" max="3" step="0.01" />
       <div class="val" id="vSizeTiny"></div>
     </div>
   </div>
@@ -260,16 +296,23 @@ controls.dampingFactor = 0.06;
 controls.rotateSpeed = 0.6;
 controls.zoomSpeed = 0.6;
 
+const clusterGroup = new THREE.Group();
+scene.add(clusterGroup);
+
 /* Parameters */
 const params = {
   count: 2500,
   radius: 140,
+  distribution: 'random',
   sizeVar: 4.0,
   cluster: 0.65,
   pointAlpha: 0.95,
   seedStars: 1,
+  catSmall: 45,
+  catMedium: 35,
+  catLarge: 20,
   // Size factors
-  sizeFactorTiny: 1.0,
+  sizeFactorTiny: 0.15,
   sizeFactorSmall: 1.0,
   sizeFactorMedium: 1.5,
   sizeFactorLarge: 2.0,
@@ -293,37 +336,120 @@ function makeStars() {
   if (starPoints) {
     starGeometry.dispose();
     starMaterial.dispose();
-    scene.remove(starPoints);
+    clusterGroup.remove(starPoints);
   }
   starGeometry = new THREE.BufferGeometry();
   const positions = new Float32Array(params.count * 3);
   const sizes = new Float32Array(params.count);
   const cats  = new Float32Array(params.count);
-  // thresholds for categories based on sizeVar
-  const smallThresh  = 1.0 + params.sizeVar * 0.33;
-  const mediumThresh = 1.0 + params.sizeVar * 0.66;
+  // thresholds for categories based on manual percentages
+  const smallShare = Math.max(0, Math.min(1, params.catSmall / 100));
+  const mediumShare = Math.max(0, Math.min(1, params.catMedium / 100));
+  const smallThreshold = smallShare;
+  const mediumThreshold = Math.min(1, smallShare + mediumShare);
+  const minSize = Math.max(0.05, 1 - params.sizeVar * 0.5);
+  const maxSize = 1 + params.sizeVar * 0.5;
+  const span = Math.max(0.0001, maxSize - minSize);
+  const smallEnd = minSize + span * smallShare;
+  const mediumEnd = minSize + span * mediumThreshold;
   // seeded random for star distribution
   const rand = mulberry32(params.seedStars);
+  const orientation = new THREE.Matrix4();
+  const orientEuler = new THREE.Euler(rand() * Math.PI * 2, rand() * Math.PI * 2, rand() * Math.PI * 2);
+  orientation.makeRotationFromEuler(orientEuler);
+  const tmpVec = new THREE.Vector3();
+  const fibOffset = params.distribution === 'fibonacci' ? (2 / params.count) : 0;
+  const fibIncrement = Math.PI * (3 - Math.sqrt(5));
+  const spiralArms = 4;
   for (let i = 0; i < params.count; i++) {
-    // spherical distribution with clustering
-    const u = rand(); const v = rand();
-    const theta = 2 * Math.PI * u;
-    const phi = Math.acos(2 * v - 1);
-    let r = params.radius;
-    if (rand() < params.cluster) r *= rand();
-    const x = r * Math.sin(phi) * Math.cos(theta);
-    const y = r * Math.sin(phi) * Math.sin(theta);
-    const z = r * Math.cos(phi);
+    let x = 0, y = 0, z = 0;
+    const radius = params.radius;
+    if (params.distribution === 'fibonacci') {
+      const yv = ((i + 0.5) * fibOffset) - 1;
+      const clampedY = Math.max(-1, Math.min(1, yv));
+      const rCircle = Math.sqrt(Math.max(0, 1 - clampedY * clampedY));
+      const phi = i * fibIncrement;
+      const bias = params.cluster > 0 ? Math.pow(rand(), 1 + params.cluster * 2.2) : rand();
+      const radial = radius * (0.35 + 0.65 * bias);
+      x = Math.cos(phi) * rCircle * radial;
+      y = clampedY * radial;
+      z = Math.sin(phi) * rCircle * radial;
+      x += (rand() - 0.5) * radius * 0.04;
+      y += (rand() - 0.5) * radius * 0.04;
+      z += (rand() - 0.5) * radius * 0.04;
+      tmpVec.set(x, y, z).applyMatrix4(orientation);
+      x = tmpVec.x; y = tmpVec.y; z = tmpVec.z;
+    } else if (params.distribution === 'spiral') {
+      const t = i / params.count;
+      const arm = i % spiralArms;
+      const baseAngle = t * Math.PI * 6 + arm * (Math.PI * 2 / spiralArms);
+      const spread = radius * Math.pow(rand(), 0.55 + params.cluster * 0.9);
+      x = Math.cos(baseAngle) * spread;
+      z = Math.sin(baseAngle) * spread;
+      y = (rand() - 0.5) * radius * (0.2 + 0.4 * (1 - params.cluster));
+      x += (rand() - 0.5) * radius * 0.08;
+      y += (rand() - 0.5) * radius * 0.08;
+      z += (rand() - 0.5) * radius * 0.08;
+      tmpVec.set(x, y, z).applyMatrix4(orientation);
+      x = tmpVec.x; y = tmpVec.y; z = tmpVec.z;
+    } else {
+      const u = rand();
+      const v = rand();
+      const theta = 2 * Math.PI * u;
+      const phi = Math.acos(2 * v - 1);
+      let r = radius;
+      if (rand() < params.cluster) {
+        r *= rand();
+      }
+      x = r * Math.sin(phi) * Math.cos(theta);
+      y = r * Math.sin(phi) * Math.sin(theta);
+      z = r * Math.cos(phi);
+    }
     positions.set([x, y, z], i * 3);
-    // random size
-    const size = 1.0 + rand() * params.sizeVar;
-    sizes[i] = size;
-    // category 0: small, 1: medium, 2: large
-    cats[i] = (size <= smallThresh) ? 0 : (size <= mediumThresh ? 1 : 2);
+    const catSeed = rand();
+    let cat = 2;
+    if (catSeed < smallThreshold) {
+      cat = 0;
+    } else if (catSeed < mediumThreshold) {
+      cat = 1;
+    }
+    cats[i] = cat;
+    let lower = mediumEnd;
+    let upper = maxSize;
+    if (cat === 0) {
+      lower = minSize;
+      upper = smallEnd;
+    } else if (cat === 1) {
+      lower = smallEnd;
+      upper = mediumEnd;
+    }
+    if (upper - lower < 0.001) {
+      sizes[i] = lower;
+    } else {
+      sizes[i] = lower + rand() * (upper - lower);
+    }
   }
   starGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
   starGeometry.setAttribute('aSize', new THREE.BufferAttribute(sizes, 1));
   starGeometry.setAttribute('aCat', new THREE.BufferAttribute(cats, 1));
+  starGeometry.computeBoundingSphere();
+  if (starGeometry.boundingSphere) {
+    const center = starGeometry.boundingSphere.center.clone();
+    if (center.lengthSq() > 1e-6) {
+      const positionAttr = starGeometry.getAttribute('position');
+      for (let i = 0; i < positionAttr.count; i++) {
+        positionAttr.setXYZ(
+          i,
+          positionAttr.getX(i) - center.x,
+          positionAttr.getY(i) - center.y,
+          positionAttr.getZ(i) - center.z
+        );
+      }
+      positionAttr.needsUpdate = true;
+      starGeometry.boundingSphere.center.set(0, 0, 0);
+      controls.target.copy(clusterGroup.position);
+    }
+  }
   // Vertex shader for stars
   const starVert = `
     attribute float aSize;
@@ -381,7 +507,7 @@ function makeStars() {
   });
   starMaterial.blending = (params.blending === 'Additive') ? THREE.AdditiveBlending : THREE.NormalBlending;
   starPoints = new THREE.Points(starGeometry, starMaterial);
-  scene.add(starPoints);
+  clusterGroup.add(starPoints);
 }
 
 /* Create tiny connection points */
@@ -389,12 +515,12 @@ function makeTiny() {
   if (tinyPoints) {
     tinyGeometry.dispose();
     tinyMaterial.dispose();
-    scene.remove(tinyPoints);
+    clusterGroup.remove(tinyPoints);
   }
   // Determine number of tiny points based on connPercent
   const nTiny = Math.round(params.tinyCount * params.connPercent);
   tinyGeometry = new THREE.BufferGeometry();
-  const positions = new Float32Array(nTiny * 3);
+  const positions = new Float32Array(Math.max(0, nTiny * 3));
   // Access star positions for connections
   const starPos = starGeometry.getAttribute('position');
   const nStars = starPos.count;
@@ -413,17 +539,42 @@ function makeTiny() {
     positions.set([x, y, z], i * 3);
   }
   tinyGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-  tinyMaterial = new THREE.PointsMaterial({
-    color: 0xffffff,
-    size: params.sizeFactorTiny * 2.0,
+  const tinyVert = `
+    uniform float uSize;
+    varying float vDepth;
+    void main() {
+      vec4 mv = modelViewMatrix * vec4(position, 1.0);
+      vDepth = -mv.z;
+      float px = max(1.0, uSize * 6.0);
+      gl_PointSize = px * (300.0 / max(1.0, vDepth));
+      gl_Position = projectionMatrix * mv;
+    }
+  `;
+  const tinyFrag = `
+    precision highp float;
+    uniform float uAlpha;
+    void main() {
+      vec2 uv = gl_PointCoord * 2.0 - 1.0;
+      float d = dot(uv, uv);
+      if (d > 1.0) discard;
+      float fade = 1.0 - smoothstep(0.6, 1.0, d);
+      gl_FragColor = vec4(1.0, 1.0, 1.0, fade * uAlpha);
+    }
+  `;
+  tinyMaterial = new THREE.ShaderMaterial({
+    vertexShader: tinyVert,
+    fragmentShader: tinyFrag,
     transparent: true,
-    opacity: params.tinyAlpha,
     depthTest: true,
-    depthWrite: false
+    depthWrite: false,
+    uniforms: {
+      uAlpha: { value: params.tinyAlpha },
+      uSize: { value: params.sizeFactorTiny }
+    }
   });
   tinyMaterial.blending = (params.blending === 'Additive') ? THREE.AdditiveBlending : THREE.NormalBlending;
   tinyPoints = new THREE.Points(tinyGeometry, tinyMaterial);
-  scene.add(tinyPoints);
+  clusterGroup.add(tinyPoints);
 }
 
 /* Update uniforms and materials when parameters change */
@@ -440,8 +591,8 @@ function updateStarUniforms() {
 
 function updateTinyMaterial() {
   if (!tinyMaterial) return;
-  tinyMaterial.size = params.sizeFactorTiny * 2.0;
-  tinyMaterial.opacity = params.tinyAlpha;
+  tinyMaterial.uniforms.uAlpha.value = params.tinyAlpha;
+  tinyMaterial.uniforms.uSize.value = params.sizeFactorTiny;
   tinyMaterial.blending = (params.blending === 'Additive') ? THREE.AdditiveBlending : THREE.NormalBlending;
   tinyMaterial.needsUpdate = true;
 }
@@ -476,27 +627,97 @@ function setPanelVisible(show) {
 
 function setCameraLocked(lock) {
   cameraLocked = lock;
+
+  controls.enabled = true;
+  controls.enablePan = !lock;
+  controls.enableZoom = !lock;
+  controls.enableRotate = true;
+  if (lock) {
+    controls.target.copy(clusterGroup.position);
+  }
+  controls.update();
+=======
   controls.enabled = !lock;
   lockBtn.textContent = lock ? '🔒 Kamera gesperrt' : '🔓 Kamera frei';
   lockBtn.setAttribute('aria-pressed', lock ? 'true' : 'false');
   renderer.domElement.classList.toggle('locked', lock);
 }
 
+function setCategoryPercent(kind, value) {
+  const keyMap = { small: 'catSmall', medium: 'catMedium', large: 'catLarge' };
+  const key = keyMap[kind];
+  if (!key) return;
+  const allKeys = ['catSmall', 'catMedium', 'catLarge'];
+  value = Math.max(0, Math.min(100, Math.round(value)));
+  params[key] = value;
+  const otherKeys = allKeys.filter(k => k !== key);
+  let remainder = 100 - params[key];
+  if (remainder < 0) {
+    params[key] = 100;
+    remainder = 0;
+  }
+  const sumOthers = otherKeys.reduce((sum, k) => sum + params[k], 0);
+  if (otherKeys.length) {
+    if (sumOthers === 0) {
+      const even = remainder / otherKeys.length;
+      let acc = 0;
+      otherKeys.forEach((k, idx) => {
+        const val = (idx === otherKeys.length - 1) ? remainder - acc : Math.round(even);
+        params[k] = Math.max(0, Math.min(100, val));
+        acc += params[k];
+      });
+    } else {
+      let acc = 0;
+      otherKeys.forEach((k, idx) => {
+        const ratio = params[k] / sumOthers;
+        const scaled = remainder * ratio;
+        if (idx === otherKeys.length - 1) {
+          params[k] = Math.max(0, Math.min(100, Math.round(remainder - acc)));
+        } else {
+          const rounded = Math.round(scaled);
+          params[k] = Math.max(0, Math.min(100, rounded));
+          acc += params[k];
+        }
+      });
+    }
+  }
+  const total = allKeys.reduce((sum, k) => sum + params[k], 0);
+  let diff = 100 - total;
+  let idx = 0;
+  const adjustOrder = otherKeys.length ? otherKeys : [key];
+  while (diff !== 0 && idx < 300) {
+    const adjustKey = adjustOrder[idx % adjustOrder.length];
+    params[adjustKey] = Math.max(0, Math.min(100, params[adjustKey] + Math.sign(diff)));
+    diff -= Math.sign(diff);
+    idx++;
+  }
+}
+
+function getSizeRange() {
+  const min = Math.max(0.05, 1 - params.sizeVar * 0.5);
+  const max = 1 + params.sizeVar * 0.5;
+  return { min, max, delta: max - min };
+}
+
+=======
 const sliders = {
-  pCount:       val => { params.count = parseInt(val); rebuildStars(); },
+  pCount:       val => { params.count = parseInt(val, 10); rebuildStars(); },
   pRadius:      val => { params.radius = parseFloat(val); rebuildStars(); },
   pSizeVar:     val => { params.sizeVar = parseFloat(val); rebuildStars(); },
   pCluster:     val => { params.cluster = parseFloat(val); rebuildStars(); },
   pPointAlpha:  val => { params.pointAlpha = parseFloat(val); updateStarUniforms(); },
-  pSeedStars:   val => { params.seedStars = parseInt(val); rebuildStars(); },
+  pSeedStars:   val => { params.seedStars = parseInt(val, 10); rebuildStars(); },
+  pCatSmall:    val => { setCategoryPercent('small', parseInt(val, 10)); rebuildStars(); },
+  pCatMedium:   val => { setCategoryPercent('medium', parseInt(val, 10)); rebuildStars(); },
+  pCatLarge:    val => { setCategoryPercent('large', parseInt(val, 10)); rebuildStars(); },
   pSizeTiny:    val => { params.sizeFactorTiny = parseFloat(val); updateTinyMaterial(); },
   pSizeSmall:   val => { params.sizeFactorSmall = parseFloat(val); updateStarUniforms(); },
   pSizeMedium:  val => { params.sizeFactorMedium = parseFloat(val); updateStarUniforms(); },
   pSizeLarge:   val => { params.sizeFactorLarge = parseFloat(val); updateStarUniforms(); },
-  pTinyCount:   val => { params.tinyCount = parseInt(val); rebuildTiny(); },
+  pTinyCount:   val => { params.tinyCount = parseInt(val, 10); rebuildTiny(); },
   pConnPercent: val => { params.connPercent = parseFloat(val); rebuildTiny(); },
   pTinyAlpha:   val => { params.tinyAlpha = parseFloat(val); updateTinyMaterial(); },
-  pSeedTiny:    val => { params.seedTiny = parseInt(val); rebuildTiny(); },
+  pSeedTiny:    val => { params.seedTiny = parseInt(val, 10); rebuildTiny(); },
   pEdgeSoft:    val => { params.edgeSoftness = parseFloat(val); updateStarUniforms(); },
 };
 // assign input event handlers
@@ -511,6 +732,11 @@ $('pBlending').addEventListener('change', e => {
   params.blending = e.target.value;
   updateStarUniforms();
   updateTinyMaterial();
+});
+$('pDistribution').addEventListener('change', e => {
+  params.distribution = e.target.value;
+  rebuildStars();
+  setSliders();
 });
 // Filled checkbox
 $('pFilled').addEventListener('change', e => {
@@ -527,6 +753,13 @@ lockBtn.addEventListener('click', () => {
   setCameraLocked(!cameraLocked);
 });
 
+=======
+});
+
+lockBtn.addEventListener('click', () => {
+  setCameraLocked(!cameraLocked);
+});
+
 $('random').addEventListener('click', () => {
   // randomize many parameters
   params.count = 500 + Math.floor(Math.random() * 7500);
@@ -535,10 +768,17 @@ $('random').addEventListener('click', () => {
   params.cluster = Math.random() * 0.95;
   params.pointAlpha = 0.3 + Math.random() * 0.7;
   params.seedStars = 1 + Math.floor(Math.random() * 9999);
+  const distributions = ['random', 'fibonacci', 'spiral'];
+  params.distribution = distributions[Math.floor(Math.random() * distributions.length)];
+  const smallShare = Math.floor(Math.random() * 70);
+  const mediumShare = Math.floor(Math.random() * (100 - smallShare));
+  params.catSmall = smallShare;
+  params.catMedium = mediumShare;
+  params.catLarge = 100 - params.catSmall - params.catMedium;
   params.sizeFactorSmall = 0.5 + Math.random() * 2.5;
   params.sizeFactorMedium = 0.5 + Math.random() * 2.5;
   params.sizeFactorLarge = 0.5 + Math.random() * 2.5;
-  params.sizeFactorTiny = 0.1 + Math.random() * 2.9;
+  params.sizeFactorTiny = 0.05 + Math.random() * 0.6;
   params.tinyCount = Math.floor(Math.random() * 5000);
   params.connPercent = Math.random();
   params.tinyAlpha = Math.random();
@@ -555,10 +795,16 @@ function setSliders() {
   // star params
   $('pCount').value = params.count; $('vCount').textContent = params.count;
   $('pRadius').value = params.radius; $('vRadius').textContent = params.radius;
-  $('pSizeVar').value = params.sizeVar; $('vSizeVar').textContent = params.sizeVar.toFixed(2);
+  $('pDistribution').value = params.distribution;
+  $('pSizeVar').value = params.sizeVar;
+  const sizeRange = getSizeRange();
+  $('vSizeVar').textContent = sizeRange.delta.toFixed(2);
   $('pCluster').value = params.cluster; $('vCluster').textContent = params.cluster.toFixed(2);
   $('pPointAlpha').value = params.pointAlpha; $('vPointAlpha').textContent = params.pointAlpha.toFixed(2);
   $('pSeedStars').value = params.seedStars; $('vSeedStars').textContent = params.seedStars;
+  $('pCatSmall').value = params.catSmall; $('vCatSmall').textContent = params.catSmall + '%';
+  $('pCatMedium').value = params.catMedium; $('vCatMedium').textContent = params.catMedium + '%';
+  $('pCatLarge').value = params.catLarge; $('vCatLarge').textContent = params.catLarge + '%';
   // size factors
   $('pSizeTiny').value = params.sizeFactorTiny; $('vSizeTiny').textContent = params.sizeFactorTiny.toFixed(2);
   $('pSizeSmall').value = params.sizeFactorSmall; $('vSizeSmall').textContent = params.sizeFactorSmall.toFixed(2);
@@ -585,7 +831,13 @@ window.addEventListener('resize', () => {
 /* Animation loop */
 function animate() {
   requestAnimationFrame(animate);
+  if (cameraLocked) {
+    controls.target.copy(clusterGroup.position);
+  }
   controls.update();
+  if (!cameraLocked && !controls.target.equals(clusterGroup.position)) {
+    clusterGroup.position.copy(controls.target);
+  }
   renderer.render(scene, camera);
 }
 
