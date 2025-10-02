@@ -163,6 +163,13 @@
     </div>
   </div>
   <div class="row">
+    <label for="pHue">Punktfarbe (Farbton)</label>
+    <div class="wrap">
+      <input id="pHue" type="range" min="0" max="360" step="1" />
+      <div class="val" id="vHue"></div>
+    </div>
+  </div>
+  <div class="row">
     <label for="pSeedStars">Seed Punkte</label>
     <div class="wrap">
       <input id="pSeedStars" type="range" min="1" max="9999" step="1" />
@@ -345,6 +352,7 @@ const params = {
   sizeVar: 4.0,
   cluster: 0.65,
   pointAlpha: 0.95,
+  pointHue: 210,
   seedStars: 1,
   catSmall: 45,
   catMedium: 35,
@@ -365,9 +373,27 @@ const params = {
   filled: false
 };
 
+const COLOR_SETTINGS = { saturation: 0.75, value: 1.0 };
+const colorState = { point: new THREE.Color() };
+
 /* Globals for stars and tiny connections */
 let starPoints, starGeometry, starMaterial;
 let tinyPoints, tinyGeometry, tinyMaterial;
+
+function updatePointColor(applyUniforms = true) {
+  const hue = ((params.pointHue % 360) + 360) % 360;
+  const next = hsv2rgb(hue, COLOR_SETTINGS.saturation, COLOR_SETTINGS.value);
+  colorState.point.copy(next);
+  if (!applyUniforms) return;
+  if (starMaterial && starMaterial.uniforms && starMaterial.uniforms.uColor) {
+    starMaterial.uniforms.uColor.value.copy(colorState.point);
+    starMaterial.needsUpdate = true;
+  }
+  if (tinyMaterial && tinyMaterial.uniforms && tinyMaterial.uniforms.uColor) {
+    tinyMaterial.uniforms.uColor.value.copy(colorState.point);
+    tinyMaterial.needsUpdate = true;
+  }
+}
 
 /* Create stars geometry and material */
 function makeStars() {
@@ -517,6 +543,7 @@ function makeStars() {
     precision highp float;
     uniform float uAlpha;
     uniform float uEdgeSoftness;
+    uniform vec3 uColor;
     void main() {
       vec2 uv = gl_PointCoord * 2.0 - 1.0;
       float d = dot(uv, uv);
@@ -525,7 +552,7 @@ function makeStars() {
       float inner = 1.0 - uEdgeSoftness;
       // fade alpha near the outer edge: inside 'inner' radius alpha=1, outside alpha decreases to 0 at the rim
       float edge = 1.0 - smoothstep(inner, 1.0, d);
-      gl_FragColor = vec4(1.0, 1.0, 1.0, edge * uAlpha);
+      gl_FragColor = vec4(uColor, edge * uAlpha);
     }
   `;
   starMaterial = new THREE.ShaderMaterial({
@@ -540,7 +567,8 @@ function makeStars() {
       uEdgeSoftness: { value: params.filled ? 0.0 : params.edgeSoftness },
       uSizeFactorSmall: { value: params.sizeFactorSmall },
       uSizeFactorMedium: { value: params.sizeFactorMedium },
-      uSizeFactorLarge: { value: params.sizeFactorLarge }
+      uSizeFactorLarge: { value: params.sizeFactorLarge },
+      uColor: { value: colorState.point.clone() }
     }
   });
   starMaterial.blending = (params.blending === 'Additive') ? THREE.AdditiveBlending : THREE.NormalBlending;
@@ -591,12 +619,13 @@ function makeTiny() {
   const tinyFrag = `
     precision highp float;
     uniform float uAlpha;
+    uniform vec3 uColor;
     void main() {
       vec2 uv = gl_PointCoord * 2.0 - 1.0;
       float d = dot(uv, uv);
       if (d > 1.0) discard;
       float fade = 1.0 - smoothstep(0.6, 1.0, d);
-      gl_FragColor = vec4(1.0, 1.0, 1.0, fade * uAlpha);
+      gl_FragColor = vec4(uColor, fade * uAlpha);
     }
   `;
   tinyMaterial = new THREE.ShaderMaterial({
@@ -607,7 +636,8 @@ function makeTiny() {
     depthWrite: false,
     uniforms: {
       uAlpha: { value: params.tinyAlpha },
-      uSize: { value: params.sizeFactorTiny }
+      uSize: { value: params.sizeFactorTiny },
+      uColor: { value: colorState.point.clone() }
     }
   });
   tinyMaterial.blending = (params.blending === 'Additive') ? THREE.AdditiveBlending : THREE.NormalBlending;
@@ -623,6 +653,9 @@ function updateStarUniforms() {
   starMaterial.uniforms.uSizeFactorSmall.value = params.sizeFactorSmall;
   starMaterial.uniforms.uSizeFactorMedium.value = params.sizeFactorMedium;
   starMaterial.uniforms.uSizeFactorLarge.value = params.sizeFactorLarge;
+  if (starMaterial.uniforms.uColor) {
+    starMaterial.uniforms.uColor.value.copy(colorState.point);
+  }
   starMaterial.blending = (params.blending === 'Additive') ? THREE.AdditiveBlending : THREE.NormalBlending;
   starMaterial.needsUpdate = true;
 }
@@ -631,6 +664,9 @@ function updateTinyMaterial() {
   if (!tinyMaterial) return;
   tinyMaterial.uniforms.uAlpha.value = params.tinyAlpha;
   tinyMaterial.uniforms.uSize.value = params.sizeFactorTiny;
+  if (tinyMaterial.uniforms.uColor) {
+    tinyMaterial.uniforms.uColor.value.copy(colorState.point);
+  }
   tinyMaterial.blending = (params.blending === 'Additive') ? THREE.AdditiveBlending : THREE.NormalBlending;
   tinyMaterial.needsUpdate = true;
 }
@@ -965,6 +1001,7 @@ const sliders = {
   pSizeVar:     val => { params.sizeVar = parseFloat(val); rebuildStars(); },
   pCluster:     val => { params.cluster = parseFloat(val); rebuildStars(); },
   pPointAlpha:  val => { params.pointAlpha = parseFloat(val); updateStarUniforms(); },
+  pHue:         val => { params.pointHue = parseFloat(val); updatePointColor(); updateStarUniforms(); updateTinyMaterial(); },
   pSeedStars:   val => { params.seedStars = parseInt(val, 10); rebuildStars(); },
   pCatSmall:    val => { setCategoryPercent('small', parseInt(val, 10)); rebuildStars(); },
   pCatMedium:   val => { setCategoryPercent('medium', parseInt(val, 10)); rebuildStars(); },
@@ -1019,6 +1056,7 @@ $('random').addEventListener('click', () => {
   params.sizeVar = Math.random() * 9.5;
   params.cluster = Math.random() * 0.95;
   params.pointAlpha = 0.3 + Math.random() * 0.7;
+  params.pointHue = Math.random() * 360;
   params.seedStars = 1 + Math.floor(Math.random() * 9999);
   const distributions = ['random', 'fibonacci', 'spiral'];
   params.distribution = distributions[Math.floor(Math.random() * distributions.length)];
@@ -1038,6 +1076,7 @@ $('random').addEventListener('click', () => {
   params.edgeSoftness = Math.random();
   params.blending = (Math.random() < 0.5) ? 'Normal' : 'Additive';
   params.filled = Math.random() < 0.3;
+  updatePointColor();
   rebuildStars();
   setSliders();
 });
@@ -1053,6 +1092,7 @@ function setSliders() {
   $('vSizeVar').textContent = sizeRange.delta.toFixed(2);
   $('pCluster').value = params.cluster; $('vCluster').textContent = params.cluster.toFixed(2);
   $('pPointAlpha').value = params.pointAlpha; $('vPointAlpha').textContent = params.pointAlpha.toFixed(2);
+  $('pHue').value = params.pointHue; $('vHue').textContent = Math.round(params.pointHue) + '°';
   $('pSeedStars').value = params.seedStars; $('vSeedStars').textContent = params.seedStars;
   $('pCatSmall').value = params.catSmall; $('vCatSmall').textContent = params.catSmall + '%';
   $('pCatMedium').value = params.catMedium; $('vCatMedium').textContent = params.catMedium + '%';
@@ -1126,6 +1166,7 @@ setInertiaEnabled(spinState.inertiaEnabled);
 setAutoRotation(true);
 setPanelVisible(window.innerWidth > 580);
 setCameraLocked(false);
+updatePointColor(false);
 setSliders();
 rebuildStars();
 requestAnimationFrame(animate);
