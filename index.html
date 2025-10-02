@@ -13,10 +13,18 @@
       right: 10px;
       z-index: 10;
       width: 330px;
+      max-height: calc(100vh - 90px);
+      overflow-y: auto;
       background: var(--panel);
       border-radius: 10px;
       padding: 12px;
       backdrop-filter: blur(2px);
+      transition: opacity .25s ease, transform .25s ease;
+    }
+    #panel.is-hidden {
+      opacity: 0;
+      pointer-events: none;
+      transform: translateY(-12px);
     }
     #panel h3 { margin: .25rem 0 .5rem; font-size: .95rem; }
     .row { margin: .35rem 0 .8rem; }
@@ -26,8 +34,54 @@
     .val { min-width: 66px; text-align: right; font-variant-numeric: tabular-nums; }
     select { flex: 1; }
     #bar { position: absolute; top: 10px; left: 10px; z-index: 12; display: flex; gap: 8px; }
-    #bar button { padding: .45rem .65rem; font-size: .85rem; background: var(--panel); color: #fff; border: 1px solid #666; border-radius: 6px; cursor: pointer; }
-    canvas { display: block; }
+    #bar button {
+      padding: .45rem .65rem;
+      font-size: .85rem;
+      background: var(--panel);
+      color: #fff;
+      border: 1px solid #666;
+      border-radius: 6px;
+      cursor: pointer;
+      backdrop-filter: blur(2px);
+      transition: background .2s ease, border-color .2s ease;
+    }
+    #bar button[aria-pressed="true"] {
+      background: rgba(40, 160, 220, 0.65);
+      border-color: rgba(90, 190, 255, 0.9);
+    }
+    @media (hover:hover) {
+      #bar button:hover {
+        background: rgba(80, 80, 80, 0.7);
+      }
+    }
+    @media (max-width: 768px) {
+      #panel {
+        top: auto;
+        bottom: 10px;
+        right: 10px;
+        left: 10px;
+        width: auto;
+        max-height: calc(70vh - 20px);
+        padding: 14px 14px 18px;
+        transform-origin: bottom;
+      }
+      #panel.is-hidden {
+        transform: translateY(16px);
+      }
+      #bar {
+        left: 50%;
+        transform: translateX(-50%);
+        flex-wrap: wrap;
+        justify-content: center;
+        width: calc(100% - 20px);
+      }
+      #bar button {
+        flex: 1 1 140px;
+        text-align: center;
+      }
+    }
+    canvas { display: block; cursor: grab; }
+    canvas.locked { cursor: not-allowed; }
   </style>
   <!-- Load Three.js and OrbitControls from local files -->
   <script src="./three.min.js"></script>
@@ -35,7 +89,8 @@
 </head>
 <body>
 <div id="bar">
-  <button id="toggle">↕ Panel</button>
+  <button id="toggle" aria-expanded="true">↕ Panel ausblenden</button>
+  <button id="lock" aria-pressed="false">🔓 Kamera frei</button>
   <button id="random">🎲 Random</button>
 </div>
 <div id="panel">
@@ -406,6 +461,27 @@ function rebuildTiny() {
 
 /* Bind UI elements */
 const $ = id => document.getElementById(id);
+const panel = $('panel');
+const toggleBtn = $('toggle');
+const lockBtn = $('lock');
+let panelVisible = true;
+let cameraLocked = false;
+
+function setPanelVisible(show) {
+  panelVisible = show;
+  panel.classList.toggle('is-hidden', !show);
+  toggleBtn.textContent = show ? '↕ Panel ausblenden' : '↕ Panel einblenden';
+  toggleBtn.setAttribute('aria-expanded', show ? 'true' : 'false');
+}
+
+function setCameraLocked(lock) {
+  cameraLocked = lock;
+  controls.enabled = !lock;
+  lockBtn.textContent = lock ? '🔒 Kamera gesperrt' : '🔓 Kamera frei';
+  lockBtn.setAttribute('aria-pressed', lock ? 'true' : 'false');
+  renderer.domElement.classList.toggle('locked', lock);
+}
+
 const sliders = {
   pCount:       val => { params.count = parseInt(val); rebuildStars(); },
   pRadius:      val => { params.radius = parseFloat(val); rebuildStars(); },
@@ -442,10 +518,15 @@ $('pFilled').addEventListener('change', e => {
   updateStarUniforms();
 });
 
-/* Toggle panel & random button */
-$('toggle').addEventListener('click', () => {
-  document.getElementById('panel').classList.toggle('mobile');
+/* Toggle panel, lock camera & random button */
+toggleBtn.addEventListener('click', () => {
+  setPanelVisible(!panelVisible);
 });
+
+lockBtn.addEventListener('click', () => {
+  setCameraLocked(!cameraLocked);
+});
+
 $('random').addEventListener('click', () => {
   // randomize many parameters
   params.count = 500 + Math.floor(Math.random() * 7500);
@@ -509,6 +590,8 @@ function animate() {
 }
 
 /* Initialization */
+setPanelVisible(window.innerWidth > 580);
+setCameraLocked(false);
 setSliders();
 rebuildStars();
 animate();
