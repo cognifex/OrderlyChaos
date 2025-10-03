@@ -5,7 +5,12 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Chaos‑Kugel – erweiterte Kontrolle</title>
   <style>
-    :root { --panel: rgba(0,0,0,.6); --fg: #ddd; }
+    :root {
+      --panel: rgba(0,0,0,.6);
+      --fg: #ddd;
+      --sheet-compact-height: 32vh;
+      --sheet-expanded-height: 84vh;
+    }
     html, body { margin: 0; height: 100%; overflow: hidden; background: #000; color: var(--fg); font-family: system-ui, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }
     #panel {
       position: absolute;
@@ -27,6 +32,61 @@
       transform: translateY(-12px);
     }
     #panel h3 { margin: .25rem 0 .5rem; font-size: .95rem; }
+    .accordion {
+      background: rgba(20, 20, 20, 0.45);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 10px;
+      margin: 0 0 .75rem;
+      overflow: hidden;
+    }
+    .accordion + .accordion { margin-top: .5rem; }
+    .accordion__trigger {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: .65rem;
+      padding: .6rem .85rem;
+      background: transparent;
+      color: inherit;
+      border: none;
+      font-size: .85rem;
+      font-weight: 600;
+      letter-spacing: .01em;
+      cursor: pointer;
+      position: relative;
+      transition: background .2s ease, color .2s ease;
+    }
+    .accordion__trigger::after {
+      content: '▾';
+      font-size: .9rem;
+      transition: transform .2s ease;
+    }
+    .accordion__trigger[aria-expanded="false"]::after {
+      transform: rotate(-90deg);
+    }
+    .accordion__trigger[aria-expanded="true"] {
+      background: rgba(70, 70, 70, 0.25);
+    }
+    .accordion__trigger[aria-expanded="false"] {
+      background: rgba(0, 0, 0, 0.05);
+    }
+    .accordion__trigger:focus-visible {
+      outline: 2px solid rgba(90, 190, 255, 0.9);
+      outline-offset: 2px;
+    }
+    .accordion__panel {
+      padding: .5rem .85rem .55rem;
+      display: grid;
+      gap: .2rem;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .accordion__panel.is-open {
+      background: rgba(255, 255, 255, 0.04);
+    }
+    .accordion__panel[hidden] {
+      display: none;
+    }
     .row { margin: .35rem 0 .8rem; }
     .row label { display: block; font-size: .8rem; margin-bottom: .25rem; opacity: .95; }
     .row button {
@@ -75,19 +135,73 @@
         background: rgba(80, 80, 80, 0.7);
       }
     }
+    .sheet-handle {
+      display: none;
+    }
+    .sheet-handle-label {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
     @media (max-width: 768px) {
       #panel {
+        position: fixed;
         top: auto;
-        bottom: 10px;
-        right: 10px;
-        left: 10px;
-        width: auto;
-        max-height: calc(70vh - 20px);
-        padding: 14px 14px 18px;
-        transform-origin: bottom;
+        bottom: 0;
+        right: auto;
+        left: 0;
+        width: 100%;
+        max-width: none;
+        border-radius: 18px 18px 0 0;
+        padding: 18px 18px 24px;
+        max-height: min(var(--sheet-expanded-height), calc(100vh - 56px));
+        transform: translateY(var(--sheet-offset, 0px));
+        transition: opacity .25s ease, transform .35s ease;
+        box-shadow: 0 -12px 28px rgba(0, 0, 0, 0.4);
       }
       #panel.is-hidden {
-        transform: translateY(16px);
+        transform: translateY(calc(var(--sheet-expanded-height, 80vh) + 40px));
+      }
+      #panel.is-dragging {
+        transition: none;
+      }
+      .sheet-handle {
+        display: flex;
+        justify-content: center;
+        margin: -6px auto 10px;
+      }
+      .sheet-handle button {
+        appearance: none;
+        border: none;
+        background: transparent;
+        padding: 10px 24px;
+        border-radius: 24px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        cursor: grab;
+        touch-action: none;
+      }
+      .sheet-handle button:active {
+        cursor: grabbing;
+      }
+      .sheet-handle-bar {
+        width: 44px;
+        height: 5px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.35);
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+      }
+      .sheet-handle button:focus-visible .sheet-handle-bar {
+        outline: 2px solid rgba(90, 190, 255, 0.95);
+        outline-offset: 4px;
       }
       #bar {
         left: 50%;
@@ -117,185 +231,219 @@
   <button id="random">🎲 Random</button>
 </div>
 <div id="panel">
+  <div class="sheet-handle">
+    <button id="sheetHandle" type="button" aria-expanded="false" aria-controls="panel">
+      <span class="sheet-handle-bar" aria-hidden="true"></span>
+      <span class="sheet-handle-label">Panel vergrößern</span>
+    </button>
+  </div>
   <h3>Parameter</h3>
-  <!-- Star parameters -->
-  <div class="row">
-    <label for="pCount">Anzahl Punkte</label>
-    <div class="wrap">
-      <input id="pCount" type="range" min="500" max="8000" step="100" />
-      <div class="val" id="vCount"></div>
-    </div>
-  </div>
-  <div class="row">
-    <label for="pRadius">Radius</label>
-    <div class="wrap">
-      <input id="pRadius" type="range" min="40" max="260" step="1" />
-      <div class="val" id="vRadius"></div>
-    </div>
-  </div>
-  <div class="row">
-    <label for="pDistribution">Verteilungsalgorithmus</label>
-    <select id="pDistribution">
-      <option value="random">Zufall (Sphäre)</option>
-      <option value="fibonacci">Fibonacci-Sphäre</option>
-      <option value="spiral">Galaxie-Spirale</option>
-    </select>
-  </div>
-  <div class="row">
-    <label for="pSizeVar">Größenvariation (Δ)</label>
-    <div class="wrap">
-      <input id="pSizeVar" type="range" min="0" max="10" step="0.1" />
-      <div class="val" id="vSizeVar"></div>
-    </div>
-  </div>
-  <div class="row">
-    <label for="pCluster">Clustering</label>
-    <div class="wrap">
-      <input id="pCluster" type="range" min="0" max="1" step="0.01" />
-      <div class="val" id="vCluster"></div>
-    </div>
-  </div>
-  <div class="row">
-    <label for="pPointAlpha">Deckkraft Punkte</label>
-    <div class="wrap">
-      <input id="pPointAlpha" type="range" min="0.3" max="1" step="0.01" />
-      <div class="val" id="vPointAlpha"></div>
-    </div>
-  </div>
-  <div class="row">
-    <label for="pHue">Punktfarbe (Farbton)</label>
-    <div class="wrap">
-      <input id="pHue" type="range" min="0" max="360" step="1" />
-      <div class="val" id="vHue"></div>
-    </div>
-  </div>
-  <div class="row">
-    <label for="pSeedStars">Seed Punkte</label>
-    <div class="wrap">
-      <input id="pSeedStars" type="range" min="1" max="9999" step="1" />
-      <div class="val" id="vSeedStars"></div>
-    </div>
-  </div>
-  <div class="row">
-    <label>Punktkategorien (%)</label>
-    <div class="stack">
-      <div class="wrap">
-        <span class="tag">Klein</span>
-        <input id="pCatSmall" type="range" min="0" max="100" step="1" />
-        <div class="val" id="vCatSmall"></div>
+  <section class="accordion" id="acc-points">
+    <button type="button" class="accordion__trigger" id="acc-points-trigger" aria-expanded="true" aria-controls="acc-points-panel">
+      Punkte
+    </button>
+    <div class="accordion__panel" id="acc-points-panel" role="region" aria-labelledby="acc-points-trigger">
+      <div class="row">
+        <label for="pCount">Anzahl Punkte</label>
+        <div class="wrap">
+          <input id="pCount" type="range" min="500" max="8000" step="100" />
+          <div class="val" id="vCount"></div>
+        </div>
       </div>
-      <div class="wrap">
-        <span class="tag">Mittel</span>
-        <input id="pCatMedium" type="range" min="0" max="100" step="1" />
-        <div class="val" id="vCatMedium"></div>
+      <div class="row">
+        <label for="pRadius">Radius</label>
+        <div class="wrap">
+          <input id="pRadius" type="range" min="40" max="260" step="1" />
+          <div class="val" id="vRadius"></div>
+        </div>
       </div>
-      <div class="wrap">
-        <span class="tag">Groß</span>
-        <input id="pCatLarge" type="range" min="0" max="100" step="1" />
-        <div class="val" id="vCatLarge"></div>
+      <div class="row">
+        <label for="pDistribution">Verteilungsalgorithmus</label>
+        <select id="pDistribution">
+          <option value="random">Zufall (Sphäre)</option>
+          <option value="fibonacci">Fibonacci-Sphäre</option>
+          <option value="spiral">Galaxie-Spirale</option>
+        </select>
+      </div>
+      <div class="row">
+        <label for="pSizeVar">Größenvariation (Δ)</label>
+        <div class="wrap">
+          <input id="pSizeVar" type="range" min="0" max="10" step="0.1" />
+          <div class="val" id="vSizeVar"></div>
+        </div>
+      </div>
+      <div class="row">
+        <label for="pCluster">Clustering</label>
+        <div class="wrap">
+          <input id="pCluster" type="range" min="0" max="1" step="0.01" />
+          <div class="val" id="vCluster"></div>
+        </div>
+      </div>
+      <div class="row">
+        <label for="pPointAlpha">Deckkraft Punkte</label>
+        <div class="wrap">
+          <input id="pPointAlpha" type="range" min="0.3" max="1" step="0.01" />
+          <div class="val" id="vPointAlpha"></div>
+        </div>
+      </div>
+      <div class="row">
+        <label for="pHue">Punktfarbe (Farbton)</label>
+        <div class="wrap">
+          <input id="pHue" type="range" min="0" max="360" step="1" />
+          <div class="val" id="vHue"></div>
+        </div>
+      </div>
+      <div class="row">
+        <label for="pSeedStars">Seed Punkte</label>
+        <div class="wrap">
+          <input id="pSeedStars" type="range" min="1" max="9999" step="1" />
+          <div class="val" id="vSeedStars"></div>
+        </div>
+      </div>
+      <div class="row">
+        <label>Punktkategorien (%)</label>
+        <div class="stack">
+          <div class="wrap">
+            <span class="tag">Klein</span>
+            <input id="pCatSmall" type="range" min="0" max="100" step="1" />
+            <div class="val" id="vCatSmall"></div>
+          </div>
+          <div class="wrap">
+            <span class="tag">Mittel</span>
+            <input id="pCatMedium" type="range" min="0" max="100" step="1" />
+            <div class="val" id="vCatMedium"></div>
+          </div>
+          <div class="wrap">
+            <span class="tag">Groß</span>
+            <input id="pCatLarge" type="range" min="0" max="100" step="1" />
+            <div class="val" id="vCatLarge"></div>
+          </div>
+        </div>
       </div>
     </div>
-  </div>
-  <!-- Size factors for normal points -->
-  <div class="row">
-    <label for="pSizeTiny">Größe winzige Punkte</label>
-    <div class="wrap">
-      <input id="pSizeTiny" type="range" min="0.05" max="3" step="0.01" />
-      <div class="val" id="vSizeTiny"></div>
+  </section>
+  <section class="accordion" id="acc-size">
+    <button type="button" class="accordion__trigger" id="acc-size-trigger" aria-expanded="false" aria-controls="acc-size-panel">
+      Größe
+    </button>
+    <div class="accordion__panel" id="acc-size-panel" role="region" aria-labelledby="acc-size-trigger" hidden>
+      <div class="row">
+        <label for="pSizeTiny">Größe winzige Punkte</label>
+        <div class="wrap">
+          <input id="pSizeTiny" type="range" min="0.05" max="3" step="0.01" />
+          <div class="val" id="vSizeTiny"></div>
+        </div>
+      </div>
+      <div class="row">
+        <label for="pSizeSmall">Größe kleine Punkte</label>
+        <div class="wrap">
+          <input id="pSizeSmall" type="range" min="0.2" max="3" step="0.05" />
+          <div class="val" id="vSizeSmall"></div>
+        </div>
+      </div>
+      <div class="row">
+        <label for="pSizeMedium">Größe mittlere Punkte</label>
+        <div class="wrap">
+          <input id="pSizeMedium" type="range" min="0.2" max="3" step="0.05" />
+          <div class="val" id="vSizeMedium"></div>
+        </div>
+      </div>
+      <div class="row">
+        <label for="pSizeLarge">Größe große Punkte</label>
+        <div class="wrap">
+          <input id="pSizeLarge" type="range" min="0.2" max="3" step="0.05" />
+          <div class="val" id="vSizeLarge"></div>
+        </div>
+      </div>
     </div>
-  </div>
-  <div class="row">
-    <label for="pSizeSmall">Größe kleine Punkte</label>
-    <div class="wrap">
-      <input id="pSizeSmall" type="range" min="0.2" max="3" step="0.05" />
-      <div class="val" id="vSizeSmall"></div>
+  </section>
+  <section class="accordion" id="acc-connections">
+    <button type="button" class="accordion__trigger" id="acc-connections-trigger" aria-expanded="false" aria-controls="acc-connections-panel">
+      Verbindungen
+    </button>
+    <div class="accordion__panel" id="acc-connections-panel" role="region" aria-labelledby="acc-connections-trigger" hidden>
+      <div class="row">
+        <label for="pTinyCount">Menge winzige Punkte</label>
+        <div class="wrap">
+          <input id="pTinyCount" type="range" min="0" max="5000" step="10" />
+          <div class="val" id="vTinyCount"></div>
+        </div>
+      </div>
+      <div class="row">
+        <label for="pConnPercent">Prozent Verbindungen</label>
+        <div class="wrap">
+          <input id="pConnPercent" type="range" min="0" max="1" step="0.01" />
+          <div class="val" id="vConnPercent"></div>
+        </div>
+      </div>
+      <div class="row">
+        <label for="pTinyAlpha">Deckkraft winzige Punkte</label>
+        <div class="wrap">
+          <input id="pTinyAlpha" type="range" min="0" max="1" step="0.01" />
+          <div class="val" id="vTinyAlpha"></div>
+        </div>
+      </div>
+      <div class="row">
+        <label for="pSeedTiny">Seed winzige Punkte</label>
+        <div class="wrap">
+          <input id="pSeedTiny" type="range" min="1" max="9999" step="1" />
+          <div class="val" id="vSeedTiny"></div>
+        </div>
+      </div>
     </div>
-  </div>
-  <div class="row">
-    <label for="pSizeMedium">Größe mittlere Punkte</label>
-    <div class="wrap">
-      <input id="pSizeMedium" type="range" min="0.2" max="3" step="0.05" />
-      <div class="val" id="vSizeMedium"></div>
+  </section>
+  <section class="accordion" id="acc-display">
+    <button type="button" class="accordion__trigger" id="acc-display-trigger" aria-expanded="false" aria-controls="acc-display-panel">
+      Darstellung
+    </button>
+    <div class="accordion__panel" id="acc-display-panel" role="region" aria-labelledby="acc-display-trigger" hidden>
+      <div class="row">
+        <label for="pEdgeSoft">Randweichheit</label>
+        <div class="wrap">
+          <input id="pEdgeSoft" type="range" min="0" max="1" step="0.01" />
+          <div class="val" id="vEdgeSoft"></div>
+        </div>
+      </div>
+      <div class="row">
+        <label for="pBlending">Blending-Modus</label>
+        <select id="pBlending">
+          <option value="Normal">Normal</option>
+          <option value="Additive">Additiv</option>
+        </select>
+      </div>
+      <div class="row">
+        <label><input id="pFilled" type="checkbox" /> Gefüllt (harte Kreise)</label>
+      </div>
     </div>
-  </div>
-  <div class="row">
-    <label for="pSizeLarge">Größe große Punkte</label>
-    <div class="wrap">
-      <input id="pSizeLarge" type="range" min="0.2" max="3" step="0.05" />
-      <div class="val" id="vSizeLarge"></div>
+  </section>
+  <section class="accordion" id="acc-dynamics">
+    <button type="button" class="accordion__trigger" id="acc-dynamics-trigger" aria-expanded="true" aria-controls="acc-dynamics-panel">
+      Dynamik
+    </button>
+    <div class="accordion__panel" id="acc-dynamics-panel" role="region" aria-labelledby="acc-dynamics-trigger">
+      <div class="row">
+        <label>Rotation</label>
+        <div class="wrap">
+          <button id="autoSpin" aria-pressed="false">🌀 Auto-Rotation aus</button>
+          <button id="spinStop" aria-disabled="true" disabled>⏹️ Stoppen</button>
+        </div>
+      </div>
+      <div class="row">
+        <label>Trägheit</label>
+        <div class="wrap">
+          <button id="spinInertia" aria-pressed="true">🪁 Trägheit an</button>
+          <div class="val" id="vInertia"></div>
+        </div>
+      </div>
+      <div class="row">
+        <label for="spinDecay">Abklingzeit (s)</label>
+        <div class="wrap">
+          <input id="spinDecay" type="range" min="1" max="30" step="1" />
+          <div class="val" id="vSpinDecay"></div>
+        </div>
+      </div>
     </div>
-  </div>
-  <!-- Tiny points and connections -->
-  <div class="row">
-    <label for="pTinyCount">Menge winzige Punkte</label>
-    <div class="wrap">
-      <input id="pTinyCount" type="range" min="0" max="5000" step="10" />
-      <div class="val" id="vTinyCount"></div>
-    </div>
-  </div>
-  <div class="row">
-    <label for="pConnPercent">Prozent Verbindungen</label>
-    <div class="wrap">
-      <input id="pConnPercent" type="range" min="0" max="1" step="0.01" />
-      <div class="val" id="vConnPercent"></div>
-    </div>
-  </div>
-  <div class="row">
-    <label for="pTinyAlpha">Deckkraft winzige Punkte</label>
-    <div class="wrap">
-      <input id="pTinyAlpha" type="range" min="0" max="1" step="0.01" />
-      <div class="val" id="vTinyAlpha"></div>
-    </div>
-  </div>
-  <div class="row">
-    <label for="pSeedTiny">Seed winzige Punkte</label>
-    <div class="wrap">
-      <input id="pSeedTiny" type="range" min="1" max="9999" step="1" />
-      <div class="val" id="vSeedTiny"></div>
-    </div>
-  </div>
-  <!-- Edge softness and blending -->
-  <hr style="opacity:.25;border:none;border-top:1px solid #444;margin:.5rem 0">
-  <div class="row">
-    <label for="pEdgeSoft">Randweichheit</label>
-    <div class="wrap">
-      <input id="pEdgeSoft" type="range" min="0" max="1" step="0.01" />
-      <div class="val" id="vEdgeSoft"></div>
-    </div>
-  </div>
-  <div class="row">
-    <label for="pBlending">Blending-Modus</label>
-    <select id="pBlending">
-      <option value="Normal">Normal</option>
-      <option value="Additive">Additiv</option>
-    </select>
-  </div>
-  <div class="row">
-    <label><input id="pFilled" type="checkbox" /> Gefüllt (harte Kreise)</label>
-  </div>
-  <hr style="opacity:.25;border:none;border-top:1px solid #444;margin:.75rem 0 .5rem">
-  <h3>Dynamik</h3>
-  <div class="row">
-    <label>Rotation</label>
-    <div class="wrap">
-      <button id="autoSpin" aria-pressed="false">🌀 Auto-Rotation aus</button>
-      <button id="spinStop" aria-disabled="true" disabled>⏹️ Stoppen</button>
-    </div>
-  </div>
-  <div class="row">
-    <label>Trägheit</label>
-    <div class="wrap">
-      <button id="spinInertia" aria-pressed="true">🪁 Trägheit an</button>
-      <div class="val" id="vInertia"></div>
-    </div>
-  </div>
-  <div class="row">
-    <label for="spinDecay">Abklingzeit (s)</label>
-    <div class="wrap">
-      <input id="spinDecay" type="range" min="1" max="30" step="1" />
-      <div class="val" id="vSpinDecay"></div>
-    </div>
-  </div>
+  </section>
 </div>
 <script>
 /* Utility: HSV→RGB (for potential future color variations) */
@@ -689,14 +837,153 @@ const $ = id => document.getElementById(id);
 const panel = $('panel');
 const toggleBtn = $('toggle');
 const lockBtn = $('lock');
+const sheetHandleBtn = $('sheetHandle');
+const mobileSheetQuery = window.matchMedia('(max-width: 768px)');
+const sheetState = {
+  mode: 'compact',
+  expandedHeight: 0,
+  compactHeight: 0,
+  pointerId: null,
+  startY: 0,
+  startOffset: 0,
+  lastOffset: 0,
+  moved: false,
+  preventClick: false,
+};
 let panelVisible = true;
 let cameraLocked = false;
 
+function isMobileSheetActive() {
+  return mobileSheetQuery.matches;
+}
+
+function getSheetCompactOffset() {
+  return Math.max(0, sheetState.expandedHeight - sheetState.compactHeight);
+}
+
+function updateSheetHandleAria() {
+  if (!sheetHandleBtn) return;
+  if (!isMobileSheetActive()) {
+    sheetHandleBtn.setAttribute('tabindex', '-1');
+    sheetHandleBtn.setAttribute('aria-expanded', 'false');
+    sheetHandleBtn.setAttribute('aria-hidden', 'true');
+    sheetHandleBtn.style.pointerEvents = 'none';
+    const label = 'Panel vergrößern';
+    sheetHandleBtn.setAttribute('aria-label', label);
+    const labelSpan = sheetHandleBtn.querySelector('.sheet-handle-label');
+    if (labelSpan) labelSpan.textContent = label;
+    return;
+  }
+  sheetHandleBtn.style.pointerEvents = '';
+  sheetHandleBtn.removeAttribute('aria-hidden');
+  sheetHandleBtn.setAttribute('tabindex', '0');
+  const expanded = panelVisible && sheetState.mode === 'expanded';
+  const label = expanded ? 'Panel verkleinern' : 'Panel vergrößern';
+  sheetHandleBtn.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+  sheetHandleBtn.setAttribute('aria-label', label);
+  const labelSpan = sheetHandleBtn.querySelector('.sheet-handle-label');
+  if (labelSpan) labelSpan.textContent = label;
+}
+
+function applySheetOffset() {
+  if (!isMobileSheetActive()) {
+    panel.style.removeProperty('--sheet-offset');
+    sheetState.lastOffset = 0;
+    return;
+  }
+  const compactOffset = getSheetCompactOffset();
+  let offset = sheetState.mode === 'expanded' ? 0 : compactOffset;
+  if (!panelVisible) {
+    offset = compactOffset;
+  }
+  sheetState.lastOffset = offset;
+  panel.style.setProperty('--sheet-offset', `${Math.max(0, Math.round(offset))}px`);
+}
+
+function setSheetMode(mode, options = {}) {
+  const next = mode === 'expanded' ? 'expanded' : 'compact';
+  if (sheetState.mode === next && !options.force) return;
+  sheetState.mode = next;
+  panel.dataset.sheetState = next;
+  applySheetOffset();
+  updateSheetHandleAria();
+}
+
+function recalculateSheetMetrics() {
+  if (!isMobileSheetActive()) {
+    sheetState.expandedHeight = 0;
+    sheetState.compactHeight = 0;
+    panel.style.removeProperty('--sheet-expanded-height');
+    panel.style.removeProperty('--sheet-compact-height');
+    panel.removeAttribute('data-sheet-state');
+    applySheetOffset();
+    updateSheetHandleAria();
+    return;
+  }
+  const vh = Math.max(window.innerHeight || 0, 0);
+  const minSceneHeight = Math.max(0, Math.round(vh * 0.5));
+  const allowed = Math.max(0, vh - minSceneHeight);
+  const baseCompact = Math.max(0, Math.round(vh * 0.3));
+  let compact = Math.max(baseCompact, 140);
+  if (allowed > 0) {
+    compact = Math.min(compact, allowed);
+  }
+  if (allowed < 140) {
+    compact = allowed;
+  }
+  compact = Math.max(0, compact);
+  sheetState.compactHeight = Math.round(compact);
+  const maxAvailable = Math.max(sheetState.compactHeight, Math.max(0, Math.round(vh - 56)));
+  const proposedExpanded = Math.max(sheetState.compactHeight + 80, Math.round(vh * 0.88));
+  sheetState.expandedHeight = Math.min(Math.max(proposedExpanded, sheetState.compactHeight), maxAvailable);
+  panel.style.setProperty('--sheet-expanded-height', `${sheetState.expandedHeight}px`);
+  panel.style.setProperty('--sheet-compact-height', `${sheetState.compactHeight}px`);
+  if (sheetState.mode !== 'expanded') {
+    sheetState.mode = 'compact';
+  } else if (sheetState.expandedHeight <= sheetState.compactHeight) {
+    sheetState.mode = 'compact';
+  }
+  applySheetOffset();
+  updateSheetHandleAria();
+}
+
+function handleMobileMediaChange() {
+  sheetState.pointerId = null;
+  sheetState.moved = false;
+  sheetState.preventClick = false;
+  panel.classList.remove('is-dragging');
+  if (!isMobileSheetActive()) {
+    sheetState.mode = 'compact';
+    panel.removeAttribute('data-sheet-state');
+  } else if (panelVisible) {
+    setSheetMode('compact', { force: true });
+  }
+  recalculateSheetMetrics();
+}
+
 function setPanelVisible(show) {
-  panelVisible = show;
-  panel.classList.toggle('is-hidden', !show);
-  toggleBtn.textContent = show ? '↕ Panel ausblenden' : '↕ Panel einblenden';
-  toggleBtn.setAttribute('aria-expanded', show ? 'true' : 'false');
+  panelVisible = !!show;
+  panel.classList.toggle('is-hidden', !panelVisible);
+  if (isMobileSheetActive()) {
+    if (panelVisible) {
+      setSheetMode('compact', { force: true });
+    }
+    applySheetOffset();
+  } else {
+    panel.removeAttribute('data-sheet-state');
+  }
+  if (!panelVisible) {
+    if (sheetState.pointerId !== null && panel.releasePointerCapture) {
+      try { panel.releasePointerCapture(sheetState.pointerId); } catch (err) { /* noop */ }
+    }
+    sheetState.pointerId = null;
+    sheetState.moved = false;
+    sheetState.preventClick = false;
+    panel.classList.remove('is-dragging');
+  }
+  toggleBtn.textContent = panelVisible ? '↕ Panel ausblenden' : '↕ Panel einblenden';
+  toggleBtn.setAttribute('aria-expanded', panelVisible ? 'true' : 'false');
+  updateSheetHandleAria();
 }
 
 function setCameraLocked(lock) {
@@ -712,6 +999,56 @@ function setCameraLocked(lock) {
   lockBtn.textContent = lock ? '🔒 Kamera gesperrt' : '🔓 Kamera frei';
   lockBtn.setAttribute('aria-pressed', lock ? 'true' : 'false');
   renderer.domElement.classList.toggle('locked', lock);
+}
+
+function startSheetDrag(event) {
+  if (!sheetHandleBtn || !isMobileSheetActive() || !panelVisible) return;
+  sheetState.pointerId = event.pointerId;
+  sheetState.startY = event.clientY;
+  sheetState.startOffset = sheetState.mode === 'expanded' ? 0 : getSheetCompactOffset();
+  sheetState.lastOffset = sheetState.startOffset;
+  sheetState.moved = false;
+  sheetState.preventClick = false;
+  panel.classList.add('is-dragging');
+  if (panel.setPointerCapture) {
+    try { panel.setPointerCapture(event.pointerId); } catch (err) { /* noop */ }
+  }
+}
+
+function handleSheetDragMove(event) {
+  if (sheetState.pointerId === null || event.pointerId !== sheetState.pointerId) return;
+  const delta = event.clientY - sheetState.startY;
+  const maxOffset = getSheetCompactOffset();
+  let next = sheetState.startOffset + delta;
+  if (!Number.isFinite(next)) next = 0;
+  next = Math.max(0, Math.min(maxOffset, next));
+  if (Math.abs(delta) > 6) {
+    sheetState.moved = true;
+  }
+  sheetState.lastOffset = next;
+  panel.style.setProperty('--sheet-offset', `${Math.max(0, Math.round(next))}px`);
+}
+
+function finishSheetDrag(event) {
+  if (sheetState.pointerId === null || event.pointerId !== sheetState.pointerId) return;
+  if (panel.releasePointerCapture) {
+    try { panel.releasePointerCapture(event.pointerId); } catch (err) { /* noop */ }
+  }
+  panel.classList.remove('is-dragging');
+  const moved = sheetState.moved;
+  const lastOffset = sheetState.lastOffset;
+  sheetState.pointerId = null;
+  sheetState.moved = false;
+  const maxOffset = getSheetCompactOffset();
+  if (moved) {
+    const threshold = maxOffset * 0.45;
+    const nextState = lastOffset > threshold ? 'compact' : 'expanded';
+    setSheetMode(nextState, { force: true });
+    sheetState.preventClick = true;
+  } else {
+    sheetState.preventClick = false;
+    applySheetOffset();
+  }
 }
 
 /* Rotation dynamics */
@@ -1040,10 +1377,59 @@ $('pFilled').addEventListener('change', e => {
   updateStarUniforms();
 });
 
+/* Accordion controls */
+const accordionTriggers = Array.from(document.querySelectorAll('.accordion__trigger'));
+
+function setAccordionState(trigger, expanded) {
+  const panelId = trigger.getAttribute('aria-controls');
+  const panel = panelId ? document.getElementById(panelId) : null;
+  if (!panel) return;
+  trigger.setAttribute('aria-expanded', String(expanded));
+  panel.hidden = !expanded;
+  trigger.classList.toggle('is-open', expanded);
+  panel.classList.toggle('is-open', expanded);
+}
+
+accordionTriggers.forEach(trigger => {
+  const initial = trigger.getAttribute('aria-expanded') === 'true';
+  setAccordionState(trigger, initial);
+  trigger.addEventListener('click', () => {
+    const next = trigger.getAttribute('aria-expanded') !== 'true';
+    setAccordionState(trigger, next);
+  });
+});
+
 /* Toggle panel, lock camera & random button */
 toggleBtn.addEventListener('click', () => {
   setPanelVisible(!panelVisible);
 });
+
+if (sheetHandleBtn) {
+  sheetHandleBtn.addEventListener('pointerdown', event => {
+    if (!isMobileSheetActive()) return;
+    startSheetDrag(event);
+  });
+  sheetHandleBtn.addEventListener('click', event => {
+    if (!isMobileSheetActive()) return;
+    if (sheetState.preventClick) {
+      sheetState.preventClick = false;
+      event.preventDefault();
+      return;
+    }
+    const next = sheetState.mode === 'expanded' ? 'compact' : 'expanded';
+    setSheetMode(next, { force: true });
+  });
+}
+
+panel.addEventListener('pointermove', handleSheetDragMove);
+panel.addEventListener('pointerup', finishSheetDrag);
+panel.addEventListener('pointercancel', finishSheetDrag);
+
+if (mobileSheetQuery.addEventListener) {
+  mobileSheetQuery.addEventListener('change', handleMobileMediaChange);
+} else if (mobileSheetQuery.addListener) {
+  mobileSheetQuery.addListener(handleMobileMediaChange);
+}
 
 lockBtn.addEventListener('click', () => {
   setCameraLocked(!cameraLocked);
@@ -1119,6 +1505,19 @@ window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
+  recalculateSheetMetrics();
+  if (isMobileSheetActive()) {
+    applySheetOffset();
+  }
+});
+
+window.addEventListener('orientationchange', () => {
+  setTimeout(() => {
+    recalculateSheetMetrics();
+    if (isMobileSheetActive()) {
+      applySheetOffset();
+    }
+  }, 120);
 });
 
 /* Animation loop */
@@ -1164,7 +1563,9 @@ function animate(now) {
 setInertiaDuration(spinState.inertiaDuration);
 setInertiaEnabled(spinState.inertiaEnabled);
 setAutoRotation(true);
-setPanelVisible(window.innerWidth > 580);
+recalculateSheetMetrics();
+const initialPanelVisible = window.innerWidth > 580;
+setPanelVisible(initialPanelVisible);
 setCameraLocked(false);
 updatePointColor(false);
 setSliders();
