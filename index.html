@@ -787,12 +787,17 @@ function makeTiny() {
   }
   // Determine number of tiny points based on connPercent
   const nTiny = Math.round(params.tinyCount * params.connPercent);
-  tinyGeometry = new THREE.BufferGeometry();
-  const positions = new Float32Array(Math.max(0, nTiny * 3));
   // Access star positions for connections
   const starPos = starGeometry.getAttribute('position');
   const nStars = starPos ? starPos.count : 0;
-  if (starPos && nStars > 0) {
+  if (!starPos || nStars === 0) {
+    tinyPoints = undefined;
+    return;
+  }
+
+  tinyGeometry = new THREE.BufferGeometry();
+  const positions = new Float32Array(Math.max(0, nTiny * 3));
+  if (nTiny > 0 && nStars > 0) {
     const rand = mulberry32(params.seedTiny);
     for (let i = 0; i < nTiny; i++) {
       // pick two random stars
