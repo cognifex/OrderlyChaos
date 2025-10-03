@@ -122,7 +122,21 @@
     .status-indicator[data-state="waiting"] { background: #ffd166; box-shadow: 0 0 12px rgba(255, 209, 102, 0.6); }
     .status-indicator[data-state="active"] { background: #7fffd4; box-shadow: 0 0 12px rgba(127, 255, 212, 0.65); }
     .status-indicator[data-state="error"] { background: #ff8a80; box-shadow: 0 0 12px rgba(255, 138, 128, 0.75); }
-    .wrap { display: flex; gap: .5rem; align-items: center; }
+    .wrap { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; }
+    .bound-input {
+      width: 64px;
+      padding: .25rem .35rem;
+      font-size: .75rem;
+      color: var(--fg);
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      border-radius: 6px;
+      flex: 0 0 64px;
+    }
+    .bound-input:focus-visible {
+      outline: 2px solid rgba(90, 190, 255, 0.9);
+      outline-offset: 1px;
+    }
     .stack { display: flex; flex-direction: column; gap: .4rem; }
     .tag { min-width: 64px; font-size: .75rem; letter-spacing: .02em; text-transform: uppercase; opacity: .7; }
     input[type=range],
@@ -268,7 +282,9 @@
       <div class="row">
         <label for="pRadius">Radius</label>
         <div class="wrap">
+          <input class="bound-input" type="number" data-target="pRadius" data-bound="min" />
           <input id="pRadius" type="range" min="40" max="260" step="1" />
+          <input class="bound-input" type="number" data-target="pRadius" data-bound="max" />
           <div class="val" id="vRadius"></div>
         </div>
       </div>
@@ -283,49 +299,63 @@
       <div class="row">
         <label for="pSizeVar">Größenvariation (Δ)</label>
         <div class="wrap">
+          <input class="bound-input" type="number" data-target="pSizeVar" data-bound="min" />
           <input id="pSizeVar" type="range" min="0" max="10" step="0.1" />
+          <input class="bound-input" type="number" data-target="pSizeVar" data-bound="max" />
           <div class="val" id="vSizeVar"></div>
         </div>
       </div>
       <div class="row">
         <label for="pCluster">Clustering</label>
         <div class="wrap">
+          <input class="bound-input" type="number" data-target="pCluster" data-bound="min" />
           <input id="pCluster" type="range" min="0" max="1" step="0.01" />
+          <input class="bound-input" type="number" data-target="pCluster" data-bound="max" />
           <div class="val" id="vCluster"></div>
         </div>
       </div>
       <div class="row">
         <label for="pPointAlpha">Deckkraft Punkte</label>
         <div class="wrap">
+          <input class="bound-input" type="number" data-target="pPointAlpha" data-bound="min" />
           <input id="pPointAlpha" type="range" min="0.3" max="1" step="0.01" />
+          <input class="bound-input" type="number" data-target="pPointAlpha" data-bound="max" />
           <div class="val" id="vPointAlpha"></div>
         </div>
       </div>
       <div class="row">
         <label for="pHue">Punktfarbe (Farbton)</label>
         <div class="wrap">
+          <input class="bound-input" type="number" data-target="pHue" data-bound="min" />
           <input id="pHue" type="range" min="0" max="360" step="1" />
+          <input class="bound-input" type="number" data-target="pHue" data-bound="max" />
           <div class="val" id="vHue"></div>
         </div>
       </div>
       <div class="row">
         <label for="pSaturation">Punktfarbe (Sättigung)</label>
         <div class="wrap">
+          <input class="bound-input" type="number" data-target="pSaturation" data-bound="min" />
           <input id="pSaturation" type="range" min="0" max="1" step="0.01" />
+          <input class="bound-input" type="number" data-target="pSaturation" data-bound="max" />
           <div class="val" id="vSaturation"></div>
         </div>
       </div>
       <div class="row">
         <label for="pValue">Punktfarbe (Helligkeit)</label>
         <div class="wrap">
+          <input class="bound-input" type="number" data-target="pValue" data-bound="min" />
           <input id="pValue" type="range" min="0" max="1" step="0.01" />
+          <input class="bound-input" type="number" data-target="pValue" data-bound="max" />
           <div class="val" id="vValue"></div>
         </div>
       </div>
       <div class="row">
         <label for="pSeedStars">Seed Punkte</label>
         <div class="wrap">
+          <input class="bound-input" type="number" data-target="pSeedStars" data-bound="min" />
           <input id="pSeedStars" type="range" min="1" max="9999" step="1" />
+          <input class="bound-input" type="number" data-target="pSeedStars" data-bound="max" />
           <div class="val" id="vSeedStars"></div>
         </div>
       </div>
@@ -359,28 +389,36 @@
       <div class="row">
         <label for="pSizeTiny">Größe winzige Punkte</label>
         <div class="wrap">
+          <input class="bound-input" type="number" data-target="pSizeTiny" data-bound="min" />
           <input id="pSizeTiny" type="range" min="0.05" max="3" step="0.01" />
+          <input class="bound-input" type="number" data-target="pSizeTiny" data-bound="max" />
           <div class="val" id="vSizeTiny"></div>
         </div>
       </div>
       <div class="row">
         <label for="pSizeSmall">Größe kleine Punkte</label>
         <div class="wrap">
+          <input class="bound-input" type="number" data-target="pSizeSmall" data-bound="min" />
           <input id="pSizeSmall" type="range" min="0.2" max="3" step="0.05" />
+          <input class="bound-input" type="number" data-target="pSizeSmall" data-bound="max" />
           <div class="val" id="vSizeSmall"></div>
         </div>
       </div>
       <div class="row">
         <label for="pSizeMedium">Größe mittlere Punkte</label>
         <div class="wrap">
+          <input class="bound-input" type="number" data-target="pSizeMedium" data-bound="min" />
           <input id="pSizeMedium" type="range" min="0.2" max="3" step="0.05" />
+          <input class="bound-input" type="number" data-target="pSizeMedium" data-bound="max" />
           <div class="val" id="vSizeMedium"></div>
         </div>
       </div>
       <div class="row">
         <label for="pSizeLarge">Größe große Punkte</label>
         <div class="wrap">
+          <input class="bound-input" type="number" data-target="pSizeLarge" data-bound="min" />
           <input id="pSizeLarge" type="range" min="0.2" max="3" step="0.05" />
+          <input class="bound-input" type="number" data-target="pSizeLarge" data-bound="max" />
           <div class="val" id="vSizeLarge"></div>
         </div>
       </div>
@@ -394,28 +432,36 @@
       <div class="row">
         <label for="pTinyCount">Menge winzige Punkte</label>
         <div class="wrap">
+          <input class="bound-input" type="number" data-target="pTinyCount" data-bound="min" />
           <input id="pTinyCount" type="range" min="0" max="5000" step="10" />
+          <input class="bound-input" type="number" data-target="pTinyCount" data-bound="max" />
           <div class="val" id="vTinyCount"></div>
         </div>
       </div>
       <div class="row">
         <label for="pConnPercent">Prozent Verbindungen</label>
         <div class="wrap">
+          <input class="bound-input" type="number" data-target="pConnPercent" data-bound="min" />
           <input id="pConnPercent" type="range" min="0" max="1" step="0.01" />
+          <input class="bound-input" type="number" data-target="pConnPercent" data-bound="max" />
           <div class="val" id="vConnPercent"></div>
         </div>
       </div>
       <div class="row">
         <label for="pTinyAlpha">Deckkraft winzige Punkte</label>
         <div class="wrap">
+          <input class="bound-input" type="number" data-target="pTinyAlpha" data-bound="min" />
           <input id="pTinyAlpha" type="range" min="0" max="1" step="0.01" />
+          <input class="bound-input" type="number" data-target="pTinyAlpha" data-bound="max" />
           <div class="val" id="vTinyAlpha"></div>
         </div>
       </div>
       <div class="row">
         <label for="pSeedTiny">Seed winzige Punkte</label>
         <div class="wrap">
+          <input class="bound-input" type="number" data-target="pSeedTiny" data-bound="min" />
           <input id="pSeedTiny" type="range" min="1" max="9999" step="1" />
+          <input class="bound-input" type="number" data-target="pSeedTiny" data-bound="max" />
           <div class="val" id="vSeedTiny"></div>
         </div>
       </div>
@@ -429,7 +475,9 @@
       <div class="row">
         <label for="pEdgeSoft">Randweichheit</label>
         <div class="wrap">
+          <input class="bound-input" type="number" data-target="pEdgeSoft" data-bound="min" />
           <input id="pEdgeSoft" type="range" min="0" max="1" step="0.01" />
+          <input class="bound-input" type="number" data-target="pEdgeSoft" data-bound="max" />
           <div class="val" id="vEdgeSoft"></div>
         </div>
       </div>
@@ -462,28 +510,36 @@
       <div class="row">
         <label for="pMotionSpeed">Bewegungsgeschwindigkeit</label>
         <div class="wrap">
+          <input class="bound-input" type="number" data-target="pMotionSpeed" data-bound="min" />
           <input id="pMotionSpeed" type="range" min="0" max="3" step="0.01" />
+          <input class="bound-input" type="number" data-target="pMotionSpeed" data-bound="max" />
           <div class="val" id="vMotionSpeed"></div>
         </div>
       </div>
       <div class="row">
         <label for="pMotionAmplitude">Amplitude</label>
         <div class="wrap">
+          <input class="bound-input" type="number" data-target="pMotionAmplitude" data-bound="min" />
           <input id="pMotionAmplitude" type="range" min="0" max="40" step="0.1" />
+          <input class="bound-input" type="number" data-target="pMotionAmplitude" data-bound="max" />
           <div class="val" id="vMotionAmplitude"></div>
         </div>
       </div>
       <div class="row">
         <label for="pMotionNoiseStrength">Noise-Intensität</label>
         <div class="wrap">
+          <input class="bound-input" type="number" data-target="pMotionNoiseStrength" data-bound="min" />
           <input id="pMotionNoiseStrength" type="range" min="0" max="2.5" step="0.01" />
+          <input class="bound-input" type="number" data-target="pMotionNoiseStrength" data-bound="max" />
           <div class="val" id="vMotionNoiseStrength"></div>
         </div>
       </div>
       <div class="row">
         <label for="pMotionNoiseScale">Noise-Skala</label>
         <div class="wrap">
+          <input class="bound-input" type="number" data-target="pMotionNoiseScale" data-bound="min" />
           <input id="pMotionNoiseScale" type="range" min="0.1" max="4" step="0.01" />
+          <input class="bound-input" type="number" data-target="pMotionNoiseScale" data-bound="max" />
           <div class="val" id="vMotionNoiseScale"></div>
         </div>
       </div>
@@ -499,17 +555,23 @@
         <div class="stack">
           <div class="wrap">
             <span class="tag">X</span>
+            <input class="bound-input" type="number" data-target="spinVelX" data-bound="min" />
             <input id="spinVelX" type="range" min="-3" max="3" step="0.01" />
+            <input class="bound-input" type="number" data-target="spinVelX" data-bound="max" />
             <div class="val" id="vSpinX"></div>
           </div>
           <div class="wrap">
             <span class="tag">Y</span>
+            <input class="bound-input" type="number" data-target="spinVelY" data-bound="min" />
             <input id="spinVelY" type="range" min="-3" max="3" step="0.01" />
+            <input class="bound-input" type="number" data-target="spinVelY" data-bound="max" />
             <div class="val" id="vSpinY"></div>
           </div>
           <div class="wrap">
             <span class="tag">Z</span>
+            <input class="bound-input" type="number" data-target="spinVelZ" data-bound="min" />
             <input id="spinVelZ" type="range" min="-3" max="3" step="0.01" />
+            <input class="bound-input" type="number" data-target="spinVelZ" data-bound="max" />
             <div class="val" id="vSpinZ"></div>
           </div>
         </div>
@@ -517,7 +579,9 @@
       <div class="row">
         <label for="spinSpeed">Geschwindigkeitsfaktor</label>
         <div class="wrap">
+          <input class="bound-input" type="number" data-target="spinSpeed" data-bound="min" />
           <input id="spinSpeed" type="range" min="0" max="3" step="0.01" />
+          <input class="bound-input" type="number" data-target="spinSpeed" data-bound="max" />
           <div class="val" id="vSpinSpeed"></div>
         </div>
       </div>
@@ -531,7 +595,9 @@
       <div class="row">
         <label for="spinDecay">Abklingzeit (s)</label>
         <div class="wrap">
+          <input class="bound-input" type="number" data-target="spinDecay" data-bound="min" />
           <input id="spinDecay" type="range" min="1" max="30" step="1" />
+          <input class="bound-input" type="number" data-target="spinDecay" data-bound="max" />
           <div class="val" id="vSpinDecay"></div>
         </div>
       </div>
@@ -1955,22 +2021,19 @@ function syncSpinSliderUI() {
     const slider = spinAxisSliders[axis];
     const valueEl = spinAxisValues[axis];
     const component = spinState.velocityComponents[axis];
+    const id = axis === 'x' ? 'spinVelX' : axis === 'y' ? 'spinVelY' : 'spinVelZ';
     if (slider) {
-      const clamped = Math.max(parseFloat(slider.min), Math.min(parseFloat(slider.max), component));
-      slider.value = clamped.toFixed(2);
+      applySliderValue(id, component);
     }
     if (valueEl) {
-      valueEl.textContent = component.toFixed(2) + ' rad/s';
+      valueEl.textContent = formatDisplayNumber(component, 2) + ' rad/s';
     }
   });
   if (spinSpeedSlider) {
-    const min = parseFloat(spinSpeedSlider.min);
-    const max = parseFloat(spinSpeedSlider.max);
-    const clamped = Math.max(min, Math.min(max, spinState.speedMultiplier));
-    spinSpeedSlider.value = clamped.toFixed(2);
+    applySliderValue('spinSpeed', spinState.speedMultiplier);
   }
   if (spinSpeedValue) {
-    spinSpeedValue.textContent = '×' + spinState.speedMultiplier.toFixed(2);
+    spinSpeedValue.textContent = '×' + formatDisplayNumber(spinState.speedMultiplier, 2);
   }
 }
 
@@ -1989,14 +2052,31 @@ function updateComponentsFromVelocity(syncUI = true) {
     spinState.velocityComponents.copy(spinState.velocity).divideScalar(spinState.speedMultiplier);
   }
   spinAxisKeys.forEach(axis => {
-    const slider = spinAxisSliders[axis];
-    const min = slider ? parseFloat(slider.min) : -3;
-    const max = slider ? parseFloat(slider.max) : 3;
-    spinState.velocityComponents[axis] = Math.max(min, Math.min(max, spinState.velocityComponents[axis]));
+    const id = axis === 'x' ? 'spinVelX' : axis === 'y' ? 'spinVelY' : 'spinVelZ';
+    spinState.velocityComponents[axis] = clampToSliderBounds(id, spinState.velocityComponents[axis]);
   });
   if (syncUI) {
     syncSpinSliderUI();
   }
+}
+
+function setSpinAxisComponent(axis, value) {
+  const numeric = parseFloat(value);
+  if (Number.isNaN(numeric)) return;
+  const id = axis === 'x' ? 'spinVelX' : axis === 'y' ? 'spinVelY' : 'spinVelZ';
+  const clamped = clampToSliderBounds(id, numeric);
+  spinState.velocityComponents[axis] = clamped;
+  updateVelocityFromComponents();
+  handleVelocityChange();
+}
+
+function setSpinSpeedMultiplier(value) {
+  const numeric = parseFloat(value);
+  if (Number.isNaN(numeric)) return;
+  const clamped = clampToSliderBounds('spinSpeed', numeric);
+  spinState.speedMultiplier = clamped;
+  updateVelocityFromComponents();
+  handleVelocityChange();
 }
 
 function handleVelocityChange(updateUI = true) {
@@ -2041,10 +2121,10 @@ function updateRotationUI() {
   spinInertiaBtn.textContent = spinState.inertiaEnabled ? '🪁 Trägheit an' : '🪁 Trägheit aus';
   if (spinDecaySlider) {
     spinDecaySlider.disabled = !spinState.inertiaEnabled;
-    spinDecaySlider.value = spinState.inertiaDuration;
+    applySliderValue('spinDecay', spinState.inertiaDuration);
   }
   if (spinDecayValue) {
-    spinDecayValue.textContent = spinState.inertiaDuration.toFixed(0) + ' s';
+    spinDecayValue.textContent = formatDisplayNumber(spinState.inertiaDuration, 0) + ' s';
   }
   if (spinInertiaValue) {
     spinInertiaValue.textContent = spinState.inertiaEnabled ? 'aktiv' : 'aus';
@@ -2093,7 +2173,11 @@ function setInertiaEnabled(enabled) {
 }
 
 function setInertiaDuration(seconds) {
-  const clamped = Math.max(1, Math.min(30, Math.round(seconds)));
+  let next = Math.round(Number(seconds));
+  if (!Number.isFinite(next)) {
+    next = spinState.inertiaDuration;
+  }
+  const clamped = Math.round(clampToSliderBounds('spinDecay', next));
   spinState.inertiaDuration = clamped;
   if (spinState.inertiaEnabled && !spinState.isDragging && hasSpinVelocity()) {
     spinState.decayStartSpeed = spinState.velocity.length();
@@ -2214,41 +2298,6 @@ if (spinInertiaBtn) {
     setInertiaEnabled(!spinState.inertiaEnabled);
   });
 }
-if (spinDecaySlider) {
-  spinDecaySlider.addEventListener('input', e => {
-    const next = parseInt(e.target.value, 10);
-    if (!Number.isNaN(next)) {
-      setInertiaDuration(next);
-    }
-  });
-}
-
-spinAxisKeys.forEach(axis => {
-  const slider = spinAxisSliders[axis];
-  if (!slider) return;
-  slider.addEventListener('input', e => {
-    const next = parseFloat(e.target.value);
-    if (Number.isNaN(next)) return;
-    const min = parseFloat(slider.min);
-    const max = parseFloat(slider.max);
-    spinState.velocityComponents[axis] = Math.max(min, Math.min(max, next));
-    updateVelocityFromComponents();
-    handleVelocityChange();
-  });
-});
-
-if (spinSpeedSlider) {
-  spinSpeedSlider.addEventListener('input', e => {
-    const next = parseFloat(e.target.value);
-    if (Number.isNaN(next)) return;
-    const min = parseFloat(spinSpeedSlider.min);
-    const max = parseFloat(spinSpeedSlider.max);
-    spinState.speedMultiplier = Math.max(min, Math.min(max, next));
-    updateVelocityFromComponents();
-    handleVelocityChange();
-  });
-}
-
 function setCategoryCount(kind, value) {
   const keyMap = { small: 'catSmallCount', medium: 'catMediumCount', large: 'catLargeCount' };
   const key = keyMap[kind];
@@ -2261,10 +2310,216 @@ function setCategoryCount(kind, value) {
   rebuildStars();
 }
 
-function getSizeRange() {
-  const min = Math.max(0.05, 1 - params.sizeVar * 0.5);
-  const max = 1 + params.sizeVar * 0.5;
+function getSizeRange(sizeVar = params.sizeVar) {
+  const min = Math.max(0.05, 1 - sizeVar * 0.5);
+  const max = 1 + sizeVar * 0.5;
   return { min, max, delta: max - min };
+}
+
+function clampValue(value, min, max) {
+  let next = Number(value);
+  if (!Number.isFinite(next)) return next;
+  let minVal = Number.isFinite(min) ? min : Number.NEGATIVE_INFINITY;
+  let maxVal = Number.isFinite(max) ? max : Number.POSITIVE_INFINITY;
+  if (minVal > maxVal) {
+    const tmp = minVal;
+    minVal = maxVal;
+    maxVal = tmp;
+  }
+  if (Number.isFinite(minVal)) {
+    next = Math.max(next, minVal);
+  }
+  if (Number.isFinite(maxVal)) {
+    next = Math.min(next, maxVal);
+  }
+  return next;
+}
+
+function formatDisplayNumber(value, fractionDigits = 2) {
+  if (!Number.isFinite(value)) return '';
+  return Number.isInteger(value) ? String(value) : value.toFixed(fractionDigits);
+}
+
+const sliderBoundSettings = {};
+const sliderBoundInputs = {};
+
+function getSliderBounds(id) {
+  const slider = $(id);
+  const settings = sliderBoundSettings[id];
+  let min = settings ? settings.min : undefined;
+  let max = settings ? settings.max : undefined;
+  if (!Number.isFinite(min) && slider) {
+    const rawMin = parseFloat(slider.getAttribute('min'));
+    if (Number.isFinite(rawMin)) {
+      min = rawMin;
+    }
+  }
+  if (!Number.isFinite(max) && slider) {
+    const rawMax = parseFloat(slider.getAttribute('max'));
+    if (Number.isFinite(rawMax)) {
+      max = rawMax;
+    }
+  }
+  return { min, max };
+}
+
+function clampToSliderBounds(id, value) {
+  const bounds = getSliderBounds(id);
+  return clampValue(value, bounds.min, bounds.max);
+}
+
+function syncSliderUI(id) {
+  const slider = $(id);
+  const settings = sliderBoundSettings[id];
+  if (!slider || !settings) return;
+  slider.min = String(settings.min);
+  slider.max = String(settings.max);
+  const pair = sliderBoundInputs[id];
+  if (pair && pair.min && document.activeElement !== pair.min) {
+    pair.min.value = settings.min;
+  }
+  if (pair && pair.max && document.activeElement !== pair.max) {
+    pair.max.value = settings.max;
+  }
+}
+
+function handleBoundInputChange(id, kind, inputEl) {
+  const settings = sliderBoundSettings[id];
+  if (!settings) return;
+  let value = parseFloat(inputEl.value);
+  if (!Number.isFinite(value)) {
+    inputEl.value = settings[kind];
+    return;
+  }
+  if (kind === 'min') {
+    settings.min = value;
+    if (value > settings.max) {
+      settings.max = value;
+      const partner = sliderBoundInputs[id] && sliderBoundInputs[id].max;
+      if (partner) {
+        partner.value = settings.max;
+      }
+    }
+  } else {
+    settings.max = value;
+    if (value < settings.min) {
+      settings.min = value;
+      const partner = sliderBoundInputs[id] && sliderBoundInputs[id].min;
+      if (partner) {
+        partner.value = settings.min;
+      }
+    }
+  }
+  inputEl.value = settings[kind];
+  syncSliderUI(id);
+  const getter = sliderValueGetters[id];
+  const handler = sliderHandlers[id];
+  if (getter && handler) {
+    const current = getter();
+    if (Number.isFinite(current)) {
+      const clamped = clampValue(current, settings.min, settings.max);
+      if (clamped !== current) {
+        handler(String(clamped));
+      }
+    }
+  }
+  setSliders();
+}
+
+function registerSliderBounds(id) {
+  const slider = $(id);
+  if (!slider) return;
+  let min = parseFloat(slider.getAttribute('min'));
+  let max = parseFloat(slider.getAttribute('max'));
+  if (!Number.isFinite(min) && Number.isFinite(max)) {
+    min = max < 0 ? max : 0;
+  }
+  if (!Number.isFinite(max) && Number.isFinite(min)) {
+    max = min > 0 ? min : 1;
+  }
+  if (!Number.isFinite(min)) min = 0;
+  if (!Number.isFinite(max)) max = min;
+  if (min > max) {
+    const tmp = min;
+    min = max;
+    max = tmp;
+  }
+  sliderBoundSettings[id] = { min, max };
+  const wrap = slider.closest('.wrap');
+  const labelElement = document.querySelector(`label[for="${id}"]`);
+  let descriptor = '';
+  if (labelElement && labelElement.textContent) {
+    descriptor = labelElement.textContent.replace(/\s+/g, ' ').trim();
+  } else if (wrap) {
+    const tag = wrap.querySelector('.tag');
+    if (tag && tag.textContent) {
+      descriptor = tag.textContent.replace(/\s+/g, ' ').trim();
+    }
+  }
+  const minLabel = descriptor ? `${descriptor} – Minimum` : 'Minimum';
+  const maxLabel = descriptor ? `${descriptor} – Maximum` : 'Maximum';
+  if (wrap) {
+    const minInput = wrap.querySelector(`input[data-target="${id}"][data-bound="min"]`);
+    const maxInput = wrap.querySelector(`input[data-target="${id}"][data-bound="max"]`);
+    sliderBoundInputs[id] = sliderBoundInputs[id] || {};
+    const step = slider.step && slider.step.length ? slider.step : 'any';
+    const numericStep = Number(step);
+    const hasNumericStep = Number.isFinite(numericStep) && step !== 'any';
+    const isIntegerStep = hasNumericStep && Number.isInteger(numericStep);
+    const inputMode = isIntegerStep ? 'numeric' : 'decimal';
+    if (minInput) {
+      sliderBoundInputs[id].min = minInput;
+      minInput.value = min;
+      minInput.step = step;
+      minInput.inputMode = inputMode;
+      minInput.setAttribute('aria-label', minLabel);
+      minInput.title = minLabel;
+      minInput.addEventListener('change', event => handleBoundInputChange(id, 'min', event.target));
+    }
+    if (maxInput) {
+      sliderBoundInputs[id].max = maxInput;
+      maxInput.value = max;
+      maxInput.step = step;
+      maxInput.inputMode = inputMode;
+      maxInput.setAttribute('aria-label', maxLabel);
+      maxInput.title = maxLabel;
+      maxInput.addEventListener('change', event => handleBoundInputChange(id, 'max', event.target));
+    }
+  }
+  syncSliderUI(id);
+}
+
+function initializeSliderBounds() {
+  for (const id in sliderValueGetters) {
+    registerSliderBounds(id);
+  }
+}
+
+function applySliderValue(id, value) {
+  const slider = $(id);
+  if (!slider) return value;
+  const bounds = getSliderBounds(id);
+  const clamped = Number.isFinite(value) ? clampValue(value, bounds.min, bounds.max) : value;
+  slider.value = Number.isFinite(clamped) ? clamped : slider.value;
+  return Number.isFinite(clamped) ? clamped : value;
+}
+
+function enforceBounds() {
+  let changed = false;
+  for (const id in sliderValueGetters) {
+    const getter = sliderValueGetters[id];
+    const handler = sliderHandlers[id];
+    const settings = sliderBoundSettings[id];
+    if (!getter || !handler || !settings) continue;
+    const current = getter();
+    if (!Number.isFinite(current)) continue;
+    const clamped = clampValue(current, settings.min, settings.max);
+    if (clamped !== current) {
+      handler(String(clamped));
+      changed = true;
+    }
+  }
+  return changed;
 }
 
 const sliderHandlers = {
@@ -2324,7 +2579,48 @@ const sliderHandlers = {
       updateTinyMaterial();
     }
   },
+  spinVelX:     val => { setSpinAxisComponent('x', val); },
+  spinVelY:     val => { setSpinAxisComponent('y', val); },
+  spinVelZ:     val => { setSpinAxisComponent('z', val); },
+  spinSpeed:    val => { setSpinSpeedMultiplier(val); },
+  spinDecay:    val => {
+    const next = parseFloat(val);
+    if (!Number.isNaN(next)) {
+      setInertiaDuration(next);
+    }
+  },
 };
+
+const sliderValueGetters = {
+  pRadius: () => params.radius,
+  pSizeVar: () => params.sizeVar,
+  pCluster: () => params.cluster,
+  pPointAlpha: () => params.pointAlpha,
+  pHue: () => params.pointHue,
+  pSaturation: () => params.pointSaturation,
+  pValue: () => params.pointValue,
+  pSeedStars: () => params.seedStars,
+  pSizeTiny: () => params.sizeFactorTiny,
+  pSizeSmall: () => params.sizeFactorSmall,
+  pSizeMedium: () => params.sizeFactorMedium,
+  pSizeLarge: () => params.sizeFactorLarge,
+  pTinyCount: () => params.tinyCount,
+  pConnPercent: () => params.connPercent,
+  pTinyAlpha: () => params.tinyAlpha,
+  pSeedTiny: () => params.seedTiny,
+  pEdgeSoft: () => params.edgeSoftness,
+  pMotionSpeed: () => params.motionSpeed,
+  pMotionAmplitude: () => params.motionAmplitude,
+  pMotionNoiseStrength: () => params.motionNoiseStrength,
+  pMotionNoiseScale: () => params.motionNoiseScale,
+  spinVelX: () => spinState.velocityComponents.x,
+  spinVelY: () => spinState.velocityComponents.y,
+  spinVelZ: () => spinState.velocityComponents.z,
+  spinSpeed: () => spinState.speedMultiplier,
+  spinDecay: () => spinState.inertiaDuration,
+};
+initializeSliderBounds();
+enforceBounds();
 // assign input event handlers
 for (const id in sliderHandlers) {
   const element = $(id);
@@ -2462,6 +2758,7 @@ $('random').addEventListener('click', () => {
   params.motionAmplitude = Math.random() * 30;
   params.motionNoiseStrength = Math.random() * 2.0;
   params.motionNoiseScale = 0.1 + Math.random() * 3.5;
+  enforceBounds();
   updatePointColor();
   rebuildStars();
   setSliders();
@@ -2475,38 +2772,58 @@ function setSliders() {
     $('pCount').value = params.count;
   }
   $('vCount').textContent = params.count;
-  $('pRadius').value = params.radius; $('vRadius').textContent = params.radius;
+  const radiusValue = applySliderValue('pRadius', params.radius);
+  $('vRadius').textContent = formatDisplayNumber(radiusValue, 2);
   $('pDistribution').value = params.distribution;
-  $('pSizeVar').value = params.sizeVar;
-  const sizeRange = getSizeRange();
+  const sizeVarValue = applySliderValue('pSizeVar', params.sizeVar);
+  const sizeRange = getSizeRange(sizeVarValue);
   $('vSizeVar').textContent = sizeRange.delta.toFixed(2);
-  $('pCluster').value = params.cluster; $('vCluster').textContent = params.cluster.toFixed(2);
-  $('pPointAlpha').value = params.pointAlpha; $('vPointAlpha').textContent = params.pointAlpha.toFixed(2);
-  $('pHue').value = params.pointHue; $('vHue').textContent = Math.round(params.pointHue) + '°';
-  $('pSaturation').value = params.pointSaturation; $('vSaturation').textContent = (params.pointSaturation * 100).toFixed(0) + '%';
-  $('pValue').value = params.pointValue; $('vValue').textContent = (params.pointValue * 100).toFixed(0) + '%';
-  $('pSeedStars').value = params.seedStars; $('vSeedStars').textContent = params.seedStars;
+  const clusterValue = applySliderValue('pCluster', params.cluster);
+  $('vCluster').textContent = formatDisplayNumber(clusterValue, 2);
+  const alphaValue = applySliderValue('pPointAlpha', params.pointAlpha);
+  $('vPointAlpha').textContent = alphaValue.toFixed(2);
+  const hueValue = applySliderValue('pHue', params.pointHue);
+  $('vHue').textContent = formatDisplayNumber(hueValue, 1) + '°';
+  const saturationValue = applySliderValue('pSaturation', params.pointSaturation);
+  $('vSaturation').textContent = (saturationValue * 100).toFixed(0) + '%';
+  const valueValue = applySliderValue('pValue', params.pointValue);
+  $('vValue').textContent = (valueValue * 100).toFixed(0) + '%';
+  const seedStarsValue = applySliderValue('pSeedStars', params.seedStars);
+  $('vSeedStars').textContent = formatDisplayNumber(seedStarsValue);
   $('pCatSmallCount').value = params.catSmallCount; $('vCatSmallCount').textContent = params.catSmallCount;
   $('pCatMediumCount').value = params.catMediumCount; $('vCatMediumCount').textContent = params.catMediumCount;
   $('pCatLargeCount').value = params.catLargeCount; $('vCatLargeCount').textContent = params.catLargeCount;
   // size factors
-  $('pSizeTiny').value = params.sizeFactorTiny; $('vSizeTiny').textContent = params.sizeFactorTiny.toFixed(2);
-  $('pSizeSmall').value = params.sizeFactorSmall; $('vSizeSmall').textContent = params.sizeFactorSmall.toFixed(2);
-  $('pSizeMedium').value = params.sizeFactorMedium; $('vSizeMedium').textContent = params.sizeFactorMedium.toFixed(2);
-  $('pSizeLarge').value = params.sizeFactorLarge; $('vSizeLarge').textContent = params.sizeFactorLarge.toFixed(2);
+  const sizeTinyValue = applySliderValue('pSizeTiny', params.sizeFactorTiny);
+  $('vSizeTiny').textContent = sizeTinyValue.toFixed(2);
+  const sizeSmallValue = applySliderValue('pSizeSmall', params.sizeFactorSmall);
+  $('vSizeSmall').textContent = sizeSmallValue.toFixed(2);
+  const sizeMediumValue = applySliderValue('pSizeMedium', params.sizeFactorMedium);
+  $('vSizeMedium').textContent = sizeMediumValue.toFixed(2);
+  const sizeLargeValue = applySliderValue('pSizeLarge', params.sizeFactorLarge);
+  $('vSizeLarge').textContent = sizeLargeValue.toFixed(2);
   // tiny / connection
-  $('pTinyCount').value = params.tinyCount; $('vTinyCount').textContent = params.tinyCount;
-  $('pConnPercent').value = params.connPercent; $('vConnPercent').textContent = (params.connPercent * 100).toFixed(0) + '%';
-  $('pTinyAlpha').value = params.tinyAlpha; $('vTinyAlpha').textContent = params.tinyAlpha.toFixed(2);
-  $('pSeedTiny').value = params.seedTiny; $('vSeedTiny').textContent = params.seedTiny;
+  const tinyCountValue = applySliderValue('pTinyCount', params.tinyCount);
+  $('vTinyCount').textContent = formatDisplayNumber(tinyCountValue);
+  const connPercentValue = applySliderValue('pConnPercent', params.connPercent);
+  $('vConnPercent').textContent = (connPercentValue * 100).toFixed(0) + '%';
+  const tinyAlphaValue = applySliderValue('pTinyAlpha', params.tinyAlpha);
+  $('vTinyAlpha').textContent = tinyAlphaValue.toFixed(2);
+  const seedTinyValue = applySliderValue('pSeedTiny', params.seedTiny);
+  $('vSeedTiny').textContent = formatDisplayNumber(seedTinyValue);
   // motion
   $('pMotionMode').value = params.motionMode;
-  $('pMotionSpeed').value = params.motionSpeed; $('vMotionSpeed').textContent = params.motionSpeed.toFixed(2) + '×';
-  $('pMotionAmplitude').value = params.motionAmplitude; $('vMotionAmplitude').textContent = params.motionAmplitude.toFixed(1);
-  $('pMotionNoiseStrength').value = params.motionNoiseStrength; $('vMotionNoiseStrength').textContent = params.motionNoiseStrength.toFixed(2);
-  $('pMotionNoiseScale').value = params.motionNoiseScale; $('vMotionNoiseScale').textContent = params.motionNoiseScale.toFixed(2);
+  const motionSpeedValue = applySliderValue('pMotionSpeed', params.motionSpeed);
+  $('vMotionSpeed').textContent = motionSpeedValue.toFixed(2) + '×';
+  const motionAmplitudeValue = applySliderValue('pMotionAmplitude', params.motionAmplitude);
+  $('vMotionAmplitude').textContent = formatDisplayNumber(motionAmplitudeValue, 1);
+  const motionNoiseStrengthValue = applySliderValue('pMotionNoiseStrength', params.motionNoiseStrength);
+  $('vMotionNoiseStrength').textContent = motionNoiseStrengthValue.toFixed(2);
+  const motionNoiseScaleValue = applySliderValue('pMotionNoiseScale', params.motionNoiseScale);
+  $('vMotionNoiseScale').textContent = motionNoiseScaleValue.toFixed(2);
   // edge & blending
-  $('pEdgeSoft').value = params.edgeSoftness; $('vEdgeSoft').textContent = params.edgeSoftness.toFixed(2);
+  const edgeSoftValue = applySliderValue('pEdgeSoft', params.edgeSoftness);
+  $('vEdgeSoft').textContent = edgeSoftValue.toFixed(2);
   $('pBlending').value = params.blending;
   $('pFilled').checked = params.filled;
   updateRotationUI();
