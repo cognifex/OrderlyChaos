@@ -310,6 +310,9 @@
           <option value="random">Zufall (Sphäre)</option>
           <option value="fibonacci">Fibonacci-Sphäre</option>
           <option value="spiral">Galaxie-Spirale</option>
+          <option value="cube">Würfel-Volumen</option>
+          <option value="cylinder">Zylinder-Volumen</option>
+          <option value="octahedron">Oktaeder-Volumen</option>
         </select>
       </div>
       <div class="row">
@@ -364,6 +367,43 @@
           <input id="pValue" type="range" min="0" max="1" step="0.01" />
           <input class="bound-input" type="number" data-target="pValue" data-bound="max" />
           <div class="val" id="vValue"></div>
+        </div>
+      </div>
+      <div class="row">
+        <label for="pColorMode">Farbmodus</label>
+        <select id="pColorMode">
+          <option value="uniform">Einzelfarbe</option>
+          <option value="radialPulse">Radialer Puls</option>
+          <option value="axisWave">Vertikale Welle</option>
+          <option value="phaseFlicker">Zufälliges Flimmern</option>
+          <option value="randomHue">Zufallsmodus</option>
+        </select>
+      </div>
+      <div class="row">
+        <label for="pColorIntensity">Farbintensität</label>
+        <div class="wrap">
+          <input class="bound-input" type="number" data-target="pColorIntensity" data-bound="min" />
+          <input id="pColorIntensity" type="range" min="0" max="1" step="0.01" />
+          <input class="bound-input" type="number" data-target="pColorIntensity" data-bound="max" />
+          <div class="val" id="vColorIntensity"></div>
+        </div>
+      </div>
+      <div class="row">
+        <label for="pColorSpeed">Farbanimation (Tempo)</label>
+        <div class="wrap">
+          <input class="bound-input" type="number" data-target="pColorSpeed" data-bound="min" />
+          <input id="pColorSpeed" type="range" min="0" max="5" step="0.05" />
+          <input class="bound-input" type="number" data-target="pColorSpeed" data-bound="max" />
+          <div class="val" id="vColorSpeed"></div>
+        </div>
+      </div>
+      <div class="row">
+        <label for="pHueSpread">Farbton-Streuung</label>
+        <div class="wrap">
+          <input class="bound-input" type="number" data-target="pHueSpread" data-bound="min" />
+          <input id="pHueSpread" type="range" min="0" max="180" step="1" />
+          <input class="bound-input" type="number" data-target="pHueSpread" data-bound="max" />
+          <div class="val" id="vHueSpread"></div>
         </div>
       </div>
       <div class="row">
@@ -717,6 +757,13 @@ function hsv2rgb(h, s, v) {
   return new THREE.Color(r+m,g+m,b+m);
 }
 
+function clampColor(color) {
+  color.r = Math.min(1, Math.max(0, color.r));
+  color.g = Math.min(1, Math.max(0, color.g));
+  color.b = Math.min(1, Math.max(0, color.b));
+  return color;
+}
+
 /* PRNG: Mulberry32 for reproducible random */
 function mulberry32(seed) {
   return function() {
@@ -767,6 +814,10 @@ const params = {
   pointHue: 210,
   pointSaturation: 0.75,
   pointValue: 1.0,
+  colorMode: 'uniform',
+  colorIntensity: 0.8,
+  colorSpeed: 1.0,
+  hueSpread: 45,
   seedStars: 1,
   catSmallCount: 1125,
   catMediumCount: 875,
@@ -798,12 +849,23 @@ function clampTotalCount(value) {
   return Math.max(0, numeric);
 }
 
-const colorState = { point: new THREE.Color() };
+const colorState = {
+  point: new THREE.Color(),
+  accent: new THREE.Color(),
+  dim: new THREE.Color(),
+  radius: params.radius
+};
+const COLOR_MODES = ['uniform', 'radialPulse', 'axisWave', 'phaseFlicker', 'randomHue'];
 const MOTION_MODES = ['static', 'sine', 'noise', 'orbit'];
 const motionState = { time: 0 };
 
 function getMotionModeIndex() {
   const idx = MOTION_MODES.indexOf(params.motionMode);
+  return idx >= 0 ? idx : 0;
+}
+
+function getColorModeIndex() {
+  const idx = COLOR_MODES.indexOf(params.colorMode);
   return idx >= 0 ? idx : 0;
 }
 
@@ -1330,13 +1392,32 @@ function updatePointColor(applyUniforms = true) {
   const value = Math.max(0, Math.min(1, params.pointValue));
   const next = hsv2rgb(hue, saturation, value);
   colorState.point.copy(next);
+  const accent = next.clone();
+  accent.offsetHSL(0.02, 0.05, 0.08);
+  const dim = next.clone();
+  dim.offsetHSL(0, -0.12, -0.18);
+  clampColor(colorState.point);
+  colorState.accent.copy(clampColor(accent));
+  colorState.dim.copy(clampColor(dim));
   if (!applyUniforms) return;
   if (starMaterial && starMaterial.uniforms && starMaterial.uniforms.uColor) {
     starMaterial.uniforms.uColor.value.copy(colorState.point);
+    if (starMaterial.uniforms.uColorAccent) {
+      starMaterial.uniforms.uColorAccent.value.copy(colorState.accent);
+    }
+    if (starMaterial.uniforms.uColorDim) {
+      starMaterial.uniforms.uColorDim.value.copy(colorState.dim);
+    }
     starMaterial.needsUpdate = true;
   }
   if (tinyMaterial && tinyMaterial.uniforms && tinyMaterial.uniforms.uColor) {
     tinyMaterial.uniforms.uColor.value.copy(colorState.point);
+    if (tinyMaterial.uniforms.uColorAccent) {
+      tinyMaterial.uniforms.uColorAccent.value.copy(colorState.accent);
+    }
+    if (tinyMaterial.uniforms.uColorDim) {
+      tinyMaterial.uniforms.uColorDim.value.copy(colorState.dim);
+    }
     tinyMaterial.needsUpdate = true;
   }
 }
@@ -1357,6 +1438,7 @@ function makeStars() {
     starGeometry = new THREE.BufferGeometry();
     starMaterial = null;
     starPoints = null;
+    colorState.radius = Math.max(1, params.radius);
     return;
   }
   starGeometry = new THREE.BufferGeometry();
@@ -1395,9 +1477,9 @@ function makeStars() {
   const fibOffset = (params.distribution === 'fibonacci' && total > 0) ? (2 / total) : 0;
   const fibIncrement = Math.PI * (3 - Math.sqrt(5));
   const spiralArms = 4;
+  const radius = params.radius;
   for (let i = 0; i < total; i++) {
-    let x = 0, y = 0, z = 0;
-    const radius = params.radius;
+    tmpVec.set(0, 0, 0);
     if (params.distribution === 'fibonacci') {
       const yv = ((i + 0.5) * fibOffset) - 1;
       const clampedY = Math.max(-1, Math.min(1, yv));
@@ -1405,27 +1487,61 @@ function makeStars() {
       const phi = i * fibIncrement;
       const bias = params.cluster > 0 ? Math.pow(rand(), 1 + params.cluster * 2.2) : rand();
       const radial = radius * (0.35 + 0.65 * bias);
-      x = Math.cos(phi) * rCircle * radial;
-      y = clampedY * radial;
-      z = Math.sin(phi) * rCircle * radial;
+      let x = Math.cos(phi) * rCircle * radial;
+      let y = clampedY * radial;
+      let z = Math.sin(phi) * rCircle * radial;
       x += (rand() - 0.5) * radius * 0.04;
       y += (rand() - 0.5) * radius * 0.04;
       z += (rand() - 0.5) * radius * 0.04;
       tmpVec.set(x, y, z).applyMatrix4(orientation);
-      x = tmpVec.x; y = tmpVec.y; z = tmpVec.z;
     } else if (params.distribution === 'spiral') {
       const t = total > 0 ? (i / total) : 0;
       const arm = i % spiralArms;
       const baseAngle = t * Math.PI * 6 + arm * (Math.PI * 2 / spiralArms);
       const spread = radius * Math.pow(rand(), 0.55 + params.cluster * 0.9);
-      x = Math.cos(baseAngle) * spread;
-      z = Math.sin(baseAngle) * spread;
-      y = (rand() - 0.5) * radius * (0.2 + 0.4 * (1 - params.cluster));
+      let x = Math.cos(baseAngle) * spread;
+      let z = Math.sin(baseAngle) * spread;
+      let y = (rand() - 0.5) * radius * (0.2 + 0.4 * (1 - params.cluster));
       x += (rand() - 0.5) * radius * 0.08;
       y += (rand() - 0.5) * radius * 0.08;
       z += (rand() - 0.5) * radius * 0.08;
       tmpVec.set(x, y, z).applyMatrix4(orientation);
-      x = tmpVec.x; y = tmpVec.y; z = tmpVec.z;
+    } else if (params.distribution === 'cube') {
+      const shrink = params.cluster > 0 ? Math.pow(rand(), 1 + params.cluster * 1.8) : 1;
+      tmpVec.set(
+        (rand() * 2 - 1) * radius * shrink,
+        (rand() * 2 - 1) * radius * shrink,
+        (rand() * 2 - 1) * radius * shrink
+      ).applyMatrix4(orientation);
+    } else if (params.distribution === 'cylinder') {
+      const radialBias = params.cluster > 0 ? Math.pow(rand(), 1 + params.cluster * 1.5) : rand();
+      const r = radius * Math.sqrt(radialBias);
+      const theta = rand() * Math.PI * 2;
+      const heightRand = rand();
+      const heightScale = params.cluster > 0 ? Math.pow(heightRand, 1 + params.cluster * 1.3) : heightRand;
+      const y = (rand() < 0.5 ? -1 : 1) * radius * heightScale;
+      tmpVec.set(
+        Math.cos(theta) * r,
+        y,
+        Math.sin(theta) * r
+      ).applyMatrix4(orientation);
+    } else if (params.distribution === 'octahedron') {
+      let accepted = false;
+      for (let attempt = 0; attempt < 12 && !accepted; attempt++) {
+        const px = rand() * 2 - 1;
+        const py = rand() * 2 - 1;
+        const pz = rand() * 2 - 1;
+        const sum = Math.abs(px) + Math.abs(py) + Math.abs(pz);
+        if (sum <= 1) {
+          const bias = params.cluster > 0 ? Math.pow(rand(), 1 + params.cluster * 2.0) : 1;
+          tmpVec.set(px * radius * bias, py * radius * bias, pz * radius * bias);
+          accepted = true;
+        }
+      }
+      if (!accepted) {
+        tmpVec.set((rand() * 2 - 1) * radius, (rand() * 2 - 1) * radius, (rand() * 2 - 1) * radius);
+      }
+      tmpVec.applyMatrix4(orientation);
     } else {
       const u = rand();
       const v = rand();
@@ -1435,10 +1551,15 @@ function makeStars() {
       if (rand() < params.cluster) {
         r *= rand();
       }
-      x = r * Math.sin(phi) * Math.cos(theta);
-      y = r * Math.sin(phi) * Math.sin(theta);
-      z = r * Math.cos(phi);
+      tmpVec.set(
+        r * Math.sin(phi) * Math.cos(theta),
+        r * Math.sin(phi) * Math.sin(theta),
+        r * Math.cos(phi)
+      );
     }
+    const x = tmpVec.x;
+    const y = tmpVec.y;
+    const z = tmpVec.z;
     positions.set([x, y, z], i * 3);
     basePositions.set([x, y, z], i * 3);
     const cat = categoryPool[i] !== undefined ? categoryPool[i] : 2;
@@ -1491,6 +1612,8 @@ function makeStars() {
       controls.target.copy(clusterGroup.position);
     }
   }
+  const sphere = starGeometry.boundingSphere;
+  colorState.radius = sphere ? Math.max(1, sphere.radius) : Math.max(1, params.radius);
   // Vertex shader for stars
   const starVert = `
     attribute float aSize;
@@ -1498,6 +1621,9 @@ function makeStars() {
     attribute vec3 aBase;
     attribute float aPhase;
     varying float vDepth;
+    varying vec3 vBase;
+    varying float vPhase;
+    varying float vRadius;
     uniform float uSizeFactorSmall;
     uniform float uSizeFactorMedium;
     uniform float uSizeFactorLarge;
@@ -1598,6 +1724,9 @@ function makeStars() {
     void main() {
       vec3 animated = applyMotion(aBase);
       vec3 audioDriven = applyAudioReactive(animated);
+      vBase = aBase;
+      vPhase = aPhase;
+      vRadius = length(aBase);
       vec4 mv = modelViewMatrix * vec4(audioDriven, 1.0);
       vDepth = -mv.z;
       float factor;
@@ -1618,6 +1747,85 @@ function makeStars() {
     uniform float uAlpha;
     uniform float uEdgeSoftness;
     uniform vec3 uColor;
+    uniform vec3 uColorAccent;
+    uniform vec3 uColorDim;
+    uniform float uColorMode;
+    uniform float uColorRadius;
+    uniform float uColorIntensity;
+    uniform float uColorSpeed;
+    uniform float uHueSpread;
+    uniform float uTime;
+    varying vec3 vBase;
+    varying float vPhase;
+    varying float vRadius;
+
+    vec3 rgb2hsv(vec3 c) {
+      vec4 K = vec4(0.0, -1.0 / 3.0, 2.0 / 3.0, -1.0);
+      vec4 p = mix(vec4(c.bg, K.wz), vec4(c.gb, K.xy), step(c.b, c.g));
+      vec4 q = mix(vec4(p.xyw, c.r), vec4(c.r, p.yzx), step(p.x, c.r));
+      float d = q.x - min(q.w, q.y);
+      float e = 1.0e-10;
+      return vec3(abs(q.z + (q.w - q.y) / (6.0 * d + e)), d / (q.x + e), q.x);
+    }
+
+    vec3 hsv2rgb(vec3 c) {
+      vec3 rgb = clamp(abs(mod(c.x * 6.0 + vec3(0.0, 4.0, 2.0), 6.0) - 3.0) - 1.0, 0.0, 1.0);
+      return c.z * mix(vec3(1.0), rgb, c.y);
+    }
+
+    vec3 computeColor() {
+      float intensity = clamp(uColorIntensity, 0.0, 1.0);
+      float hueSpreadNorm = uHueSpread / 360.0;
+      float colorTime = uTime * max(uColorSpeed, 0.0);
+      vec3 baseHSVOriginal = rgb2hsv(uColor);
+      vec3 accentHSVOriginal = rgb2hsv(uColorAccent);
+      vec3 dimHSVOriginal = rgb2hsv(uColorDim);
+      float hueShift = 0.0;
+      if (hueSpreadNorm > 1e-6) {
+        hueShift = sin(colorTime + vPhase * 6.2831853) * hueSpreadNorm;
+      }
+      vec3 baseHSV = baseHSVOriginal;
+      baseHSV.x = fract(baseHSV.x + hueShift);
+      vec3 accentHSV = accentHSVOriginal;
+      accentHSV.x = fract(accentHSV.x + hueShift);
+      vec3 dimHSV = dimHSVOriginal;
+      dimHSV.x = fract(dimHSV.x + hueShift);
+      vec3 baseColor = hsv2rgb(baseHSV);
+      vec3 accentColor = hsv2rgb(accentHSV);
+      vec3 dimColor = hsv2rgb(dimHSV);
+
+      if (uColorMode < 0.5) {
+        return baseColor;
+      } else if (uColorMode < 1.5) {
+        float norm = uColorRadius > 1e-4 ? clamp(vRadius / uColorRadius, 0.0, 1.0) : 0.0;
+        float pulse = 0.5 + 0.5 * sin(colorTime * 2.2 + norm * 6.2831853 + vPhase * 3.1415926);
+        vec3 effect = mix(baseColor, accentColor, pulse);
+        return mix(baseColor, effect, intensity);
+      } else if (uColorMode < 2.5) {
+        float axis = clamp((vBase.y / max(uColorRadius, 1e-4)) * 0.5 + 0.5, 0.0, 1.0);
+        float sweep = 0.5 + 0.5 * sin(colorTime * 1.4 + axis * 6.2831853);
+        vec3 effect = mix(dimColor, accentColor, sweep);
+        return mix(baseColor, effect, intensity);
+      } else if (uColorMode < 3.5) {
+        float flicker = fract(sin(vPhase * 43758.5453 + colorTime * 0.45) * 43758.5453);
+        float mixAmt = smoothstep(0.2, 0.8, flicker);
+        vec3 effect = mix(dimColor, accentColor, mixAmt);
+        return mix(baseColor, effect, intensity);
+      } else {
+        float hueRange = hueSpreadNorm;
+        float randA = sin(vPhase * 213.135 + colorTime * 1.27);
+        float randB = sin(vPhase * 97.531 + colorTime * 0.93);
+        float randC = sin(vPhase * 47.853 + colorTime * 1.61);
+        float randomShift = (randA * 0.6 + randB * 0.4) * hueRange;
+        vec3 rndHSV = baseHSVOriginal;
+        rndHSV.x = fract(rndHSV.x + randomShift);
+        rndHSV.y = clamp(rndHSV.y * (0.7 + 0.3 * (randB * 0.5 + 0.5)), 0.0, 1.0);
+        rndHSV.z = clamp(rndHSV.z * (0.7 + 0.3 * (randC * 0.5 + 0.5)), 0.0, 1.2);
+        vec3 randomColor = hsv2rgb(rndHSV);
+        return mix(baseColor, randomColor, intensity);
+      }
+    }
+
     void main() {
       vec2 uv = gl_PointCoord * 2.0 - 1.0;
       float d = dot(uv, uv);
@@ -1626,7 +1834,8 @@ function makeStars() {
       float inner = 1.0 - uEdgeSoftness;
       // fade alpha near the outer edge: inside 'inner' radius alpha=1, outside alpha decreases to 0 at the rim
       float edge = 1.0 - smoothstep(inner, 1.0, d);
-      gl_FragColor = vec4(uColor, edge * uAlpha);
+      vec3 color = computeColor();
+      gl_FragColor = vec4(color, edge * uAlpha);
     }
   `;
   starMaterial = new THREE.ShaderMaterial({
@@ -1651,7 +1860,14 @@ function makeStars() {
       uAudioBands: { value: new THREE.Vector3() },
       uAudioEnergy: { value: 0 },
       uAudioWave: { value: 0 },
-      uColor: { value: colorState.point.clone() }
+      uColor: { value: colorState.point.clone() },
+      uColorAccent: { value: colorState.accent.clone() },
+      uColorDim: { value: colorState.dim.clone() },
+      uColorMode: { value: getColorModeIndex() },
+      uColorRadius: { value: colorState.radius },
+      uColorIntensity: { value: params.colorIntensity },
+      uColorSpeed: { value: params.colorSpeed },
+      uHueSpread: { value: params.hueSpread }
     }
   });
   starMaterial.blending = (params.blending === 'Additive') ? THREE.AdditiveBlending : THREE.NormalBlending;
@@ -1712,6 +1928,9 @@ function makeTiny() {
     uniform float uAudioEnergy;
     uniform float uAudioWave;
     varying float vDepth;
+    varying vec3 vBase;
+    varying float vPhase;
+    varying float vRadius;
 
     float hash3(vec3 p) {
       return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453123);
@@ -1800,6 +2019,9 @@ function makeTiny() {
     void main() {
       vec3 animated = applyMotion(aBase);
       vec3 audioDriven = applyAudioReactive(animated);
+      vBase = aBase;
+      vPhase = aPhase;
+      vRadius = length(aBase);
       vec4 mv = modelViewMatrix * vec4(audioDriven, 1.0);
       vDepth = -mv.z;
       float px = max(1.0, uSize * 6.0);
@@ -1811,12 +2033,92 @@ function makeTiny() {
     precision highp float;
     uniform float uAlpha;
     uniform vec3 uColor;
+    uniform vec3 uColorAccent;
+    uniform vec3 uColorDim;
+    uniform float uColorMode;
+    uniform float uColorRadius;
+    uniform float uColorIntensity;
+    uniform float uColorSpeed;
+    uniform float uHueSpread;
+    uniform float uTime;
+    varying vec3 vBase;
+    varying float vPhase;
+    varying float vRadius;
+
+    vec3 rgb2hsv(vec3 c) {
+      vec4 K = vec4(0.0, -1.0 / 3.0, 2.0 / 3.0, -1.0);
+      vec4 p = mix(vec4(c.bg, K.wz), vec4(c.gb, K.xy), step(c.b, c.g));
+      vec4 q = mix(vec4(p.xyw, c.r), vec4(c.r, p.yzx), step(p.x, c.r));
+      float d = q.x - min(q.w, q.y);
+      float e = 1.0e-10;
+      return vec3(abs(q.z + (q.w - q.y) / (6.0 * d + e)), d / (q.x + e), q.x);
+    }
+
+    vec3 hsv2rgb(vec3 c) {
+      vec3 rgb = clamp(abs(mod(c.x * 6.0 + vec3(0.0, 4.0, 2.0), 6.0) - 3.0) - 1.0, 0.0, 1.0);
+      return c.z * mix(vec3(1.0), rgb, c.y);
+    }
+
+    vec3 computeColor() {
+      float intensity = clamp(uColorIntensity, 0.0, 1.0);
+      float hueSpreadNorm = uHueSpread / 360.0;
+      float colorTime = uTime * max(uColorSpeed, 0.0);
+      vec3 baseHSVOriginal = rgb2hsv(uColor);
+      vec3 accentHSVOriginal = rgb2hsv(uColorAccent);
+      vec3 dimHSVOriginal = rgb2hsv(uColorDim);
+      float hueShift = 0.0;
+      if (hueSpreadNorm > 1e-6) {
+        hueShift = sin(colorTime + vPhase * 6.2831853) * hueSpreadNorm;
+      }
+      vec3 baseHSV = baseHSVOriginal;
+      baseHSV.x = fract(baseHSV.x + hueShift);
+      vec3 accentHSV = accentHSVOriginal;
+      accentHSV.x = fract(accentHSV.x + hueShift);
+      vec3 dimHSV = dimHSVOriginal;
+      dimHSV.x = fract(dimHSV.x + hueShift);
+      vec3 baseColor = hsv2rgb(baseHSV);
+      vec3 accentColor = hsv2rgb(accentHSV);
+      vec3 dimColor = hsv2rgb(dimHSV);
+
+      if (uColorMode < 0.5) {
+        return baseColor;
+      } else if (uColorMode < 1.5) {
+        float norm = uColorRadius > 1e-4 ? clamp(vRadius / uColorRadius, 0.0, 1.0) : 0.0;
+        float pulse = 0.5 + 0.5 * sin(colorTime * 2.8 + norm * 6.2831853 + vPhase * 4.7123889);
+        vec3 effect = mix(baseColor, accentColor, pulse);
+        return mix(baseColor, effect, intensity);
+      } else if (uColorMode < 2.5) {
+        float axis = clamp((vBase.y / max(uColorRadius, 1e-4)) * 0.5 + 0.5, 0.0, 1.0);
+        float sweep = 0.5 + 0.5 * sin(colorTime * 1.8 + axis * 6.2831853);
+        vec3 effect = mix(dimColor, accentColor, sweep);
+        return mix(baseColor, effect, intensity);
+      } else if (uColorMode < 3.5) {
+        float flicker = fract(sin(vPhase * 43758.5453 + colorTime * 0.6) * 43758.5453);
+        float mixAmt = smoothstep(0.15, 0.85, flicker);
+        vec3 effect = mix(dimColor, accentColor, mixAmt);
+        return mix(baseColor, effect, intensity);
+      } else {
+        float hueRange = hueSpreadNorm;
+        float randA = sin(vPhase * 213.135 + colorTime * 1.47);
+        float randB = sin(vPhase * 97.531 + colorTime * 1.03);
+        float randC = sin(vPhase * 47.853 + colorTime * 1.71);
+        float randomShift = (randA * 0.6 + randB * 0.4) * hueRange;
+        vec3 rndHSV = baseHSVOriginal;
+        rndHSV.x = fract(rndHSV.x + randomShift);
+        rndHSV.y = clamp(rndHSV.y * (0.7 + 0.3 * (randB * 0.5 + 0.5)), 0.0, 1.0);
+        rndHSV.z = clamp(rndHSV.z * (0.7 + 0.3 * (randC * 0.5 + 0.5)), 0.0, 1.2);
+        vec3 randomColor = hsv2rgb(rndHSV);
+        return mix(baseColor, randomColor, intensity);
+      }
+    }
+
     void main() {
       vec2 uv = gl_PointCoord * 2.0 - 1.0;
       float d = dot(uv, uv);
       if (d > 1.0) discard;
       float fade = 1.0 - smoothstep(0.6, 1.0, d);
-      gl_FragColor = vec4(uColor, fade * uAlpha);
+      vec3 color = computeColor();
+      gl_FragColor = vec4(color, fade * uAlpha);
     }
   `;
   tinyMaterial = new THREE.ShaderMaterial({
@@ -1837,7 +2139,14 @@ function makeTiny() {
       uAudioBands: { value: new THREE.Vector3() },
       uAudioEnergy: { value: 0 },
       uAudioWave: { value: 0 },
-      uColor: { value: colorState.point.clone() }
+      uColor: { value: colorState.point.clone() },
+      uColorAccent: { value: colorState.accent.clone() },
+      uColorDim: { value: colorState.dim.clone() },
+      uColorMode: { value: getColorModeIndex() },
+      uColorRadius: { value: colorState.radius },
+      uColorIntensity: { value: params.colorIntensity },
+      uColorSpeed: { value: params.colorSpeed },
+      uHueSpread: { value: params.hueSpread }
     }
   });
   tinyMaterial.blending = (params.blending === 'Additive') ? THREE.AdditiveBlending : THREE.NormalBlending;
@@ -1874,6 +2183,30 @@ function updateStarUniforms() {
   if (starMaterial.uniforms.uColor) {
     starMaterial.uniforms.uColor.value.copy(colorState.point);
   }
+  if (starMaterial.uniforms.uColorAccent) {
+    starMaterial.uniforms.uColorAccent.value.copy(colorState.accent);
+  }
+  if (starMaterial.uniforms.uColorDim) {
+    starMaterial.uniforms.uColorDim.value.copy(colorState.dim);
+  }
+  if (starMaterial.uniforms.uColorMode) {
+    starMaterial.uniforms.uColorMode.value = getColorModeIndex();
+  }
+  if (starMaterial.uniforms.uColorRadius) {
+    starMaterial.uniforms.uColorRadius.value = Math.max(1, colorState.radius);
+  }
+  if (starMaterial.uniforms.uColorIntensity) {
+    const intensity = Math.max(0, Math.min(1, Number(params.colorIntensity) || 0));
+    starMaterial.uniforms.uColorIntensity.value = intensity;
+  }
+  if (starMaterial.uniforms.uColorSpeed) {
+    const speed = Math.max(0, Number(params.colorSpeed) || 0);
+    starMaterial.uniforms.uColorSpeed.value = speed;
+  }
+  if (starMaterial.uniforms.uHueSpread) {
+    const spread = Math.max(0, Math.min(360, Number(params.hueSpread) || 0));
+    starMaterial.uniforms.uHueSpread.value = spread;
+  }
   starMaterial.blending = (params.blending === 'Additive') ? THREE.AdditiveBlending : THREE.NormalBlending;
   starMaterial.needsUpdate = true;
 }
@@ -1902,6 +2235,30 @@ function updateTinyMaterial() {
   }
   if (tinyMaterial.uniforms.uColor) {
     tinyMaterial.uniforms.uColor.value.copy(colorState.point);
+  }
+  if (tinyMaterial.uniforms.uColorAccent) {
+    tinyMaterial.uniforms.uColorAccent.value.copy(colorState.accent);
+  }
+  if (tinyMaterial.uniforms.uColorDim) {
+    tinyMaterial.uniforms.uColorDim.value.copy(colorState.dim);
+  }
+  if (tinyMaterial.uniforms.uColorMode) {
+    tinyMaterial.uniforms.uColorMode.value = getColorModeIndex();
+  }
+  if (tinyMaterial.uniforms.uColorRadius) {
+    tinyMaterial.uniforms.uColorRadius.value = Math.max(1, colorState.radius);
+  }
+  if (tinyMaterial.uniforms.uColorIntensity) {
+    const intensity = Math.max(0, Math.min(1, Number(params.colorIntensity) || 0));
+    tinyMaterial.uniforms.uColorIntensity.value = intensity;
+  }
+  if (tinyMaterial.uniforms.uColorSpeed) {
+    const speed = Math.max(0, Number(params.colorSpeed) || 0);
+    tinyMaterial.uniforms.uColorSpeed.value = speed;
+  }
+  if (tinyMaterial.uniforms.uHueSpread) {
+    const spread = Math.max(0, Math.min(360, Number(params.hueSpread) || 0));
+    tinyMaterial.uniforms.uHueSpread.value = spread;
   }
   tinyMaterial.blending = (params.blending === 'Additive') ? THREE.AdditiveBlending : THREE.NormalBlending;
   tinyMaterial.needsUpdate = true;
@@ -2788,6 +3145,30 @@ const sliderHandlers = {
   pHue:         val => { params.pointHue = parseFloat(val); updatePointColor(); updateStarUniforms(); updateTinyMaterial(); },
   pSaturation:  val => { params.pointSaturation = parseFloat(val); updatePointColor(); updateStarUniforms(); updateTinyMaterial(); },
   pValue:       val => { params.pointValue = parseFloat(val); updatePointColor(); updateStarUniforms(); updateTinyMaterial(); },
+  pColorIntensity: val => {
+    const next = parseFloat(val);
+    if (!Number.isNaN(next)) {
+      params.colorIntensity = next;
+      updateStarUniforms();
+      updateTinyMaterial();
+    }
+  },
+  pColorSpeed: val => {
+    const next = parseFloat(val);
+    if (!Number.isNaN(next)) {
+      params.colorSpeed = next;
+      updateStarUniforms();
+      updateTinyMaterial();
+    }
+  },
+  pHueSpread: val => {
+    const next = parseFloat(val);
+    if (!Number.isNaN(next)) {
+      params.hueSpread = next;
+      updateStarUniforms();
+      updateTinyMaterial();
+    }
+  },
   pSeedStars:   val => { params.seedStars = parseInt(val, 10); rebuildStars(); },
   pCatSmallCount:  val => { setCategoryCount('small', val); },
   pCatMediumCount: val => { setCategoryCount('medium', val); },
@@ -2853,6 +3234,9 @@ const sliderValueGetters = {
   pHue: () => params.pointHue,
   pSaturation: () => params.pointSaturation,
   pValue: () => params.pointValue,
+  pColorIntensity: () => params.colorIntensity,
+  pColorSpeed: () => params.colorSpeed,
+  pHueSpread: () => params.hueSpread,
   pSeedStars: () => params.seedStars,
   pSizeTiny: () => params.sizeFactorTiny,
   pSizeSmall: () => params.sizeFactorSmall,
@@ -2894,6 +3278,11 @@ $('pDistribution').addEventListener('change', e => {
   params.distribution = e.target.value;
   rebuildStars();
   setSliders();
+});
+$('pColorMode').addEventListener('change', e => {
+  params.colorMode = e.target.value;
+  updateStarUniforms();
+  updateTinyMaterial();
 });
 $('pMotionMode').addEventListener('change', e => {
   params.motionMode = e.target.value;
@@ -2977,8 +3366,12 @@ $('random').addEventListener('click', () => {
   params.pointSaturation = Math.random();
   params.pointValue = 0.3 + Math.random() * 0.7;
   params.seedStars = 1 + Math.floor(Math.random() * 9999);
-  const distributions = ['random', 'fibonacci', 'spiral'];
+  const distributions = ['random', 'fibonacci', 'spiral', 'cube', 'cylinder', 'octahedron'];
   params.distribution = distributions[Math.floor(Math.random() * distributions.length)];
+  params.colorMode = COLOR_MODES[Math.floor(Math.random() * COLOR_MODES.length)];
+  params.colorIntensity = Math.random();
+  params.colorSpeed = Math.random() * 4.5;
+  params.hueSpread = Math.random() * 180;
   const weights = [Math.random(), Math.random(), Math.random()];
   const weightSum = weights.reduce((sum, value) => sum + value, 0) || 1;
   const provisional = weights.map(value => Math.max(0, Math.floor((value / weightSum) * totalCount)));
@@ -3042,6 +3435,13 @@ function setSliders() {
   $('vSaturation').textContent = (saturationValue * 100).toFixed(0) + '%';
   const valueValue = applySliderValue('pValue', params.pointValue);
   $('vValue').textContent = (valueValue * 100).toFixed(0) + '%';
+  $('pColorMode').value = params.colorMode;
+  const colorIntensityValue = applySliderValue('pColorIntensity', params.colorIntensity);
+  $('vColorIntensity').textContent = (colorIntensityValue * 100).toFixed(0) + '%';
+  const colorSpeedValue = applySliderValue('pColorSpeed', params.colorSpeed);
+  $('vColorSpeed').textContent = colorSpeedValue.toFixed(2) + '×';
+  const hueSpreadValue = applySliderValue('pHueSpread', params.hueSpread);
+  $('vHueSpread').textContent = formatDisplayNumber(hueSpreadValue, 1) + '°';
   const seedStarsValue = applySliderValue('pSeedStars', params.seedStars);
   $('vSeedStars').textContent = formatDisplayNumber(seedStarsValue);
   $('pCatSmallCount').value = params.catSmallCount; $('vCatSmallCount').textContent = params.catSmallCount;
