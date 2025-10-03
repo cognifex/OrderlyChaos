@@ -27,6 +27,61 @@
       transform: translateY(-12px);
     }
     #panel h3 { margin: .25rem 0 .5rem; font-size: .95rem; }
+    .accordion {
+      background: rgba(20, 20, 20, 0.45);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 10px;
+      margin: 0 0 .75rem;
+      overflow: hidden;
+    }
+    .accordion + .accordion { margin-top: .5rem; }
+    .accordion__trigger {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: .65rem;
+      padding: .6rem .85rem;
+      background: transparent;
+      color: inherit;
+      border: none;
+      font-size: .85rem;
+      font-weight: 600;
+      letter-spacing: .01em;
+      cursor: pointer;
+      position: relative;
+      transition: background .2s ease, color .2s ease;
+    }
+    .accordion__trigger::after {
+      content: '▾';
+      font-size: .9rem;
+      transition: transform .2s ease;
+    }
+    .accordion__trigger[aria-expanded="false"]::after {
+      transform: rotate(-90deg);
+    }
+    .accordion__trigger[aria-expanded="true"] {
+      background: rgba(70, 70, 70, 0.25);
+    }
+    .accordion__trigger[aria-expanded="false"] {
+      background: rgba(0, 0, 0, 0.05);
+    }
+    .accordion__trigger:focus-visible {
+      outline: 2px solid rgba(90, 190, 255, 0.9);
+      outline-offset: 2px;
+    }
+    .accordion__panel {
+      padding: .5rem .85rem .55rem;
+      display: grid;
+      gap: .2rem;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .accordion__panel.is-open {
+      background: rgba(255, 255, 255, 0.04);
+    }
+    .accordion__panel[hidden] {
+      display: none;
+    }
     .row { margin: .35rem 0 .8rem; }
     .row label { display: block; font-size: .8rem; margin-bottom: .25rem; opacity: .95; }
     .row button {
@@ -118,184 +173,212 @@
 </div>
 <div id="panel">
   <h3>Parameter</h3>
-  <!-- Star parameters -->
-  <div class="row">
-    <label for="pCount">Anzahl Punkte</label>
-    <div class="wrap">
-      <input id="pCount" type="range" min="500" max="8000" step="100" />
-      <div class="val" id="vCount"></div>
-    </div>
-  </div>
-  <div class="row">
-    <label for="pRadius">Radius</label>
-    <div class="wrap">
-      <input id="pRadius" type="range" min="40" max="260" step="1" />
-      <div class="val" id="vRadius"></div>
-    </div>
-  </div>
-  <div class="row">
-    <label for="pDistribution">Verteilungsalgorithmus</label>
-    <select id="pDistribution">
-      <option value="random">Zufall (Sphäre)</option>
-      <option value="fibonacci">Fibonacci-Sphäre</option>
-      <option value="spiral">Galaxie-Spirale</option>
-    </select>
-  </div>
-  <div class="row">
-    <label for="pSizeVar">Größenvariation (Δ)</label>
-    <div class="wrap">
-      <input id="pSizeVar" type="range" min="0" max="10" step="0.1" />
-      <div class="val" id="vSizeVar"></div>
-    </div>
-  </div>
-  <div class="row">
-    <label for="pCluster">Clustering</label>
-    <div class="wrap">
-      <input id="pCluster" type="range" min="0" max="1" step="0.01" />
-      <div class="val" id="vCluster"></div>
-    </div>
-  </div>
-  <div class="row">
-    <label for="pPointAlpha">Deckkraft Punkte</label>
-    <div class="wrap">
-      <input id="pPointAlpha" type="range" min="0.3" max="1" step="0.01" />
-      <div class="val" id="vPointAlpha"></div>
-    </div>
-  </div>
-  <div class="row">
-    <label for="pHue">Punktfarbe (Farbton)</label>
-    <div class="wrap">
-      <input id="pHue" type="range" min="0" max="360" step="1" />
-      <div class="val" id="vHue"></div>
-    </div>
-  </div>
-  <div class="row">
-    <label for="pSeedStars">Seed Punkte</label>
-    <div class="wrap">
-      <input id="pSeedStars" type="range" min="1" max="9999" step="1" />
-      <div class="val" id="vSeedStars"></div>
-    </div>
-  </div>
-  <div class="row">
-    <label>Punktkategorien (%)</label>
-    <div class="stack">
-      <div class="wrap">
-        <span class="tag">Klein</span>
-        <input id="pCatSmall" type="range" min="0" max="100" step="1" />
-        <div class="val" id="vCatSmall"></div>
+  <section class="accordion" id="acc-points">
+    <button type="button" class="accordion__trigger" id="acc-points-trigger" aria-expanded="true" aria-controls="acc-points-panel">
+      Punkte
+    </button>
+    <div class="accordion__panel" id="acc-points-panel" role="region" aria-labelledby="acc-points-trigger">
+      <div class="row">
+        <label for="pCount">Anzahl Punkte</label>
+        <div class="wrap">
+          <input id="pCount" type="range" min="500" max="8000" step="100" />
+          <div class="val" id="vCount"></div>
+        </div>
       </div>
-      <div class="wrap">
-        <span class="tag">Mittel</span>
-        <input id="pCatMedium" type="range" min="0" max="100" step="1" />
-        <div class="val" id="vCatMedium"></div>
+      <div class="row">
+        <label for="pRadius">Radius</label>
+        <div class="wrap">
+          <input id="pRadius" type="range" min="40" max="260" step="1" />
+          <div class="val" id="vRadius"></div>
+        </div>
       </div>
-      <div class="wrap">
-        <span class="tag">Groß</span>
-        <input id="pCatLarge" type="range" min="0" max="100" step="1" />
-        <div class="val" id="vCatLarge"></div>
+      <div class="row">
+        <label for="pDistribution">Verteilungsalgorithmus</label>
+        <select id="pDistribution">
+          <option value="random">Zufall (Sphäre)</option>
+          <option value="fibonacci">Fibonacci-Sphäre</option>
+          <option value="spiral">Galaxie-Spirale</option>
+        </select>
+      </div>
+      <div class="row">
+        <label for="pSizeVar">Größenvariation (Δ)</label>
+        <div class="wrap">
+          <input id="pSizeVar" type="range" min="0" max="10" step="0.1" />
+          <div class="val" id="vSizeVar"></div>
+        </div>
+      </div>
+      <div class="row">
+        <label for="pCluster">Clustering</label>
+        <div class="wrap">
+          <input id="pCluster" type="range" min="0" max="1" step="0.01" />
+          <div class="val" id="vCluster"></div>
+        </div>
+      </div>
+      <div class="row">
+        <label for="pPointAlpha">Deckkraft Punkte</label>
+        <div class="wrap">
+          <input id="pPointAlpha" type="range" min="0.3" max="1" step="0.01" />
+          <div class="val" id="vPointAlpha"></div>
+        </div>
+      </div>
+      <div class="row">
+        <label for="pHue">Punktfarbe (Farbton)</label>
+        <div class="wrap">
+          <input id="pHue" type="range" min="0" max="360" step="1" />
+          <div class="val" id="vHue"></div>
+        </div>
+      </div>
+      <div class="row">
+        <label for="pSeedStars">Seed Punkte</label>
+        <div class="wrap">
+          <input id="pSeedStars" type="range" min="1" max="9999" step="1" />
+          <div class="val" id="vSeedStars"></div>
+        </div>
+      </div>
+      <div class="row">
+        <label>Punktkategorien (%)</label>
+        <div class="stack">
+          <div class="wrap">
+            <span class="tag">Klein</span>
+            <input id="pCatSmall" type="range" min="0" max="100" step="1" />
+            <div class="val" id="vCatSmall"></div>
+          </div>
+          <div class="wrap">
+            <span class="tag">Mittel</span>
+            <input id="pCatMedium" type="range" min="0" max="100" step="1" />
+            <div class="val" id="vCatMedium"></div>
+          </div>
+          <div class="wrap">
+            <span class="tag">Groß</span>
+            <input id="pCatLarge" type="range" min="0" max="100" step="1" />
+            <div class="val" id="vCatLarge"></div>
+          </div>
+        </div>
       </div>
     </div>
-  </div>
-  <!-- Size factors for normal points -->
-  <div class="row">
-    <label for="pSizeTiny">Größe winzige Punkte</label>
-    <div class="wrap">
-      <input id="pSizeTiny" type="range" min="0.05" max="3" step="0.01" />
-      <div class="val" id="vSizeTiny"></div>
+  </section>
+  <section class="accordion" id="acc-size">
+    <button type="button" class="accordion__trigger" id="acc-size-trigger" aria-expanded="false" aria-controls="acc-size-panel">
+      Größe
+    </button>
+    <div class="accordion__panel" id="acc-size-panel" role="region" aria-labelledby="acc-size-trigger" hidden>
+      <div class="row">
+        <label for="pSizeTiny">Größe winzige Punkte</label>
+        <div class="wrap">
+          <input id="pSizeTiny" type="range" min="0.05" max="3" step="0.01" />
+          <div class="val" id="vSizeTiny"></div>
+        </div>
+      </div>
+      <div class="row">
+        <label for="pSizeSmall">Größe kleine Punkte</label>
+        <div class="wrap">
+          <input id="pSizeSmall" type="range" min="0.2" max="3" step="0.05" />
+          <div class="val" id="vSizeSmall"></div>
+        </div>
+      </div>
+      <div class="row">
+        <label for="pSizeMedium">Größe mittlere Punkte</label>
+        <div class="wrap">
+          <input id="pSizeMedium" type="range" min="0.2" max="3" step="0.05" />
+          <div class="val" id="vSizeMedium"></div>
+        </div>
+      </div>
+      <div class="row">
+        <label for="pSizeLarge">Größe große Punkte</label>
+        <div class="wrap">
+          <input id="pSizeLarge" type="range" min="0.2" max="3" step="0.05" />
+          <div class="val" id="vSizeLarge"></div>
+        </div>
+      </div>
     </div>
-  </div>
-  <div class="row">
-    <label for="pSizeSmall">Größe kleine Punkte</label>
-    <div class="wrap">
-      <input id="pSizeSmall" type="range" min="0.2" max="3" step="0.05" />
-      <div class="val" id="vSizeSmall"></div>
+  </section>
+  <section class="accordion" id="acc-connections">
+    <button type="button" class="accordion__trigger" id="acc-connections-trigger" aria-expanded="false" aria-controls="acc-connections-panel">
+      Verbindungen
+    </button>
+    <div class="accordion__panel" id="acc-connections-panel" role="region" aria-labelledby="acc-connections-trigger" hidden>
+      <div class="row">
+        <label for="pTinyCount">Menge winzige Punkte</label>
+        <div class="wrap">
+          <input id="pTinyCount" type="range" min="0" max="5000" step="10" />
+          <div class="val" id="vTinyCount"></div>
+        </div>
+      </div>
+      <div class="row">
+        <label for="pConnPercent">Prozent Verbindungen</label>
+        <div class="wrap">
+          <input id="pConnPercent" type="range" min="0" max="1" step="0.01" />
+          <div class="val" id="vConnPercent"></div>
+        </div>
+      </div>
+      <div class="row">
+        <label for="pTinyAlpha">Deckkraft winzige Punkte</label>
+        <div class="wrap">
+          <input id="pTinyAlpha" type="range" min="0" max="1" step="0.01" />
+          <div class="val" id="vTinyAlpha"></div>
+        </div>
+      </div>
+      <div class="row">
+        <label for="pSeedTiny">Seed winzige Punkte</label>
+        <div class="wrap">
+          <input id="pSeedTiny" type="range" min="1" max="9999" step="1" />
+          <div class="val" id="vSeedTiny"></div>
+        </div>
+      </div>
     </div>
-  </div>
-  <div class="row">
-    <label for="pSizeMedium">Größe mittlere Punkte</label>
-    <div class="wrap">
-      <input id="pSizeMedium" type="range" min="0.2" max="3" step="0.05" />
-      <div class="val" id="vSizeMedium"></div>
+  </section>
+  <section class="accordion" id="acc-display">
+    <button type="button" class="accordion__trigger" id="acc-display-trigger" aria-expanded="false" aria-controls="acc-display-panel">
+      Darstellung
+    </button>
+    <div class="accordion__panel" id="acc-display-panel" role="region" aria-labelledby="acc-display-trigger" hidden>
+      <div class="row">
+        <label for="pEdgeSoft">Randweichheit</label>
+        <div class="wrap">
+          <input id="pEdgeSoft" type="range" min="0" max="1" step="0.01" />
+          <div class="val" id="vEdgeSoft"></div>
+        </div>
+      </div>
+      <div class="row">
+        <label for="pBlending">Blending-Modus</label>
+        <select id="pBlending">
+          <option value="Normal">Normal</option>
+          <option value="Additive">Additiv</option>
+        </select>
+      </div>
+      <div class="row">
+        <label><input id="pFilled" type="checkbox" /> Gefüllt (harte Kreise)</label>
+      </div>
     </div>
-  </div>
-  <div class="row">
-    <label for="pSizeLarge">Größe große Punkte</label>
-    <div class="wrap">
-      <input id="pSizeLarge" type="range" min="0.2" max="3" step="0.05" />
-      <div class="val" id="vSizeLarge"></div>
+  </section>
+  <section class="accordion" id="acc-dynamics">
+    <button type="button" class="accordion__trigger" id="acc-dynamics-trigger" aria-expanded="true" aria-controls="acc-dynamics-panel">
+      Dynamik
+    </button>
+    <div class="accordion__panel" id="acc-dynamics-panel" role="region" aria-labelledby="acc-dynamics-trigger">
+      <div class="row">
+        <label>Rotation</label>
+        <div class="wrap">
+          <button id="autoSpin" aria-pressed="false">🌀 Auto-Rotation aus</button>
+          <button id="spinStop" aria-disabled="true" disabled>⏹️ Stoppen</button>
+        </div>
+      </div>
+      <div class="row">
+        <label>Trägheit</label>
+        <div class="wrap">
+          <button id="spinInertia" aria-pressed="true">🪁 Trägheit an</button>
+          <div class="val" id="vInertia"></div>
+        </div>
+      </div>
+      <div class="row">
+        <label for="spinDecay">Abklingzeit (s)</label>
+        <div class="wrap">
+          <input id="spinDecay" type="range" min="1" max="30" step="1" />
+          <div class="val" id="vSpinDecay"></div>
+        </div>
+      </div>
     </div>
-  </div>
-  <!-- Tiny points and connections -->
-  <div class="row">
-    <label for="pTinyCount">Menge winzige Punkte</label>
-    <div class="wrap">
-      <input id="pTinyCount" type="range" min="0" max="5000" step="10" />
-      <div class="val" id="vTinyCount"></div>
-    </div>
-  </div>
-  <div class="row">
-    <label for="pConnPercent">Prozent Verbindungen</label>
-    <div class="wrap">
-      <input id="pConnPercent" type="range" min="0" max="1" step="0.01" />
-      <div class="val" id="vConnPercent"></div>
-    </div>
-  </div>
-  <div class="row">
-    <label for="pTinyAlpha">Deckkraft winzige Punkte</label>
-    <div class="wrap">
-      <input id="pTinyAlpha" type="range" min="0" max="1" step="0.01" />
-      <div class="val" id="vTinyAlpha"></div>
-    </div>
-  </div>
-  <div class="row">
-    <label for="pSeedTiny">Seed winzige Punkte</label>
-    <div class="wrap">
-      <input id="pSeedTiny" type="range" min="1" max="9999" step="1" />
-      <div class="val" id="vSeedTiny"></div>
-    </div>
-  </div>
-  <!-- Edge softness and blending -->
-  <hr style="opacity:.25;border:none;border-top:1px solid #444;margin:.5rem 0">
-  <div class="row">
-    <label for="pEdgeSoft">Randweichheit</label>
-    <div class="wrap">
-      <input id="pEdgeSoft" type="range" min="0" max="1" step="0.01" />
-      <div class="val" id="vEdgeSoft"></div>
-    </div>
-  </div>
-  <div class="row">
-    <label for="pBlending">Blending-Modus</label>
-    <select id="pBlending">
-      <option value="Normal">Normal</option>
-      <option value="Additive">Additiv</option>
-    </select>
-  </div>
-  <div class="row">
-    <label><input id="pFilled" type="checkbox" /> Gefüllt (harte Kreise)</label>
-  </div>
-  <hr style="opacity:.25;border:none;border-top:1px solid #444;margin:.75rem 0 .5rem">
-  <h3>Dynamik</h3>
-  <div class="row">
-    <label>Rotation</label>
-    <div class="wrap">
-      <button id="autoSpin" aria-pressed="false">🌀 Auto-Rotation aus</button>
-      <button id="spinStop" aria-disabled="true" disabled>⏹️ Stoppen</button>
-    </div>
-  </div>
-  <div class="row">
-    <label>Trägheit</label>
-    <div class="wrap">
-      <button id="spinInertia" aria-pressed="true">🪁 Trägheit an</button>
-      <div class="val" id="vInertia"></div>
-    </div>
-  </div>
-  <div class="row">
-    <label for="spinDecay">Abklingzeit (s)</label>
-    <div class="wrap">
-      <input id="spinDecay" type="range" min="1" max="30" step="1" />
-      <div class="val" id="vSpinDecay"></div>
-    </div>
-  </div>
+  </section>
 </div>
 <script>
 /* Utility: HSV→RGB (for potential future color variations) */
@@ -1038,6 +1121,28 @@ $('pDistribution').addEventListener('change', e => {
 $('pFilled').addEventListener('change', e => {
   params.filled = e.target.checked;
   updateStarUniforms();
+});
+
+/* Accordion controls */
+const accordionTriggers = Array.from(document.querySelectorAll('.accordion__trigger'));
+
+function setAccordionState(trigger, expanded) {
+  const panelId = trigger.getAttribute('aria-controls');
+  const panel = panelId ? document.getElementById(panelId) : null;
+  if (!panel) return;
+  trigger.setAttribute('aria-expanded', String(expanded));
+  panel.hidden = !expanded;
+  trigger.classList.toggle('is-open', expanded);
+  panel.classList.toggle('is-open', expanded);
+}
+
+accordionTriggers.forEach(trigger => {
+  const initial = trigger.getAttribute('aria-expanded') === 'true';
+  setAccordionState(trigger, initial);
+  trigger.addEventListener('click', () => {
+    const next = trigger.getAttribute('aria-expanded') !== 'true';
+    setAccordionState(trigger, next);
+  });
 });
 
 /* Toggle panel, lock camera & random button */
