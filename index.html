@@ -184,6 +184,9 @@
     .file-meta { font-size: .75rem; opacity: .75; word-break: break-word; }
     .audio-controls { display: flex; flex-wrap: wrap; gap: .5rem; }
     .audio-controls button { flex: 1 1 140px; }
+    .audio-controls--primary button { flex: 1 1 calc(50% - .5rem); }
+    .audio-controls--secondary button { flex: 1 1 100%; }
+    .playlist-meta { font-size: .74rem; line-height: 1.4; opacity: .75; }
     .modifier-grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
@@ -863,14 +866,22 @@
   </div>
   <div class="panel-body" id="audioPanelBody">
     <div class="row file-row">
-      <label for="audioFile">Audio-Datei</label>
-      <input id="audioFile" type="file" accept="audio/*" />
-      <div class="file-meta" id="audioFileMeta">Kein Upload ausgewählt</div>
+      <label for="audioFile">Audio-Dateien</label>
+      <input id="audioFile" type="file" accept="audio/*" multiple />
+      <div class="file-meta" id="audioFileMeta">Keine Auswahl</div>
+      <div class="playlist-meta" id="audioPlaylistMeta">Keine Playlist geladen</div>
     </div>
     <div class="row">
-      <div class="audio-controls">
+      <div class="audio-controls audio-controls--primary">
+        <button type="button" id="audioPrev" disabled>⏮️ Zurück</button>
         <button type="button" id="audioPlay" disabled>▶️ Abspielen</button>
         <button type="button" id="audioStop" disabled>⏹️ Stop</button>
+        <button type="button" id="audioNext" disabled>⏭️ Weiter</button>
+      </div>
+    </div>
+    <div class="row">
+      <div class="audio-controls audio-controls--secondary">
+        <button type="button" id="audioRepeat" aria-pressed="false" disabled>🔁 Repeat aus</button>
       </div>
     </div>
     <div class="row">
@@ -1157,8 +1168,11 @@ const audioState = {
   micStream: null,
   playing: false,
   usingMic: false,
+  playlist: [],
+  currentIndex: -1,
   selectedFile: null,
   fileName: '',
+  repeatMode: 'off',
   status: 'idle',
   metrics: { energy: 0, bass: 0, mid: 0, treble: 0, wave: 0 },
   visual: { motion: 0, size: 1, hue: 0, alpha: 0, scale: 1, saturation: 0, brightness: 0 },
@@ -1304,7 +1318,12 @@ function applyIntensityToTarget(rawValue, key, base = 0, { min, max } = {}) {
 const audioBandVector = new THREE.Vector3();
 
 function applyAudioVisualState(modifiers = audioState.modifiers || {}) {
-  const sizeBoost = modifiers.size ? clampValue(audioState.visual.size, 0.2, 4.5) : AUDIO_VISUAL_BASE.size;
+  const sizeIntensity = modifiers.size ? Math.max(0, getAudioIntensity('size')) : 0;
+  const effectiveSizeIntensity = sizeIntensity > 0 ? Math.min(1.5, Math.max(0.35, sizeIntensity)) : 0;
+  const rawSize = clampValue(audioState.visual.size, 0.2, 4.5);
+  const sizeBoost = modifiers.size
+    ? 1 + (rawSize - 1) * effectiveSizeIntensity
+    : AUDIO_VISUAL_BASE.size;
   const hueOffset = modifiers.hue ? clampValue(audioState.visual.hue, -540, 540) : AUDIO_VISUAL_BASE.hue;
   const saturationDelta = modifiers.saturation
     ? clampValue(audioState.visual.saturation, -0.35, 0.9)
@@ -1313,20 +1332,29 @@ function applyAudioVisualState(modifiers = audioState.modifiers || {}) {
     ? clampValue(audioState.visual.brightness, -0.35, 1.05)
     : AUDIO_VISUAL_BASE.brightness;
   const hue = ((params.pointHue + hueOffset) % 360 + 360) % 360;
-  const saturation = clampValue(params.pointSaturation + saturationDelta, 0.05, 1.4);
-  const brightness = clampValue(params.pointValue + brightnessDelta, 0.05, 1.6);
+  const baseSaturation = clampValue(params.pointSaturation + saturationDelta, 0.05, 1.4);
+  const baseBrightness = clampValue(params.pointValue + brightnessDelta, 0.05, 1.6);
   const saturationIntensity = modifiers.saturation ? Math.max(0, getAudioIntensity('saturation')) : 0;
   const brightnessIntensity = modifiers.brightness ? Math.max(0, getAudioIntensity('brightness')) : 0;
-  const hue = ((params.pointHue + hueOffset) % 360 + 360) % 360;
-  const saturationBoost = modifiers.saturation ? audioState.metrics.treble * 0.22 * Math.max(0.25, saturationIntensity) : 0;
-  const brightnessBoost = modifiers.brightness ? audioState.metrics.energy * 0.32 * Math.max(0.25, brightnessIntensity) : 0;
-  const saturation = Math.min(1.2, params.pointSaturation + saturationBoost);
-  const brightness = Math.min(1.25, params.pointValue + brightnessBoost);
+  const effectiveSaturationIntensity = saturationIntensity > 0 ? Math.min(1.6, Math.max(0.25, saturationIntensity)) : 0;
+  const effectiveBrightnessIntensity = brightnessIntensity > 0 ? Math.min(1.6, Math.max(0.25, brightnessIntensity)) : 0;
+  const saturationBoost = modifiers.saturation
+    ? audioState.metrics.treble * 0.22 * effectiveSaturationIntensity
+    : 0;
+  const brightnessBoost = modifiers.brightness
+    ? audioState.metrics.energy * 0.32 * effectiveBrightnessIntensity
+    : 0;
+  const saturation = clampValue(baseSaturation + saturationBoost, 0.05, 1.4);
+  const brightness = clampValue(baseBrightness + brightnessBoost, 0.05, 1.6);
   const reactiveColor = hsv2rgb(hue, saturation, brightness);
   audioState.color.copy(reactiveColor);
 
-  const targetScale = modifiers.scale ? clampValue(audioState.visual.scale, 0.25, 3.5) : AUDIO_VISUAL_BASE.scale;
-  const sphereScale = Math.max(0.25, Math.min(3.5, targetScale));
+  const scaleIntensity = modifiers.scale ? Math.max(0, getAudioIntensity('scale')) : 0;
+  const effectiveScaleIntensity = scaleIntensity > 0 ? Math.min(1.5, Math.max(0.35, scaleIntensity)) : 0;
+  const rawScale = clampValue(audioState.visual.scale, 0.25, 3.5);
+  const sphereScale = modifiers.scale
+    ? Math.max(0.25, Math.min(3.5, 1 + (rawScale - 1) * effectiveScaleIntensity))
+    : AUDIO_VISUAL_BASE.scale;
   if (Number.isFinite(sphereScale)) {
     if (Math.abs(clusterGroup.scale.x - sphereScale) > 1e-4 ||
         Math.abs(clusterGroup.scale.y - sphereScale) > 1e-4 ||
@@ -1409,12 +1437,13 @@ function applyAudioMotion(delta, modifiers = audioState.modifiers || {}) {
   if (rotationStrength <= 1e-4 || motionIntensity <= 0) {
     return;
   }
-  const yaw = rotationStrength * audioState.motionDirection * delta * (0.55 + motionIntensity * 0.95);
-  const waveTilt = clampValue(audioState.metrics.wave * (0.3 + motionIntensity * 0.5), -3, 3);
-  const pitch = waveTilt * audioState.pitchDirection * delta * 0.55;
-  const rollBase = clampValue(audioState.metrics.treble * (0.22 + motionIntensity * 0.35), 0, 3.2);
+  const effectiveMotion = Math.max(0.4, motionIntensity);
+  const yaw = rotationStrength * audioState.motionDirection * delta * (0.75 + effectiveMotion * 1.15);
+  const waveTilt = clampValue(audioState.metrics.wave * (0.35 + effectiveMotion * 0.55), -3.5, 3.5);
+  const pitch = waveTilt * audioState.pitchDirection * delta * (0.6 + effectiveMotion * 0.4);
+  const rollBase = clampValue(audioState.metrics.treble * (0.26 + effectiveMotion * 0.4), 0, 3.2);
   const rollDirection = audioState.motionDirection >= 0 ? 1 : -1;
-  const roll = rollBase * rollDirection * delta * 0.3;
+  const roll = rollBase * rollDirection * delta * (0.4 + effectiveMotion * 0.35);
   if (Number.isFinite(yaw) && Math.abs(yaw) < Math.PI) {
     clusterGroup.rotateY(yaw);
   }
@@ -1570,10 +1599,21 @@ function refreshAudioUI() {
   if (audioUI.fileInput) {
     audioUI.fileInput.disabled = !supportedAudio;
   }
-  audioUI.playBtn.disabled = !supportedAudio || !audioState.selectedFile || audioState.playing;
+  const playlistLength = getPlaylistLength();
+  const hasFiles = playlistLength > 0;
+  const usingMic = audioState.usingMic;
+  const hasTrack = hasFiles && Boolean(audioState.selectedFile);
+  audioUI.playBtn.disabled = !supportedAudio || !hasTrack || audioState.playing;
   if (audioUI.stopBtn) {
-    audioUI.stopBtn.disabled = !supportedAudio || !audioState.playing;
+    audioUI.stopBtn.disabled = !supportedAudio || (!audioState.playing && !audioState.usingMic);
   }
+  if (audioUI.prevBtn) {
+    audioUI.prevBtn.disabled = !supportedAudio || !hasFiles || playlistLength <= 1 || usingMic;
+  }
+  if (audioUI.nextBtn) {
+    audioUI.nextBtn.disabled = !supportedAudio || !hasFiles || playlistLength <= 1 || usingMic;
+  }
+  updateRepeatButton(!supportedAudio || !hasFiles);
   if (audioUI.micStartBtn) {
     audioUI.micStartBtn.disabled = !supportedAudio || !supportedMic || audioState.playing;
   }
@@ -1597,6 +1637,7 @@ function refreshAudioUI() {
       button.setAttribute('aria-pressed', active ? 'true' : 'false');
     });
   }
+  updateAudioFileMeta(audioState.selectedFile);
   syncAudioIntensityControls();
   if (audioUI.autoRandomBtn) {
     if (!supportedAudio && autoRandomState.enabled) {
@@ -1606,24 +1647,209 @@ function refreshAudioUI() {
   }
 }
 
+function getPlaylistLength() {
+  return Array.isArray(audioState.playlist) ? audioState.playlist.length : 0;
+}
+
+function clampTrackIndex(index) {
+  const total = getPlaylistLength();
+  if (total <= 0) {
+    audioState.currentIndex = -1;
+    return -1;
+  }
+  const clamped = Math.max(0, Math.min(total - 1, Number(index) || 0));
+  if (audioState.currentIndex !== clamped) {
+    audioState.currentIndex = clamped;
+  }
+  return clamped;
+}
+
+function formatFileSize(bytes = 0) {
+  const size = Number(bytes) || 0;
+  if (size <= 0) return '';
+  if (size < 1024 * 1024) {
+    return `${(size / 1024).toFixed(1)} KB`;
+  }
+  return `${(size / (1024 * 1024)).toFixed(2)} MB`;
+}
+
+function formatRepeatMode(mode) {
+  switch (mode) {
+    case 'one':
+      return 'Repeat: Track';
+    case 'all':
+      return 'Repeat: Alle';
+    default:
+      return 'Repeat aus';
+  }
+}
+
+function updateRepeatButton(disabled = false) {
+  if (!audioUI.repeatBtn) return;
+  const mode = audioState.repeatMode || 'off';
+  let label = '🔁 Repeat aus';
+  if (mode === 'all') {
+    label = '🔁 Repeat alle';
+  } else if (mode === 'one') {
+    label = '🔂 Repeat Track';
+  }
+  audioUI.repeatBtn.textContent = label;
+  audioUI.repeatBtn.setAttribute('aria-pressed', mode === 'off' ? 'false' : 'true');
+  audioUI.repeatBtn.disabled = disabled;
+  if (disabled) {
+    audioUI.repeatBtn.setAttribute('aria-disabled', 'true');
+  } else {
+    audioUI.repeatBtn.removeAttribute('aria-disabled');
+  }
+}
+
 function updateAudioFileMeta(file) {
-  if (!audioUI.fileMeta) return;
-  if (!file) {
-    audioUI.fileMeta.textContent = 'Kein Upload ausgewählt';
+  const total = getPlaylistLength();
+  const hasFiles = total > 0;
+  const currentIndex = hasFiles ? clampTrackIndex(audioState.currentIndex) : -1;
+  const activeFile = hasFiles ? (file || audioState.playlist[currentIndex] || null) : null;
+  if (hasFiles && activeFile !== audioState.selectedFile) {
+    audioState.selectedFile = activeFile;
+    audioState.fileName = activeFile ? (activeFile.name || 'Audio') : '';
+  } else if (!hasFiles && audioState.selectedFile) {
+    audioState.selectedFile = null;
+    audioState.fileName = '';
+  }
+  if (audioUI.fileMeta) {
+    if (!activeFile) {
+      audioUI.fileMeta.textContent = hasFiles ? 'Datei nicht verfügbar' : 'Keine Auswahl';
+    } else {
+      const name = activeFile.name || 'Audio';
+      const sizeLabel = formatFileSize(activeFile.size);
+      audioUI.fileMeta.textContent = sizeLabel ? `${name} · ${sizeLabel}` : name;
+    }
+  }
+  if (audioUI.playlistMeta) {
+    if (!hasFiles) {
+      audioUI.playlistMeta.textContent = 'Keine Playlist geladen';
+    } else {
+      const displayIndex = currentIndex >= 0 ? currentIndex + 1 : 1;
+      audioUI.playlistMeta.textContent = `Titel ${displayIndex} von ${total} · ${formatRepeatMode(audioState.repeatMode)}`;
+    }
+  }
+}
+
+function setPlaylist(files) {
+  const list = Array.from(files || []).filter(Boolean);
+  audioState.playlist = list;
+  if (list.length) {
+    audioState.currentIndex = 0;
+    audioState.selectedFile = list[0] || null;
+    audioState.fileName = audioState.selectedFile ? (audioState.selectedFile.name || 'Audio') : '';
+  } else {
+    audioState.currentIndex = -1;
+    audioState.selectedFile = null;
+    audioState.fileName = '';
+  }
+  updateAudioFileMeta(audioState.selectedFile);
+}
+
+function setCurrentTrack(index, { updateMeta = true } = {}) {
+  const total = getPlaylistLength();
+  if (total <= 0) {
+    audioState.currentIndex = -1;
+    audioState.selectedFile = null;
+    audioState.fileName = '';
+    if (updateMeta) {
+      updateAudioFileMeta(null);
+    }
+    return false;
+  }
+  if (!Number.isFinite(index) || index < 0 || index >= total) {
+    return false;
+  }
+  audioState.currentIndex = index;
+  audioState.selectedFile = audioState.playlist[index] || null;
+  audioState.fileName = audioState.selectedFile ? (audioState.selectedFile.name || 'Audio') : '';
+  if (updateMeta) {
+    updateAudioFileMeta(audioState.selectedFile);
+  }
+  return Boolean(audioState.selectedFile);
+}
+
+function playCurrentTrack() {
+  if (!audioState.selectedFile) {
+    return false;
+  }
+  playSelectedFile();
+  return true;
+}
+
+function playNextTrack({ wrap = false } = {}) {
+  const total = getPlaylistLength();
+  if (total <= 0) {
+    return false;
+  }
+  let nextIndex = audioState.currentIndex + 1;
+  if (nextIndex >= total) {
+    if (!wrap) {
+      return false;
+    }
+    nextIndex = 0;
+  }
+  if (!setCurrentTrack(nextIndex)) {
+    return false;
+  }
+  playSelectedFile();
+  return true;
+}
+
+function playPreviousTrack({ wrap = true } = {}) {
+  const total = getPlaylistLength();
+  if (total <= 0) {
+    return false;
+  }
+  let prevIndex = audioState.currentIndex - 1;
+  if (prevIndex < 0) {
+    if (!wrap) {
+      return false;
+    }
+    prevIndex = total - 1;
+  }
+  if (!setCurrentTrack(prevIndex)) {
+    return false;
+  }
+  playSelectedFile();
+  return true;
+}
+
+function cycleRepeatMode() {
+  const modes = ['off', 'all', 'one'];
+  const idx = modes.indexOf(audioState.repeatMode);
+  const nextMode = modes[(idx + 1) % modes.length];
+  audioState.repeatMode = nextMode;
+  updateRepeatButton(audioUI.repeatBtn ? audioUI.repeatBtn.disabled : false);
+  updateAudioFileMeta(audioState.selectedFile);
+}
+
+function handleTrackEnded() {
+  if (audioState.usingMic) {
+    setAudioStatus('Mikrofon aktiv – Live-Reaktion', 'active');
+    refreshAudioUI();
     return;
   }
-  const size = file.size || 0;
-  let humanSize = '';
-  if (size <= 0) {
-    humanSize = '';
-  } else if (size < 1024 * 1024) {
-    humanSize = `${(size / 1024).toFixed(1)} KB`;
-  } else {
-    humanSize = `${(size / (1024 * 1024)).toFixed(2)} MB`;
+  const total = getPlaylistLength();
+  if (total <= 0) {
+    stopAudioPlayback();
+    setAudioStatus('Audio-Reaktivität inaktiv', 'idle');
+    refreshAudioUI();
+    return;
   }
-  const parts = [file.name || 'Audio'];
-  if (humanSize) parts.push(humanSize);
-  audioUI.fileMeta.textContent = parts.join(' · ');
+  if (audioState.repeatMode === 'one') {
+    playSelectedFile();
+    return;
+  }
+  const advanced = playNextTrack({ wrap: audioState.repeatMode === 'all' });
+  if (!advanced) {
+    stopAudioPlayback();
+    setAudioStatus('Wiedergabe beendet', 'idle');
+    refreshAudioUI();
+  }
 }
 
 async function playSelectedFile() {
@@ -1636,7 +1862,14 @@ async function playSelectedFile() {
     return;
   }
   try {
-    setAudioStatus('Lade Audio...', 'waiting');
+    const playlistIndex = clampTrackIndex(audioState.currentIndex);
+    const total = getPlaylistLength();
+    const trackName = audioState.selectedFile.name || 'Audio';
+    const trackDescriptor = total > 0 && playlistIndex >= 0
+      ? `${trackName} (${playlistIndex + 1}/${total})`
+      : trackName;
+    setAudioStatus(`Lade ${trackDescriptor}...`, 'waiting');
+    updateAudioFileMeta(audioState.selectedFile);
     if (audioUI.playBtn) {
       audioUI.playBtn.disabled = true;
     }
@@ -1651,9 +1884,9 @@ async function playSelectedFile() {
     source.buffer = buffer;
     source.onended = () => {
       if (audioState.source === source) {
-        stopAudioPlayback();
-        setAudioStatus('Wiedergabe beendet', 'idle');
-        refreshAudioUI();
+        audioState.source = null;
+        audioState.playing = false;
+        handleTrackEnded();
       }
     };
     source.connect(analyser);
@@ -1663,7 +1896,7 @@ async function playSelectedFile() {
     audioState.playing = true;
     audioState.usingMic = false;
     audioState.fileName = audioState.selectedFile.name || 'Audio';
-    setAudioStatus(`Wiedergabe läuft – ${audioState.fileName}`, 'active');
+    setAudioStatus(`Wiedergabe läuft – ${trackDescriptor}`, 'active');
     refreshAudioUI();
   } catch (error) {
     console.error('Audio playback failed:', error);
@@ -2801,8 +3034,12 @@ audioUI.body = $('audioPanelBody');
 audioUI.toggle = $('audioPanelToggle');
 audioUI.fileInput = $('audioFile');
 audioUI.fileMeta = $('audioFileMeta');
+audioUI.playlistMeta = $('audioPlaylistMeta');
 audioUI.playBtn = $('audioPlay');
 audioUI.stopBtn = $('audioStop');
+audioUI.prevBtn = $('audioPrev');
+audioUI.nextBtn = $('audioNext');
+audioUI.repeatBtn = $('audioRepeat');
 audioUI.micStartBtn = $('audioMicStart');
 audioUI.micStopBtn = $('audioMicStop');
 audioUI.statusText = $('audioStatus');
@@ -3006,29 +3243,51 @@ if (audioUI.autoRandomBtn) {
 
 if (audioUI.fileInput) {
   audioUI.fileInput.addEventListener('change', event => {
-    const files = event.target.files;
-    const file = files && files.length ? files[0] : null;
-    audioState.selectedFile = file;
-    audioState.fileName = file ? (file.name || 'Audio') : '';
-    updateAudioFileMeta(file);
-    if (file) {
-      setAudioStatus('Datei geladen – Abspielen möglich', 'waiting');
+    const files = event.target.files ? Array.from(event.target.files).filter(Boolean) : [];
+    if (audioState.playing || audioState.usingMic) {
+      stopAudioPlayback();
+    }
+    setPlaylist(files);
+    if (files.length) {
+      const label = files.length === 1
+        ? (files[0].name || 'Audio-Datei')
+        : `${files.length} Titel`;
+      setAudioStatus(`Playlist geladen – ${label}`, 'waiting');
     } else if (!audioState.playing) {
       setAudioStatus('Audio-Reaktivität inaktiv', 'idle');
     }
     refreshAudioUI();
+    event.target.value = '';
   });
 }
 
 if (audioUI.playBtn) {
   audioUI.playBtn.addEventListener('click', () => {
-    playSelectedFile();
+    playCurrentTrack();
   });
 }
 
 if (audioUI.stopBtn) {
   audioUI.stopBtn.addEventListener('click', () => {
     stopAudioFromUser();
+  });
+}
+
+if (audioUI.prevBtn) {
+  audioUI.prevBtn.addEventListener('click', () => {
+    playPreviousTrack({ wrap: true });
+  });
+}
+
+if (audioUI.nextBtn) {
+  audioUI.nextBtn.addEventListener('click', () => {
+    playNextTrack({ wrap: true });
+  });
+}
+
+if (audioUI.repeatBtn) {
+  audioUI.repeatBtn.addEventListener('click', () => {
+    cycleRepeatMode();
   });
 }
 
@@ -3044,7 +3303,7 @@ if (audioUI.micStopBtn) {
   });
 }
 
-if (audioUI.fileMeta) {
+if (audioUI.fileMeta || audioUI.playlistMeta) {
   updateAudioFileMeta(audioState.selectedFile);
 }
 setAudioStatus('Audio-Reaktivität inaktiv', 'idle');
