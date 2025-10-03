@@ -108,6 +108,20 @@
       opacity: 0.55;
       cursor: default;
     }
+    .file-row { display: flex; flex-direction: column; gap: .35rem; }
+    .file-meta { font-size: .75rem; opacity: .75; word-break: break-word; }
+    .audio-controls { display: flex; flex-wrap: wrap; gap: .5rem; }
+    .audio-controls button { flex: 1 1 140px; }
+    .status-row { display: flex; align-items: center; gap: .5rem; font-size: .78rem; min-height: 1.4em; }
+    .status-indicator { width: 10px; height: 10px; border-radius: 50%; background: rgba(255, 255, 255, 0.35); box-shadow: 0 0 6px rgba(0, 0, 0, 0.45); flex-shrink: 0; transition: background .2s ease, box-shadow .2s ease; }
+    .status-text { flex: 1; }
+    .status-text[data-state="idle"] { color: rgba(255, 255, 255, 0.65); }
+    .status-text[data-state="waiting"] { color: #ffd166; }
+    .status-text[data-state="active"] { color: #7fffd4; }
+    .status-text[data-state="error"] { color: #ff8a80; }
+    .status-indicator[data-state="waiting"] { background: #ffd166; box-shadow: 0 0 12px rgba(255, 209, 102, 0.6); }
+    .status-indicator[data-state="active"] { background: #7fffd4; box-shadow: 0 0 12px rgba(127, 255, 212, 0.65); }
+    .status-indicator[data-state="error"] { background: #ff8a80; box-shadow: 0 0 12px rgba(255, 138, 128, 0.75); }
     .wrap { display: flex; gap: .5rem; align-items: center; }
     .stack { display: flex; flex-direction: column; gap: .4rem; }
     .tag { min-width: 64px; font-size: .75rem; letter-spacing: .02em; text-transform: uppercase; opacity: .7; }
@@ -523,6 +537,35 @@
       </div>
     </div>
   </section>
+  <section class="accordion" id="acc-audio">
+    <button type="button" class="accordion__trigger" id="acc-audio-trigger" aria-expanded="false" aria-controls="acc-audio-panel">
+      Audio
+    </button>
+    <div class="accordion__panel" id="acc-audio-panel" role="region" aria-labelledby="acc-audio-trigger" hidden>
+      <div class="row file-row">
+        <label for="audioFile">Audio-Datei</label>
+        <input id="audioFile" type="file" accept="audio/*" />
+        <div class="file-meta" id="audioFileMeta">Kein Upload ausgewählt</div>
+      </div>
+      <div class="row">
+        <div class="audio-controls">
+          <button type="button" id="audioPlay" disabled>▶️ Abspielen</button>
+          <button type="button" id="audioStop" disabled>⏹️ Stop</button>
+        </div>
+      </div>
+      <div class="row">
+        <label for="audioMicStart">Mikrofon</label>
+        <div class="audio-controls">
+          <button type="button" id="audioMicStart">🎙️ Start</button>
+          <button type="button" id="audioMicStop" disabled>⏹️ Stop</button>
+        </div>
+      </div>
+      <div class="row status-row" role="status" aria-live="polite">
+        <span class="status-indicator" id="audioStatusDot" data-state="idle" aria-hidden="true"></span>
+        <span class="status-text" id="audioStatus" data-state="idle">Audio-Reaktivität inaktiv</span>
+      </div>
+    </div>
+  </section>
 </div>
 <script>
 /* Utility: HSV→RGB (for potential future color variations) */
@@ -548,6 +591,14 @@ function mulberry32(seed) {
     t ^= t + Math.imul(t ^ (t >>> 7), 61 | t);
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
+}
+
+function damp(current, target, rate, delta) {
+  const clampedRate = Math.max(0, rate);
+  const frame = Math.max(0, delta);
+  if (clampedRate === 0 || frame === 0) return current;
+  const factor = 1 - Math.exp(-clampedRate * frame);
+  return current + (target - current) * factor;
 }
 
 /* Renderer/Scene/Camera */
@@ -608,6 +659,11 @@ const params = {
   motionNoiseScale: 1.0
 };
 
+function clampTotalCount(value) {
+  const numeric = Math.floor(Number(value) || 0);
+  return Math.max(0, numeric);
+}
+
 const colorState = { point: new THREE.Color() };
 const MOTION_MODES = ['static', 'sine', 'noise', 'orbit'];
 const motionState = { time: 0 };
@@ -615,6 +671,392 @@ const motionState = { time: 0 };
 function getMotionModeIndex() {
   const idx = MOTION_MODES.indexOf(params.motionMode);
   return idx >= 0 ? idx : 0;
+}
+
+const AudioContextClass = window.AudioContext || window.webkitAudioContext || null;
+
+const audioState = {
+  context: null,
+  analyser: null,
+  freqData: null,
+  timeData: null,
+  source: null,
+  micStream: null,
+  playing: false,
+  usingMic: false,
+  selectedFile: null,
+  fileName: '',
+  status: 'idle',
+  metrics: { energy: 0, bass: 0, mid: 0, treble: 0, wave: 0 },
+  visual: { motion: 0, size: 1, hue: 0, alpha: 0 },
+  color: new THREE.Color(),
+  needsResume: false
+};
+
+const audioUI = {
+  fileInput: null,
+  fileMeta: null,
+  playBtn: null,
+  stopBtn: null,
+  micStartBtn: null,
+  micStopBtn: null,
+  statusText: null,
+  statusDot: null
+};
+
+function isAudioSupported() {
+  return !!AudioContextClass;
+}
+
+function isMicSupported() {
+  return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+}
+
+function ensureAudioContext() {
+  if (!AudioContextClass) {
+    throw new Error('Web Audio API nicht verfügbar');
+  }
+  if (!audioState.context) {
+    audioState.context = new AudioContextClass();
+  }
+  return audioState.context;
+}
+
+function ensureAnalyser(context) {
+  if (!audioState.analyser) {
+    const analyser = context.createAnalyser();
+    analyser.fftSize = 2048;
+    analyser.smoothingTimeConstant = 0.85;
+    audioState.analyser = analyser;
+    audioState.freqData = new Uint8Array(analyser.frequencyBinCount);
+    audioState.timeData = new Uint8Array(analyser.fftSize);
+  }
+  return audioState.analyser;
+}
+
+function decodeAudioBuffer(context, arrayBuffer) {
+  return new Promise((resolve, reject) => {
+    const maybePromise = context.decodeAudioData(arrayBuffer, resolve, reject);
+    if (maybePromise && typeof maybePromise.then === 'function') {
+      maybePromise.then(resolve, reject);
+    }
+  });
+}
+
+function resetAudioMetrics() {
+  audioState.metrics.energy = 0;
+  audioState.metrics.bass = 0;
+  audioState.metrics.mid = 0;
+  audioState.metrics.treble = 0;
+  audioState.metrics.wave = 0;
+  audioState.visual.motion = 0;
+  audioState.visual.size = 1;
+  audioState.visual.hue = 0;
+  audioState.visual.alpha = 0;
+}
+
+function disconnectAnalyser() {
+  if (audioState.analyser) {
+    try { audioState.analyser.disconnect(); } catch (err) { /* ignore */ }
+  }
+}
+
+function stopAudioPlayback({ suspendContext = false } = {}) {
+  if (audioState.source) {
+    try { audioState.source.disconnect(); } catch (err) { /* ignore */ }
+    if (typeof audioState.source.stop === 'function') {
+      try { audioState.source.stop(); } catch (err) { /* ignore */ }
+    }
+  }
+  audioState.source = null;
+  if (audioState.micStream) {
+    audioState.micStream.getTracks().forEach(track => track.stop());
+  }
+  audioState.micStream = null;
+  audioState.playing = false;
+  audioState.usingMic = false;
+  disconnectAnalyser();
+  if (audioState.context && suspendContext && typeof audioState.context.suspend === 'function') {
+    audioState.context.suspend().catch(() => {});
+  }
+}
+
+function setAudioStatus(message, state = 'idle') {
+  audioState.status = state;
+  if (audioUI.statusText) {
+    audioUI.statusText.textContent = message;
+    audioUI.statusText.dataset.state = state;
+  }
+  if (audioUI.statusDot) {
+    audioUI.statusDot.dataset.state = state;
+  }
+}
+
+function refreshAudioUI() {
+  if (!audioUI.playBtn) return;
+  const supportedAudio = isAudioSupported();
+  const supportedMic = isMicSupported();
+  if (audioUI.fileInput) {
+    audioUI.fileInput.disabled = !supportedAudio;
+  }
+  audioUI.playBtn.disabled = !supportedAudio || !audioState.selectedFile || audioState.playing;
+  if (audioUI.stopBtn) {
+    audioUI.stopBtn.disabled = !supportedAudio || !audioState.playing;
+  }
+  if (audioUI.micStartBtn) {
+    audioUI.micStartBtn.disabled = !supportedAudio || !supportedMic || audioState.playing;
+  }
+  if (audioUI.micStopBtn) {
+    audioUI.micStopBtn.disabled = !supportedAudio || !audioState.playing || !audioState.usingMic;
+  }
+  if (!supportedAudio) {
+    setAudioStatus('Web Audio API wird nicht unterstützt.', 'error');
+  } else if (!supportedMic) {
+    // only show info if mic UI exists and audio supported
+    if (audioUI.micStartBtn) {
+      audioUI.micStartBtn.title = 'Kein Mikrofonzugriff verfügbar';
+    }
+  } else if (audioUI.micStartBtn) {
+    audioUI.micStartBtn.removeAttribute('title');
+  }
+}
+
+function updateAudioFileMeta(file) {
+  if (!audioUI.fileMeta) return;
+  if (!file) {
+    audioUI.fileMeta.textContent = 'Kein Upload ausgewählt';
+    return;
+  }
+  const size = file.size || 0;
+  let humanSize = '';
+  if (size <= 0) {
+    humanSize = '';
+  } else if (size < 1024 * 1024) {
+    humanSize = `${(size / 1024).toFixed(1)} KB`;
+  } else {
+    humanSize = `${(size / (1024 * 1024)).toFixed(2)} MB`;
+  }
+  const parts = [file.name || 'Audio'];
+  if (humanSize) parts.push(humanSize);
+  audioUI.fileMeta.textContent = parts.join(' · ');
+}
+
+async function playSelectedFile() {
+  if (!audioState.selectedFile) {
+    setAudioStatus('Bitte eine Audio-Datei auswählen.', 'waiting');
+    return;
+  }
+  if (!isAudioSupported()) {
+    setAudioStatus('Web Audio API wird nicht unterstützt.', 'error');
+    return;
+  }
+  try {
+    setAudioStatus('Lade Audio...', 'waiting');
+    if (audioUI.playBtn) {
+      audioUI.playBtn.disabled = true;
+    }
+    const context = ensureAudioContext();
+    await context.resume();
+    const analyser = ensureAnalyser(context);
+    stopAudioPlayback();
+    disconnectAnalyser();
+    const arrayBuffer = await audioState.selectedFile.arrayBuffer();
+    const buffer = await decodeAudioBuffer(context, arrayBuffer);
+    const source = context.createBufferSource();
+    source.buffer = buffer;
+    source.onended = () => {
+      if (audioState.source === source) {
+        audioState.source = null;
+        disconnectAnalyser();
+        audioState.playing = false;
+        setAudioStatus('Wiedergabe beendet', 'idle');
+        refreshAudioUI();
+      }
+    };
+    source.connect(analyser);
+    analyser.connect(context.destination);
+    source.start();
+    audioState.source = source;
+    audioState.playing = true;
+    audioState.usingMic = false;
+    audioState.fileName = audioState.selectedFile.name || 'Audio';
+    setAudioStatus(`Wiedergabe läuft – ${audioState.fileName}`, 'active');
+    refreshAudioUI();
+  } catch (error) {
+    console.error('Audio playback failed:', error);
+    setAudioStatus('Fehler beim Laden der Datei.', 'error');
+    stopAudioPlayback();
+    refreshAudioUI();
+  }
+}
+
+async function startMicrophone() {
+  if (!isAudioSupported()) {
+    setAudioStatus('Web Audio API wird nicht unterstützt.', 'error');
+    return;
+  }
+  if (!isMicSupported()) {
+    setAudioStatus('Mikrofon wird nicht unterstützt.', 'error');
+    return;
+  }
+  try {
+    setAudioStatus('Mikrofon wird gestartet…', 'waiting');
+    if (audioUI.micStartBtn) {
+      audioUI.micStartBtn.disabled = true;
+    }
+    const context = ensureAudioContext();
+    await context.resume();
+    const analyser = ensureAnalyser(context);
+    stopAudioPlayback();
+    disconnectAnalyser();
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+    const source = context.createMediaStreamSource(stream);
+    source.connect(analyser);
+    audioState.source = source;
+    audioState.micStream = stream;
+    audioState.playing = true;
+    audioState.usingMic = true;
+    setAudioStatus('Mikrofon aktiv – Live-Reaktion', 'active');
+    refreshAudioUI();
+  } catch (error) {
+    console.error('Microphone start failed:', error);
+    const denied = error && (error.name === 'NotAllowedError' || error.name === 'SecurityError');
+    const msg = denied ? 'Mikrofon erfordert Freigabe.' : 'Mikrofon konnte nicht gestartet werden.';
+    setAudioStatus(msg, 'error');
+    stopAudioPlayback();
+    refreshAudioUI();
+  }
+}
+
+function stopAudioFromUser() {
+  if (!audioState.playing && !audioState.micStream) {
+    setAudioStatus('Audio-Reaktivität inaktiv', 'idle');
+    refreshAudioUI();
+    return;
+  }
+  stopAudioPlayback();
+  setAudioStatus('Audio-Reaktivität inaktiv', 'idle');
+  refreshAudioUI();
+}
+
+function updateAudioReactive(delta) {
+  let energyTarget = 0;
+  let bassTarget = 0;
+  let midTarget = 0;
+  let trebleTarget = 0;
+  let waveTarget = 0;
+
+  if (audioState.analyser && audioState.freqData && audioState.timeData) {
+    const freqData = audioState.freqData;
+    const len = freqData.length;
+    if (len > 0) {
+      let energySum = 0;
+      for (let i = 0; i < len; i++) {
+        const norm = freqData[i] / 255;
+        energySum += norm * norm;
+      }
+      energyTarget = Math.min(1, Math.sqrt(energySum / len));
+      const bassBins = Math.max(1, Math.round(len * 0.08));
+      const midBins = Math.max(1, Math.round(len * 0.32));
+      const trebleBins = Math.max(1, len - bassBins - midBins);
+      const avgRange = (start, count) => {
+        const available = Math.max(0, Math.min(len - start, count));
+        if (available <= 0) return 0;
+        let sum = 0;
+        for (let i = 0; i < available; i++) {
+          sum += freqData[start + i];
+        }
+        return (sum / (available * 255)) || 0;
+      };
+      bassTarget = avgRange(0, bassBins);
+      midTarget = avgRange(bassBins, midBins);
+      trebleTarget = avgRange(bassBins + midBins, trebleBins);
+    }
+    const timeData = audioState.timeData;
+    const tLen = timeData.length;
+    if (tLen > 0) {
+      let waveSum = 0;
+      for (let i = 0; i < tLen; i++) {
+        const centered = (timeData[i] - 128) / 128;
+        waveSum += Math.abs(centered);
+      }
+      waveTarget = Math.min(1, waveSum / tLen);
+    }
+  }
+
+  const metricRate = audioState.playing ? 14 : 6;
+  audioState.metrics.energy = damp(audioState.metrics.energy, energyTarget, metricRate, delta);
+  audioState.metrics.bass = damp(audioState.metrics.bass, bassTarget, metricRate, delta);
+  audioState.metrics.mid = damp(audioState.metrics.mid, midTarget, metricRate, delta);
+  audioState.metrics.treble = damp(audioState.metrics.treble, trebleTarget, metricRate, delta);
+  audioState.metrics.wave = damp(audioState.metrics.wave, waveTarget, metricRate, delta);
+
+  const targetMotion = Math.min(2.4, audioState.metrics.energy * 1.1 + audioState.metrics.bass * 1.7);
+  const targetSize = Math.min(1.9, 1 + audioState.metrics.mid * 1.1 + audioState.metrics.wave * 0.45);
+  const targetHue = audioState.metrics.treble * 90;
+  const targetAlpha = Math.min(0.5, audioState.metrics.energy * 0.35 + audioState.metrics.wave * 0.2);
+
+  audioState.visual.motion = damp(audioState.visual.motion, targetMotion, 6, delta);
+  audioState.visual.size = damp(audioState.visual.size, targetSize, 7, delta);
+  audioState.visual.hue = damp(audioState.visual.hue, targetHue, 3, delta);
+  audioState.visual.alpha = damp(audioState.visual.alpha, targetAlpha, 6, delta);
+}
+
+function applyAudioVisuals(delta) {
+  updateAudioReactive(delta);
+  const sizeBoost = audioState.visual.size;
+  const hue = (params.pointHue + audioState.visual.hue) % 360;
+  const saturation = Math.min(1, params.pointSaturation + audioState.metrics.treble * 0.18);
+  const brightness = Math.min(1.1, params.pointValue + audioState.metrics.energy * 0.25);
+  const reactiveColor = hsv2rgb(hue, saturation, brightness);
+  audioState.color.copy(reactiveColor);
+
+  if (starMaterial && starMaterial.uniforms) {
+    if (starMaterial.uniforms.uSizeFactorSmall) {
+      starMaterial.uniforms.uSizeFactorSmall.value = params.sizeFactorSmall * sizeBoost;
+    }
+    if (starMaterial.uniforms.uSizeFactorMedium) {
+      starMaterial.uniforms.uSizeFactorMedium.value = params.sizeFactorMedium * sizeBoost;
+    }
+    if (starMaterial.uniforms.uSizeFactorLarge) {
+      starMaterial.uniforms.uSizeFactorLarge.value = params.sizeFactorLarge * sizeBoost;
+    }
+    if (starMaterial.uniforms.uAlpha) {
+      const baseAlpha = params.pointAlpha;
+      const boostedAlpha = Math.max(0.05, Math.min(1, baseAlpha + audioState.visual.alpha));
+      starMaterial.uniforms.uAlpha.value = boostedAlpha;
+    }
+    if (starMaterial.uniforms.uColor) {
+      starMaterial.uniforms.uColor.value.copy(audioState.color);
+    }
+  }
+
+  if (tinyMaterial && tinyMaterial.uniforms) {
+    const tinySize = params.sizeFactorTiny * Math.max(0.05, 0.8 + sizeBoost * 0.2 + audioState.metrics.wave * 0.35);
+    if (tinyMaterial.uniforms.uSize) {
+      tinyMaterial.uniforms.uSize.value = tinySize;
+    }
+    if (tinyMaterial.uniforms.uAlpha) {
+      const baseTinyAlpha = params.tinyAlpha;
+      const boostedTinyAlpha = Math.min(1, baseTinyAlpha + audioState.visual.alpha * 0.4);
+      tinyMaterial.uniforms.uAlpha.value = boostedTinyAlpha;
+    }
+    if (tinyMaterial.uniforms.uColor) {
+      tinyMaterial.uniforms.uColor.value.copy(audioState.color);
+    }
+  }
+
+  const extraRotation = audioState.visual.motion;
+  if (extraRotation > 1e-4) {
+    const yaw = extraRotation * delta * 0.85;
+    const pitch = audioState.metrics.wave * delta * 0.35;
+    if (Number.isFinite(yaw) && Math.abs(yaw) < Math.PI) {
+      clusterGroup.rotateY(yaw);
+    }
+    if (Number.isFinite(pitch) && Math.abs(pitch) < Math.PI) {
+      clusterGroup.rotateX(pitch);
+    }
+  }
 }
 
 /* Globals for stars and tiny connections */
@@ -648,8 +1090,14 @@ function makeStars() {
   const smallCount = Math.max(0, Math.floor(Number(params.catSmallCount) || 0));
   const mediumCount = Math.max(0, Math.floor(Number(params.catMediumCount) || 0));
   const largeCount = Math.max(0, Math.floor(Number(params.catLargeCount) || 0));
-  const total = Math.max(0, smallCount + mediumCount + largeCount);
+  const total = clampTotalCount(smallCount + mediumCount + largeCount);
   params.count = total;
+  if (total <= 0) {
+    starGeometry = new THREE.BufferGeometry();
+    starMaterial = null;
+    starPoints = null;
+    return;
+  }
   starGeometry = new THREE.BufferGeometry();
   const positions = new Float32Array(total * 3);
   const basePositions = new Float32Array(total * 3);
@@ -937,14 +1385,19 @@ function makeTiny() {
   }
   // Determine number of tiny points based on connPercent
   const nTiny = Math.round(params.tinyCount * params.connPercent);
+  // Access star positions for connections
+  const starPos = (starGeometry && starGeometry.getAttribute) ? starGeometry.getAttribute('position') : null;
+  const nStars = starPos ? starPos.count : 0;
+  if (!starPos || nStars === 0) {
+    tinyPoints = undefined;
+    return;
+  }
+
   tinyGeometry = new THREE.BufferGeometry();
   const positions = new Float32Array(Math.max(0, nTiny * 3));
   const basePositions = new Float32Array(Math.max(0, nTiny * 3));
   const phases = new Float32Array(Math.max(0, nTiny));
-  // Access star positions for connections
-  const starPos = (starGeometry && starGeometry.getAttribute) ? starGeometry.getAttribute('position') : null;
-  const nStars = starPos ? starPos.count : 0;
-  if (starPos && nStars > 0) {
+  if (nTiny > 0 && nStars > 0) {
     const rand = mulberry32(params.seedTiny);
     const phaseRand = mulberry32((params.seedTiny ^ 0x9e3779b9) >>> 0);
     for (let i = 0; i < nTiny; i++) {
@@ -1184,6 +1637,61 @@ const sheetState = {
   moved: false,
   preventClick: false,
 };
+
+audioUI.fileInput = $('audioFile');
+audioUI.fileMeta = $('audioFileMeta');
+audioUI.playBtn = $('audioPlay');
+audioUI.stopBtn = $('audioStop');
+audioUI.micStartBtn = $('audioMicStart');
+audioUI.micStopBtn = $('audioMicStop');
+audioUI.statusText = $('audioStatus');
+audioUI.statusDot = $('audioStatusDot');
+
+if (audioUI.fileInput) {
+  audioUI.fileInput.addEventListener('change', event => {
+    const files = event.target.files;
+    const file = files && files.length ? files[0] : null;
+    audioState.selectedFile = file;
+    audioState.fileName = file ? (file.name || 'Audio') : '';
+    updateAudioFileMeta(file);
+    if (file) {
+      setAudioStatus('Datei geladen – Abspielen möglich', 'waiting');
+    } else if (!audioState.playing) {
+      setAudioStatus('Audio-Reaktivität inaktiv', 'idle');
+    }
+    refreshAudioUI();
+  });
+}
+
+if (audioUI.playBtn) {
+  audioUI.playBtn.addEventListener('click', () => {
+    playSelectedFile();
+  });
+}
+
+if (audioUI.stopBtn) {
+  audioUI.stopBtn.addEventListener('click', () => {
+    stopAudioFromUser();
+  });
+}
+
+if (audioUI.micStartBtn) {
+  audioUI.micStartBtn.addEventListener('click', () => {
+    startMicrophone();
+  });
+}
+
+if (audioUI.micStopBtn) {
+  audioUI.micStopBtn.addEventListener('click', () => {
+    stopAudioFromUser();
+  });
+}
+
+if (audioUI.fileMeta) {
+  updateAudioFileMeta(audioState.selectedFile);
+}
+setAudioStatus('Audio-Reaktivität inaktiv', 'idle');
+refreshAudioUI();
 let panelVisible = true;
 let cameraLocked = false;
 
@@ -1748,7 +2256,11 @@ function getSizeRange() {
   return { min, max, delta: max - min };
 }
 
-const sliders = {
+const sliderHandlers = {
+  pCount:       val => {
+    params.count = clampTotalCount(val);
+    rebuildStars();
+  },
   pRadius:      val => { params.radius = parseFloat(val); rebuildStars(); },
   pSizeVar:     val => { params.sizeVar = parseFloat(val); rebuildStars(); },
   pCluster:     val => { params.cluster = parseFloat(val); rebuildStars(); },
@@ -1803,9 +2315,11 @@ const sliders = {
   },
 };
 // assign input event handlers
-for (const id in sliders) {
-  $(id).addEventListener('input', e => {
-    sliders[id](e.target.value);
+for (const id in sliderHandlers) {
+  const element = $(id);
+  if (!element) continue;
+  element.addEventListener('input', e => {
+    sliderHandlers[id](e.target.value);
     setSliders();
   });
 }
@@ -1893,7 +2407,7 @@ lockBtn.addEventListener('click', () => {
 $('random').addEventListener('click', () => {
   // randomize many parameters
   const totalCount = 500 + Math.floor(Math.random() * 7500);
-  params.count = totalCount;
+  params.count = clampTotalCount(totalCount);
   params.radius = 60 + Math.random() * 180;
   params.sizeVar = Math.random() * 9.5;
   params.cluster = Math.random() * 0.95;
@@ -1945,6 +2459,7 @@ $('random').addEventListener('click', () => {
 /* Update slider displays */
 function setSliders() {
   // star params
+  params.count = clampTotalCount(params.count);
   if ($('pCount')) {
     $('pCount').value = params.count;
   }
@@ -2047,6 +2562,8 @@ function animate(now) {
       clusterGroup.rotateOnAxis(spinApplyAxis, speed * delta);
     }
   }
+
+  applyAudioVisuals(delta);
 
   if (cameraLocked) {
     controls.target.copy(clusterGroup.position);
