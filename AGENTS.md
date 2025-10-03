@@ -96,6 +96,18 @@
 - Nach Änderungen immer `git add -A` und konventionelle Commits nutzen (z. B. `feat:`, `fix:`, Doku mit `[skip ci]`).
 - Direkt nach jedem Commit pushen. Erster Push: `git push -u origin work`, danach `git push`.
 
+### Merge-Konflikte in bestehenden Pull-Requests beheben
+
+- Hole den aktuellen Stand von `main` und dem betroffenen PR-Branch:
+  ```bash
+  git fetch origin
+  git switch <feature-branch>
+  git pull --rebase origin main
+  ```
+- Löse Konflikte lokal und committe die Auflösung.
+- Synchronisiere anschließend den Branch (z. B. `git push --force-with-lease origin <feature-branch>`), damit der PR aktualisiert wird.
+- Falls der PR einem Fork gehört, wähle den passenden Remote (z. B. `git remote add upstream …`) und ziehe die Änderungen entsprechend.
+
 ## Qualitätssicherung
 
 - Respektiere vorhandene Lockfiles und nutze die passenden Install-Befehle (`pnpm i --frozen-lockfile`, `npm ci`, `yarn install --frozen-lockfile`, `pip install -r requirements.txt`, …).
