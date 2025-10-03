@@ -1161,7 +1161,7 @@ const audioState = {
   fileName: '',
   status: 'idle',
   metrics: { energy: 0, bass: 0, mid: 0, treble: 0, wave: 0 },
-  visual: { motion: 0, size: 1, hue: 0, alpha: 0, scale: 1 },
+  visual: { motion: 0, size: 1, hue: 0, alpha: 0, scale: 1, saturation: 0, brightness: 0 },
   modifiers: {
     motion: true,
     scale: true,
@@ -1173,10 +1173,26 @@ const audioState = {
   },
   intensity: { ...AUDIO_INTENSITY_DEFAULTS },
   color: new THREE.Color(),
-  needsResume: false
+  needsResume: false,
+  motionDirection: 1,
+  pitchDirection: 1,
+  motionFlipCooldown: 0,
+  pitchFlipCooldown: 0,
+  previousBass: 0,
+  previousTreble: 0,
+  previousEnergy: 0,
+  previousWave: 0
 };
 
-const AUDIO_VISUAL_BASE = Object.freeze({ motion: 0, size: 1, hue: 0, alpha: 0, scale: 1 });
+const AUDIO_VISUAL_BASE = Object.freeze({
+  motion: 0,
+  size: 1,
+  hue: 0,
+  alpha: 0,
+  scale: 1,
+  saturation: 0,
+  brightness: 0
+});
 
 const audioUI = {
   panel: null,
@@ -1234,17 +1250,19 @@ function syncAudioIntensityControls() {
   const modifiers = audioState.modifiers || {};
   audioUI.intensityControls.forEach(({ input, valueEl, container }, key) => {
     const percent = clampIntensityPercent(getAudioIntensity(key) * 100);
+    const enabled = modifiers[key] !== false;
     if (input) {
       if (document.activeElement !== input) {
         input.value = String(percent);
       }
       input.setAttribute('aria-valuenow', String(percent));
+      input.toggleAttribute('disabled', !enabled);
+      input.setAttribute('aria-disabled', String(!enabled));
     }
     if (valueEl) {
       valueEl.textContent = `${percent}%`;
     }
     if (container) {
-      const enabled = modifiers[key] !== false;
       container.classList.toggle('is-disabled', !enabled);
     }
   });
@@ -1288,6 +1306,15 @@ const audioBandVector = new THREE.Vector3();
 function applyAudioVisualState(modifiers = audioState.modifiers || {}) {
   const sizeBoost = modifiers.size ? clampValue(audioState.visual.size, 0.2, 4.5) : AUDIO_VISUAL_BASE.size;
   const hueOffset = modifiers.hue ? clampValue(audioState.visual.hue, -540, 540) : AUDIO_VISUAL_BASE.hue;
+  const saturationDelta = modifiers.saturation
+    ? clampValue(audioState.visual.saturation, -0.35, 0.9)
+    : AUDIO_VISUAL_BASE.saturation;
+  const brightnessDelta = modifiers.brightness
+    ? clampValue(audioState.visual.brightness, -0.35, 1.05)
+    : AUDIO_VISUAL_BASE.brightness;
+  const hue = ((params.pointHue + hueOffset) % 360 + 360) % 360;
+  const saturation = clampValue(params.pointSaturation + saturationDelta, 0.05, 1.4);
+  const brightness = clampValue(params.pointValue + brightnessDelta, 0.05, 1.6);
   const saturationIntensity = modifiers.saturation ? Math.max(0, getAudioIntensity('saturation')) : 0;
   const brightnessIntensity = modifiers.brightness ? Math.max(0, getAudioIntensity('brightness')) : 0;
   const hue = ((params.pointHue + hueOffset) % 360 + 360) % 360;
@@ -1374,16 +1401,28 @@ function applyAudioVisualState(modifiers = audioState.modifiers || {}) {
 }
 
 function applyAudioMotion(delta, modifiers = audioState.modifiers || {}) {
-  const extraRotation = modifiers.motion ? audioState.visual.motion : AUDIO_VISUAL_BASE.motion;
-  if (extraRotation > 1e-4) {
-    const yaw = extraRotation * delta * 0.85;
-    const pitch = (modifiers.motion ? audioState.metrics.wave : 0) * delta * 0.35;
-    if (Number.isFinite(yaw) && Math.abs(yaw) < Math.PI) {
-      clusterGroup.rotateY(yaw);
-    }
-    if (Number.isFinite(pitch) && Math.abs(pitch) < Math.PI) {
-      clusterGroup.rotateX(pitch);
-    }
+  if (!modifiers.motion) {
+    return;
+  }
+  const motionIntensity = Math.max(0, getAudioIntensity('motion'));
+  const rotationStrength = clampValue(audioState.visual.motion, 0, 4.5);
+  if (rotationStrength <= 1e-4 || motionIntensity <= 0) {
+    return;
+  }
+  const yaw = rotationStrength * audioState.motionDirection * delta * (0.55 + motionIntensity * 0.95);
+  const waveTilt = clampValue(audioState.metrics.wave * (0.3 + motionIntensity * 0.5), -3, 3);
+  const pitch = waveTilt * audioState.pitchDirection * delta * 0.55;
+  const rollBase = clampValue(audioState.metrics.treble * (0.22 + motionIntensity * 0.35), 0, 3.2);
+  const rollDirection = audioState.motionDirection >= 0 ? 1 : -1;
+  const roll = rollBase * rollDirection * delta * 0.3;
+  if (Number.isFinite(yaw) && Math.abs(yaw) < Math.PI) {
+    clusterGroup.rotateY(yaw);
+  }
+  if (Number.isFinite(pitch) && Math.abs(pitch) < Math.PI) {
+    clusterGroup.rotateX(pitch);
+  }
+  if (Number.isFinite(roll) && Math.abs(roll) < Math.PI) {
+    clusterGroup.rotateZ(roll);
   }
 }
 
@@ -1442,6 +1481,16 @@ function resetAudioMetrics() {
   audioState.visual.hue = 0;
   audioState.visual.alpha = 0;
   audioState.visual.scale = 1;
+  audioState.visual.saturation = 0;
+  audioState.visual.brightness = 0;
+  audioState.motionDirection = 1;
+  audioState.pitchDirection = 1;
+  audioState.motionFlipCooldown = 0;
+  audioState.pitchFlipCooldown = 0;
+  audioState.previousBass = 0;
+  audioState.previousTreble = 0;
+  audioState.previousEnergy = 0;
+  audioState.previousWave = 0;
 }
 
 function disconnectAnalyser() {
@@ -1487,6 +1536,10 @@ function setAudioModifier(key, enabled) {
   audioState.modifiers[key] = Boolean(enabled);
   if (!audioState.modifiers[key] && AUDIO_VISUAL_BASE[key] !== undefined && audioState.visual && key in audioState.visual) {
     audioState.visual[key] = AUDIO_VISUAL_BASE[key];
+    if (key === 'motion') {
+      audioState.motionDirection = 1;
+      audioState.pitchDirection = 1;
+    }
   }
   refreshAudioUI();
   applyAudioVisualState();
@@ -1733,23 +1786,76 @@ function updateAudioReactive(delta) {
   audioState.metrics.wave = damp(audioState.metrics.wave, waveTarget, metricRate, delta);
 
   const modifiers = audioState.modifiers || {};
+  const motionIntensity = Math.max(0, getAudioIntensity('motion'));
+  audioState.motionFlipCooldown = Math.max(0, audioState.motionFlipCooldown - delta);
+  audioState.pitchFlipCooldown = Math.max(0, audioState.pitchFlipCooldown - delta);
+
+  const motionActive = modifiers.motion && motionIntensity > 0;
+  const bassPulse = Math.max(0, bassTarget - audioState.previousBass);
+  const energyPulse = Math.max(0, energyTarget - audioState.previousEnergy);
+  const wavePulse = Math.max(0, waveTarget - audioState.previousWave);
+  const treblePulse = Math.max(0, trebleTarget - audioState.previousTreble);
+
+  if (motionActive) {
+    if (audioState.motionFlipCooldown <= 0) {
+      const beatPulse = bassPulse * 0.7 + energyPulse * 0.4;
+      if (beatPulse > 0.12 && (bassTarget > 0.38 || energyTarget > 0.52)) {
+        audioState.motionDirection = (audioState.motionDirection || 1) * -1;
+        const cooldownBase = 0.3 + (1 - Math.min(1, motionIntensity)) * 0.4;
+        audioState.motionFlipCooldown = cooldownBase + Math.random() * 0.25;
+      }
+    }
+    if (audioState.pitchFlipCooldown <= 0) {
+      const tiltPulse = treblePulse * 0.6 + wavePulse * 0.8;
+      if (tiltPulse > 0.16) {
+        audioState.pitchDirection = (audioState.pitchDirection || 1) * -1;
+        const pitchCooldownBase = 0.45 + (1 - Math.min(1, motionIntensity)) * 0.35;
+        audioState.pitchFlipCooldown = pitchCooldownBase + Math.random() * 0.2;
+      }
+    }
+  } else {
+    audioState.motionDirection = 1;
+    audioState.pitchDirection = 1;
+  }
+
   const rawMotion = Math.min(3.2, audioState.metrics.energy * 1.6 + audioState.metrics.bass * 2.5);
   const baseSize = Math.min(2.6, 1 + audioState.metrics.mid * 1.45 + audioState.metrics.wave * 0.6);
   const baseScale = Math.min(2.6, 1 + audioState.metrics.energy * 0.65 + audioState.metrics.wave * 0.5 + audioState.metrics.bass * 0.45);
   const hueBase = audioState.metrics.treble * 160 + audioState.metrics.energy * 20;
   const alphaBase = Math.min(0.7, audioState.metrics.energy * 0.45 + audioState.metrics.wave * 0.3 + audioState.metrics.mid * 0.2);
+  const saturationBase = audioState.metrics.treble * 0.6 + audioState.metrics.wave * 0.28;
+  const brightnessBase = audioState.metrics.energy * 0.75 + audioState.metrics.mid * 0.35;
 
   const targetMotion = applyIntensityToTarget(rawMotion, 'motion', 0, { min: 0, max: 3.8 });
   const targetSize = applyIntensityToTarget(baseSize, 'size', 1, { min: 0.4, max: 3.4 });
   const targetScale = applyIntensityToTarget(baseScale, 'scale', 1, { min: 0.4, max: 3.4 });
   const targetHue = applyIntensityToTarget(hueBase, 'hue', 0, { min: -720, max: 720 });
   const targetAlpha = applyIntensityToTarget(alphaBase, 'alpha', 0, { min: 0, max: 0.9 });
+  const targetSaturation = applyIntensityToTarget(saturationBase, 'saturation', 0, { min: -0.4, max: 1 });
+  const targetBrightness = applyIntensityToTarget(brightnessBase, 'brightness', 0, { min: -0.4, max: 1.1 });
 
   audioState.visual.motion = damp(audioState.visual.motion, modifiers.motion ? targetMotion : AUDIO_VISUAL_BASE.motion, 6, delta);
   audioState.visual.size = damp(audioState.visual.size, modifiers.size ? targetSize : AUDIO_VISUAL_BASE.size, 7, delta);
   audioState.visual.scale = damp(audioState.visual.scale, modifiers.scale ? targetScale : AUDIO_VISUAL_BASE.scale, 5, delta);
   audioState.visual.hue = damp(audioState.visual.hue, modifiers.hue ? targetHue : AUDIO_VISUAL_BASE.hue, 3, delta);
   audioState.visual.alpha = damp(audioState.visual.alpha, modifiers.alpha ? targetAlpha : AUDIO_VISUAL_BASE.alpha, 6, delta);
+  audioState.visual.saturation = damp(
+    audioState.visual.saturation,
+    modifiers.saturation ? targetSaturation : AUDIO_VISUAL_BASE.saturation,
+    5,
+    delta
+  );
+  audioState.visual.brightness = damp(
+    audioState.visual.brightness,
+    modifiers.brightness ? targetBrightness : AUDIO_VISUAL_BASE.brightness,
+    5,
+    delta
+  );
+
+  audioState.previousBass = bassTarget;
+  audioState.previousEnergy = energyTarget;
+  audioState.previousTreble = trebleTarget;
+  audioState.previousWave = waveTarget;
 }
 
 function applyAudioVisuals(delta, skipReactive = false) {
