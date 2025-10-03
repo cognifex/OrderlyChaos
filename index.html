@@ -117,6 +117,17 @@
       grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
       gap: .35rem;
     }
+    .intensity-grid {
+      display: flex;
+      flex-direction: column;
+      gap: .35rem;
+    }
+    .intensity-grid .wrap {
+      gap: .45rem;
+    }
+    .intensity-grid .wrap.is-disabled {
+      opacity: 0.55;
+    }
     .status-row { display: flex; align-items: center; gap: .5rem; font-size: .78rem; min-height: 1.4em; }
     .status-indicator { width: 10px; height: 10px; border-radius: 50%; background: rgba(255, 255, 255, 0.35); box-shadow: 0 0 6px rgba(0, 0, 0, 0.45); flex-shrink: 0; transition: background .2s ease, box-shadow .2s ease; }
     .status-text { flex: 1; }
@@ -643,6 +654,46 @@
           <button type="button" class="modifier-toggle" data-modifier="alpha" aria-pressed="true">Transparenz</button>
         </div>
       </div>
+      <div class="row">
+        <label>Reaktionsstärke</label>
+        <div class="intensity-grid">
+          <div class="wrap" data-intensity-row="motion">
+            <span class="tag">Rotation</span>
+            <input type="range" min="0" max="200" step="5" value="100" data-intensity-target="motion" />
+            <div class="val" data-intensity-value="motion">100%</div>
+          </div>
+          <div class="wrap" data-intensity-row="scale">
+            <span class="tag">Skalierung</span>
+            <input type="range" min="0" max="200" step="5" value="100" data-intensity-target="scale" />
+            <div class="val" data-intensity-value="scale">100%</div>
+          </div>
+          <div class="wrap" data-intensity-row="size">
+            <span class="tag">Punktgröße</span>
+            <input type="range" min="0" max="200" step="5" value="100" data-intensity-target="size" />
+            <div class="val" data-intensity-value="size">100%</div>
+          </div>
+          <div class="wrap" data-intensity-row="hue">
+            <span class="tag">Farbton</span>
+            <input type="range" min="0" max="200" step="5" value="100" data-intensity-target="hue" />
+            <div class="val" data-intensity-value="hue">100%</div>
+          </div>
+          <div class="wrap" data-intensity-row="saturation">
+            <span class="tag">Sättigung</span>
+            <input type="range" min="0" max="200" step="5" value="100" data-intensity-target="saturation" />
+            <div class="val" data-intensity-value="saturation">100%</div>
+          </div>
+          <div class="wrap" data-intensity-row="brightness">
+            <span class="tag">Helligkeit</span>
+            <input type="range" min="0" max="200" step="5" value="100" data-intensity-target="brightness" />
+            <div class="val" data-intensity-value="brightness">100%</div>
+          </div>
+          <div class="wrap" data-intensity-row="alpha">
+            <span class="tag">Transparenz</span>
+            <input type="range" min="0" max="200" step="5" value="100" data-intensity-target="alpha" />
+            <div class="val" data-intensity-value="alpha">100%</div>
+          </div>
+        </div>
+      </div>
       <div class="row status-row" role="status" aria-live="polite">
         <span class="status-indicator" id="audioStatusDot" data-state="idle" aria-hidden="true"></span>
         <span class="status-text" id="audioStatus" data-state="idle">Audio-Reaktivität inaktiv</span>
@@ -758,6 +809,16 @@ function getMotionModeIndex() {
 
 const AudioContextClass = window.AudioContext || window.webkitAudioContext || null;
 
+const AUDIO_INTENSITY_DEFAULTS = Object.freeze({
+  motion: 1,
+  scale: 1,
+  size: 1,
+  hue: 1,
+  saturation: 1,
+  brightness: 1,
+  alpha: 1
+});
+
 const audioState = {
   context: null,
   analyser: null,
@@ -781,6 +842,7 @@ const audioState = {
     brightness: true,
     alpha: true
   },
+  intensity: { ...AUDIO_INTENSITY_DEFAULTS },
   color: new THREE.Color(),
   needsResume: false
 };
@@ -796,10 +858,180 @@ const audioUI = {
   micStopBtn: null,
   statusText: null,
   statusDot: null,
-  modifierButtons: null
+  modifierButtons: null,
+  intensityControls: null
 };
 
 const audioBandVector = new THREE.Vector3();
+
+function clampIntensityPercent(value) {
+  if (value === '' || value === null || value === undefined) return 0;
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return 0;
+  return Math.min(200, Math.max(0, Math.round(numeric)));
+}
+
+function getAudioIntensity(key) {
+  if (!audioState.intensity || !(key in AUDIO_INTENSITY_DEFAULTS)) {
+    return 1;
+  }
+  const stored = audioState.intensity[key];
+  return Number.isFinite(stored) ? stored : AUDIO_INTENSITY_DEFAULTS[key];
+}
+
+function mixWithBase(value, base, intensity) {
+  const safeBase = Number.isFinite(base) ? base : 0;
+  const safeValue = Number.isFinite(value) ? value : safeBase;
+  const safeIntensity = Number.isFinite(intensity) ? intensity : 1;
+  return safeBase + (safeValue - safeBase) * safeIntensity;
+}
+
+function updateAudioIntensityLabel(key, percentValue) {
+  if (!audioUI.intensityControls || !audioUI.intensityControls.has(key)) return;
+  const control = audioUI.intensityControls.get(key);
+  if (control.valueEl) {
+    control.valueEl.textContent = `${percentValue}%`;
+  }
+  if (control.input && control.input.value !== String(percentValue)) {
+    control.input.value = String(percentValue);
+  }
+}
+
+function syncAudioIntensityControls() {
+  if (!audioUI.intensityControls) return;
+  audioUI.intensityControls.forEach((control, key) => {
+    const percent = clampIntensityPercent(getAudioIntensity(key) * 100);
+    updateAudioIntensityLabel(key, percent);
+    const active = Boolean(audioState.modifiers && audioState.modifiers[key]);
+    if (control.input) {
+      control.input.disabled = !active;
+    }
+    if (control.container) {
+      control.container.classList.toggle('is-disabled', !active);
+    }
+  });
+}
+
+function setAudioIntensity(key, percent) {
+  if (!audioState.intensity || !(key in AUDIO_INTENSITY_DEFAULTS)) return;
+  const clampedPercent = clampIntensityPercent(percent);
+  const normalized = clampedPercent / 100;
+  audioState.intensity[key] = normalized;
+  updateAudioIntensityLabel(key, clampedPercent);
+  applyAudioVisualState();
+}
+
+function applyAudioVisualState(modifiers = audioState.modifiers || {}) {
+  const sizeIntensity = getAudioIntensity('size');
+  const scaleIntensity = getAudioIntensity('scale');
+  const hueIntensity = getAudioIntensity('hue');
+  const saturationIntensity = getAudioIntensity('saturation');
+  const brightnessIntensity = getAudioIntensity('brightness');
+  const alphaIntensity = getAudioIntensity('alpha');
+
+  const sizeReactive = mixWithBase(audioState.visual.size, AUDIO_VISUAL_BASE.size, sizeIntensity);
+  const sizeBoost = modifiers.size ? sizeReactive : AUDIO_VISUAL_BASE.size;
+  const hueReactive = mixWithBase(audioState.visual.hue, AUDIO_VISUAL_BASE.hue, hueIntensity);
+  const hueOffset = modifiers.hue ? hueReactive : AUDIO_VISUAL_BASE.hue;
+  const saturationBoost = modifiers.saturation ? audioState.metrics.treble * 0.18 * saturationIntensity : 0;
+  const brightnessBoost = modifiers.brightness ? audioState.metrics.energy * 0.25 * brightnessIntensity : 0;
+  const hue = (params.pointHue + hueOffset) % 360;
+  const saturation = Math.min(1, params.pointSaturation + saturationBoost);
+  const brightness = Math.min(1.1, params.pointValue + brightnessBoost);
+  const reactiveColor = hsv2rgb(hue, saturation, brightness);
+  audioState.color.copy(reactiveColor);
+
+  const scaleReactive = mixWithBase(audioState.visual.scale, AUDIO_VISUAL_BASE.scale, scaleIntensity);
+  const targetScale = modifiers.scale ? scaleReactive : AUDIO_VISUAL_BASE.scale;
+  const sphereScale = Math.max(0.35, Math.min(2.2, targetScale));
+  if (Number.isFinite(sphereScale)) {
+    if (Math.abs(clusterGroup.scale.x - sphereScale) > 1e-4 ||
+        Math.abs(clusterGroup.scale.y - sphereScale) > 1e-4 ||
+        Math.abs(clusterGroup.scale.z - sphereScale) > 1e-4) {
+      clusterGroup.scale.setScalar(sphereScale);
+    }
+  }
+
+  audioBandVector.set(audioState.metrics.bass, audioState.metrics.mid, audioState.metrics.treble);
+
+  if (starMaterial && starMaterial.uniforms) {
+    if (starMaterial.uniforms.uAudioBands && starMaterial.uniforms.uAudioBands.value) {
+      starMaterial.uniforms.uAudioBands.value.copy(audioBandVector);
+    }
+    if (starMaterial.uniforms.uAudioEnergy) {
+      starMaterial.uniforms.uAudioEnergy.value = audioState.metrics.energy;
+    }
+    if (starMaterial.uniforms.uAudioWave) {
+      starMaterial.uniforms.uAudioWave.value = audioState.metrics.wave;
+    }
+    if (starMaterial.uniforms.uSizeFactorSmall) {
+      starMaterial.uniforms.uSizeFactorSmall.value = params.sizeFactorSmall * sizeBoost;
+    }
+    if (starMaterial.uniforms.uSizeFactorMedium) {
+      starMaterial.uniforms.uSizeFactorMedium.value = params.sizeFactorMedium * sizeBoost;
+    }
+    if (starMaterial.uniforms.uSizeFactorLarge) {
+      starMaterial.uniforms.uSizeFactorLarge.value = params.sizeFactorLarge * sizeBoost;
+    }
+    if (starMaterial.uniforms.uAlpha) {
+      const baseAlpha = params.pointAlpha;
+      const alphaBoost = modifiers.alpha ? mixWithBase(audioState.visual.alpha, AUDIO_VISUAL_BASE.alpha, alphaIntensity) : AUDIO_VISUAL_BASE.alpha;
+      const boostedAlpha = Math.max(0.05, Math.min(1, baseAlpha + alphaBoost));
+      starMaterial.uniforms.uAlpha.value = boostedAlpha;
+    }
+    if (starMaterial.uniforms.uColor) {
+      starMaterial.uniforms.uColor.value.copy(audioState.color);
+    }
+  }
+
+  if (tinyMaterial && tinyMaterial.uniforms) {
+    if (tinyMaterial.uniforms.uAudioBands && tinyMaterial.uniforms.uAudioBands.value) {
+      tinyMaterial.uniforms.uAudioBands.value.copy(audioBandVector);
+    }
+    if (tinyMaterial.uniforms.uAudioEnergy) {
+      tinyMaterial.uniforms.uAudioEnergy.value = audioState.metrics.energy;
+    }
+    if (tinyMaterial.uniforms.uAudioWave) {
+      tinyMaterial.uniforms.uAudioWave.value = audioState.metrics.wave;
+    }
+    const waveContribution = modifiers.size ? audioState.metrics.wave * sizeIntensity : 0;
+    const tinySize = params.sizeFactorTiny * Math.max(0.05, 0.8 + sizeBoost * 0.2 + waveContribution * 0.35);
+    if (tinyMaterial.uniforms.uSize) {
+      tinyMaterial.uniforms.uSize.value = tinySize;
+    }
+    if (tinyMaterial.uniforms.uAlpha) {
+      const baseTinyAlpha = params.tinyAlpha;
+      const alphaBoost = modifiers.alpha ? mixWithBase(audioState.visual.alpha, AUDIO_VISUAL_BASE.alpha, alphaIntensity) : AUDIO_VISUAL_BASE.alpha;
+      const boostedTinyAlpha = Math.min(1, baseTinyAlpha + alphaBoost * 0.4);
+      tinyMaterial.uniforms.uAlpha.value = boostedTinyAlpha;
+    }
+    if (tinyMaterial.uniforms.uColor) {
+      tinyMaterial.uniforms.uColor.value.copy(audioState.color);
+    }
+  }
+}
+
+function applyAudioMotion(delta, modifiers = audioState.modifiers || {}) {
+  const motionIntensity = getAudioIntensity('motion');
+  const motionReactive = mixWithBase(audioState.visual.motion, AUDIO_VISUAL_BASE.motion, motionIntensity);
+  const extraRotation = modifiers.motion ? motionReactive : AUDIO_VISUAL_BASE.motion;
+  if (extraRotation > 1e-4) {
+    const yaw = extraRotation * delta * 0.85;
+    const waveTilt = modifiers.motion ? audioState.metrics.wave * motionIntensity : 0;
+    const pitch = waveTilt * delta * 0.35;
+    if (Number.isFinite(yaw) && Math.abs(yaw) < Math.PI) {
+      clusterGroup.rotateY(yaw);
+    }
+    if (Number.isFinite(pitch) && Math.abs(pitch) < Math.PI) {
+      clusterGroup.rotateX(pitch);
+    }
+  }
+}
+
+function resetAudioReactivity() {
+  resetAudioMetrics();
+  applyAudioVisualState();
+}
 
 function isAudioSupported() {
   return !!AudioContextClass;
@@ -874,6 +1106,7 @@ function stopAudioPlayback({ suspendContext = false } = {}) {
   audioState.playing = false;
   audioState.usingMic = false;
   disconnectAnalyser();
+  resetAudioReactivity();
   if (audioState.context && suspendContext && typeof audioState.context.suspend === 'function') {
     audioState.context.suspend().catch(() => {});
   }
@@ -897,6 +1130,7 @@ function setAudioModifier(key, enabled) {
     audioState.visual[key] = AUDIO_VISUAL_BASE[key];
   }
   refreshAudioUI();
+  applyAudioVisualState();
 }
 
 function toggleAudioModifier(key) {
@@ -938,6 +1172,7 @@ function refreshAudioUI() {
       button.setAttribute('aria-pressed', active ? 'true' : 'false');
     });
   }
+  syncAudioIntensityControls();
 }
 
 function updateAudioFileMeta(file) {
@@ -985,9 +1220,7 @@ async function playSelectedFile() {
     source.buffer = buffer;
     source.onended = () => {
       if (audioState.source === source) {
-        audioState.source = null;
-        disconnectAnalyser();
-        audioState.playing = false;
+        stopAudioPlayback();
         setAudioStatus('Wiedergabe beendet', 'idle');
         refreshAudioUI();
       }
@@ -1126,6 +1359,7 @@ function updateAudioReactive(delta) {
   const targetScale = Math.min(2.2, 1 + audioState.metrics.energy * 0.45 + audioState.metrics.wave * 0.35 + audioState.metrics.bass * 0.25);
   const targetHue = audioState.metrics.treble * 90;
   const targetAlpha = Math.min(0.5, audioState.metrics.energy * 0.35 + audioState.metrics.wave * 0.2);
+  const modifiers = audioState.modifiers || {};
 
   audioState.visual.motion = damp(audioState.visual.motion, modifiers.motion ? targetMotion : AUDIO_VISUAL_BASE.motion, 6, delta);
   audioState.visual.size = damp(audioState.visual.size, modifiers.size ? targetSize : AUDIO_VISUAL_BASE.size, 7, delta);
@@ -1137,95 +1371,8 @@ function updateAudioReactive(delta) {
 function applyAudioVisuals(delta) {
   updateAudioReactive(delta);
   const modifiers = audioState.modifiers || {};
-  const sizeBoost = modifiers.size ? audioState.visual.size : AUDIO_VISUAL_BASE.size;
-  const hueOffset = modifiers.hue ? audioState.visual.hue : AUDIO_VISUAL_BASE.hue;
-  const saturationBoost = modifiers.saturation ? audioState.metrics.treble * 0.18 : 0;
-  const brightnessBoost = modifiers.brightness ? audioState.metrics.energy * 0.25 : 0;
-  const hue = (params.pointHue + hueOffset) % 360;
-  const saturation = Math.min(1, params.pointSaturation + saturationBoost);
-  const brightness = Math.min(1.1, params.pointValue + brightnessBoost);
-  const reactiveColor = hsv2rgb(hue, saturation, brightness);
-  audioState.color.copy(reactiveColor);
-
-  const targetScale = modifiers.scale ? audioState.visual.scale : AUDIO_VISUAL_BASE.scale;
-  const sphereScale = Math.max(0.35, Math.min(2.2, targetScale));
-  if (Number.isFinite(sphereScale)) {
-    if (Math.abs(clusterGroup.scale.x - sphereScale) > 1e-4 ||
-        Math.abs(clusterGroup.scale.y - sphereScale) > 1e-4 ||
-        Math.abs(clusterGroup.scale.z - sphereScale) > 1e-4) {
-      clusterGroup.scale.setScalar(sphereScale);
-    }
-  }
-
-  audioBandVector.set(audioState.metrics.bass, audioState.metrics.mid, audioState.metrics.treble);
-
-  if (starMaterial && starMaterial.uniforms) {
-    if (starMaterial.uniforms.uAudioBands && starMaterial.uniforms.uAudioBands.value) {
-      starMaterial.uniforms.uAudioBands.value.copy(audioBandVector);
-    }
-    if (starMaterial.uniforms.uAudioEnergy) {
-      starMaterial.uniforms.uAudioEnergy.value = audioState.metrics.energy;
-    }
-    if (starMaterial.uniforms.uAudioWave) {
-      starMaterial.uniforms.uAudioWave.value = audioState.metrics.wave;
-    }
-    if (starMaterial.uniforms.uSizeFactorSmall) {
-      starMaterial.uniforms.uSizeFactorSmall.value = params.sizeFactorSmall * sizeBoost;
-    }
-    if (starMaterial.uniforms.uSizeFactorMedium) {
-      starMaterial.uniforms.uSizeFactorMedium.value = params.sizeFactorMedium * sizeBoost;
-    }
-    if (starMaterial.uniforms.uSizeFactorLarge) {
-      starMaterial.uniforms.uSizeFactorLarge.value = params.sizeFactorLarge * sizeBoost;
-    }
-    if (starMaterial.uniforms.uAlpha) {
-      const baseAlpha = params.pointAlpha;
-      const alphaBoost = modifiers.alpha ? audioState.visual.alpha : AUDIO_VISUAL_BASE.alpha;
-      const boostedAlpha = Math.max(0.05, Math.min(1, baseAlpha + alphaBoost));
-      starMaterial.uniforms.uAlpha.value = boostedAlpha;
-    }
-    if (starMaterial.uniforms.uColor) {
-      starMaterial.uniforms.uColor.value.copy(audioState.color);
-    }
-  }
-
-  if (tinyMaterial && tinyMaterial.uniforms) {
-    if (tinyMaterial.uniforms.uAudioBands && tinyMaterial.uniforms.uAudioBands.value) {
-      tinyMaterial.uniforms.uAudioBands.value.copy(audioBandVector);
-    }
-    if (tinyMaterial.uniforms.uAudioEnergy) {
-      tinyMaterial.uniforms.uAudioEnergy.value = audioState.metrics.energy;
-    }
-    if (tinyMaterial.uniforms.uAudioWave) {
-      tinyMaterial.uniforms.uAudioWave.value = audioState.metrics.wave;
-    }
-    const waveContribution = modifiers.size ? audioState.metrics.wave : 0;
-    const tinySize = params.sizeFactorTiny * Math.max(0.05, 0.8 + sizeBoost * 0.2 + waveContribution * 0.35);
-    if (tinyMaterial.uniforms.uSize) {
-      tinyMaterial.uniforms.uSize.value = tinySize;
-    }
-    if (tinyMaterial.uniforms.uAlpha) {
-      const baseTinyAlpha = params.tinyAlpha;
-      const alphaBoost = modifiers.alpha ? audioState.visual.alpha : AUDIO_VISUAL_BASE.alpha;
-      const boostedTinyAlpha = Math.min(1, baseTinyAlpha + alphaBoost * 0.4);
-      tinyMaterial.uniforms.uAlpha.value = boostedTinyAlpha;
-    }
-    if (tinyMaterial.uniforms.uColor) {
-      tinyMaterial.uniforms.uColor.value.copy(audioState.color);
-    }
-  }
-
-  const extraRotation = modifiers.motion ? audioState.visual.motion : AUDIO_VISUAL_BASE.motion;
-  if (extraRotation > 1e-4) {
-    const yaw = extraRotation * delta * 0.85;
-    const pitch = (modifiers.motion ? audioState.metrics.wave : 0) * delta * 0.35;
-    if (Number.isFinite(yaw) && Math.abs(yaw) < Math.PI) {
-      clusterGroup.rotateY(yaw);
-    }
-    if (Number.isFinite(pitch) && Math.abs(pitch) < Math.PI) {
-      clusterGroup.rotateX(pitch);
-    }
-  }
+  applyAudioVisualState(modifiers);
+  applyAudioMotion(delta, modifiers);
 }
 
 /* Globals for stars and tiny connections */
@@ -1871,6 +2018,24 @@ audioUI.micStopBtn = $('audioMicStop');
 audioUI.statusText = $('audioStatus');
 audioUI.statusDot = $('audioStatusDot');
 audioUI.modifierButtons = Array.from(document.querySelectorAll('#audioModifierGrid [data-modifier]'));
+audioUI.intensityControls = new Map();
+
+document.querySelectorAll('[data-intensity-target]').forEach(input => {
+  const key = input.dataset.intensityTarget;
+  if (!key || !(key in AUDIO_INTENSITY_DEFAULTS)) return;
+  const container = input.closest('[data-intensity-row]') || input.parentElement;
+  const valueEl = document.querySelector(`[data-intensity-value="${key}"]`);
+  audioUI.intensityControls.set(key, { input, valueEl, container });
+  const initialPercent = clampIntensityPercent(getAudioIntensity(key) * 100);
+  input.value = String(initialPercent);
+  if (valueEl) {
+    valueEl.textContent = `${initialPercent}%`;
+  }
+  input.addEventListener('input', event => {
+    setAudioIntensity(key, event.target.value);
+  });
+});
+syncAudioIntensityControls();
 
 if (audioUI.modifierButtons.length) {
   audioUI.modifierButtons.forEach(button => {
@@ -3073,6 +3238,7 @@ setCameraLocked(false);
 updatePointColor(false);
 setSliders();
 rebuildStars();
+applyAudioVisualState();
 requestAnimationFrame(animate);
 </script>
 </body>
