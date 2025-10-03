@@ -3037,6 +3037,30 @@ const sliderHandlers = {
   pHue:         val => { params.pointHue = parseFloat(val); updatePointColor(); updateStarUniforms(); updateTinyMaterial(); },
   pSaturation:  val => { params.pointSaturation = parseFloat(val); updatePointColor(); updateStarUniforms(); updateTinyMaterial(); },
   pValue:       val => { params.pointValue = parseFloat(val); updatePointColor(); updateStarUniforms(); updateTinyMaterial(); },
+  pColorIntensity: val => {
+    const next = parseFloat(val);
+    if (!Number.isNaN(next)) {
+      params.colorIntensity = next;
+      updateStarUniforms();
+      updateTinyMaterial();
+    }
+  },
+  pColorSpeed: val => {
+    const next = parseFloat(val);
+    if (!Number.isNaN(next)) {
+      params.colorSpeed = next;
+      updateStarUniforms();
+      updateTinyMaterial();
+    }
+  },
+  pHueSpread: val => {
+    const next = parseFloat(val);
+    if (!Number.isNaN(next)) {
+      params.hueSpread = next;
+      updateStarUniforms();
+      updateTinyMaterial();
+    }
+  },
   pSeedStars:   val => { params.seedStars = parseInt(val, 10); rebuildStars(); },
   pCatSmallCount:  val => { setCategoryCount('small', val); },
   pCatMediumCount: val => { setCategoryCount('medium', val); },
@@ -3102,6 +3126,9 @@ const sliderValueGetters = {
   pHue: () => params.pointHue,
   pSaturation: () => params.pointSaturation,
   pValue: () => params.pointValue,
+  pColorIntensity: () => params.colorIntensity,
+  pColorSpeed: () => params.colorSpeed,
+  pHueSpread: () => params.hueSpread,
   pSeedStars: () => params.seedStars,
   pSizeTiny: () => params.sizeFactorTiny,
   pSizeSmall: () => params.sizeFactorSmall,
