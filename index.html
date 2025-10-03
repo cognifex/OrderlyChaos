@@ -1400,6 +1400,7 @@ function makeTiny() {
   const starPos = (starGeometry && starGeometry.getAttribute) ? starGeometry.getAttribute('position') : null;
   const nStars = starPos ? starPos.count : 0;
   if (!starPos || nStars === 0 || nTiny <= 0) {
+    tinyPoints = undefined;
     return;
   }
 
