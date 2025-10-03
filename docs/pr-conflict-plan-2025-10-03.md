@@ -62,13 +62,26 @@
 ## Fortschrittsprotokoll (wird iterativ ergänzt)
 | PR | Status | Letzte Aktion | Nächster Schritt |
 |----|--------|---------------|------------------|
-| #11 | Offen | Plan erstellt | Rebase-Branch anlegen & Konflikte lösen |
-| #12 | Offen | Plan erstellt | Auf aktualisierten #11 rebasen |
-| #14 | Offen | Plan erstellt | Nach Abschluss #12 rebasen |
-| #15 | Offen | Plan erstellt | Auf aktualisierten #14 rebasen |
-| #16 | Offen | Plan erstellt | Auf aktualisierten #15 rebasen |
-| #18 | Offen | Plan erstellt | Auf aktualisierten #16 rebasen |
-| #3  | Beobachtung | Außerhalb Scope (02.10.) | Nach Serienabschluss prüfen |
+| #11 | Blockiert | Lokale Analyse am 2025-10-03: Snapshot enthält nur `work` ohne Remote-Verlauf. | Zugriff auf Remote-Branches wiederherstellen, dann Rebase-Branch gemäß Plan anlegen. |
+| #12 | Blockiert | Abhängig von #11; gleiche Datenlage verhindert Fortschritt. | Nach Aktualisierung von #11 auf denselben Stand rebasen. |
+| #14 | Blockiert | Warten auf Abschluss von #11/#12; keine konfliktbereinigte Basis verfügbar. | Feature-Branch nachgelagert rebasen, sobald Abhängigkeiten gelöst. |
+| #15 | Blockiert | Benötigt Audio-/Panel-Stand aus #14; aktuell kein Zugriff. | Nach Auflösung von #14 erneut bewerten. |
+| #16 | Blockiert | Hängt an #15; ohne vorgelagerte Branches keine Umsetzung möglich. | Nach Fortschritt in #15 rebasen. |
+| #18 | Blockiert | Baut auf #16 auf; ebenfalls kein Remote-Snapshot. | Sobald #16 aktualisiert ist, Konflikte lösen. |
+| #3  | Beobachtung | Weiterhin außerhalb des Scopes; Remote-Zugriff fehlt ebenfalls. | Nach Abschluss der Serie erneut prüfen. |
+
+### Heutiger Arbeitsstand (2025-10-03 – Offline-Snapshot)
+
+- **Scope-Check:** Repository enthält lediglich den aktuellen `work`-Stand ohne die in der Planung referenzierten Branches. Ein `git fetch` auf die in der Tabelle genannten Branches ist nicht möglich.
+- **Durchführungsschritte:**
+  1. Plan gesichtet und Konfliktbereiche in `index.html` sowie `AGENTS.md` verifiziert.
+  2. Lokalen Zustand mit dem Plan abgeglichen (Panel-Struktur, Audio-Features, Tiny-Connector-Logik vorhanden).
+  3. Blocker dokumentiert, da Rebase/Force-Push ohne Remote nicht möglich ist.
+- **Annahmen aktualisiert:** Für die weitere Umsetzung wird Zugriff auf die jeweiligen Feature-Branches benötigt (z. B. über `git fetch origin work-2025-10-03-ctyxpa`). Ohne diesen Zugriff können die im Plan beschriebenen Rebase-Schritte nicht gestartet werden.
+- **Empfohlene nächste Schritte nach Beseitigung des Blockers:**
+  1. Remote-Verbindung herstellen (`git remote set-url origin …`, `git fetch origin --prune`).
+  2. Arbeits-Branches wie im Plan vorgesehen (`work/pr-<nr>-rebase`) anlegen und Konfliktlösung starten.
+  3. Nach jedem Rebase Smoke-Tests (Demo laden, Panel/Audio/Slider prüfen) durchführen und Ergebnisse erneut im Fortschrittsprotokoll notieren.
 
 ## Kommunikation
 - Nach jedem abgeschlossenen Schritt kurze Statusmeldung (Commit-Hash/Push-Link, Testergebnisse, offene Fragen).
