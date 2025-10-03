@@ -266,6 +266,11 @@
       box-shadow: 0 12px 28px rgba(0, 0, 0, 0.45);
       transition: transform .25s ease, opacity .25s ease;
     }
+    #audioPanel.is-hidden {
+      opacity: 0;
+      pointer-events: none;
+      transform: translateY(12px);
+    }
     #audioPanel.is-collapsed {
       padding-bottom: 12px;
     }
@@ -439,7 +444,7 @@
 </head>
 <body>
 <div id="bar">
-  <button id="toggle" aria-expanded="true">↕ Panel ausblenden</button>
+  <button id="toggle" aria-expanded="true">↕ Panels ausblenden</button>
   <button id="lock" aria-pressed="false">🔓 Kamera frei</button>
   <button id="random">🎲 Random</button>
 </div>
@@ -3309,6 +3314,7 @@ if (audioUI.fileMeta || audioUI.playlistMeta) {
 setAudioStatus('Audio-Reaktivität inaktiv', 'idle');
 refreshAudioUI();
 let panelVisible = true;
+let audioPanelVisible = true;
 let cameraLocked = false;
 
 function isMobileSheetActive() {
@@ -3317,6 +3323,13 @@ function isMobileSheetActive() {
 
 function getSheetCompactOffset() {
   return Math.max(0, sheetState.expandedHeight - sheetState.compactHeight);
+}
+
+function setAudioPanelVisible(show) {
+  audioPanelVisible = !!show;
+  if (audioUI.panel) {
+    audioUI.panel.classList.toggle('is-hidden', !audioPanelVisible);
+  }
 }
 
 function updateSheetHandleAria() {
@@ -3430,6 +3443,7 @@ function setPanelVisible(show) {
   } else {
     panel.removeAttribute('data-sheet-state');
   }
+  setAudioPanelVisible(panelVisible);
   if (!panelVisible) {
     if (sheetState.pointerId !== null && panel.releasePointerCapture) {
       try { panel.releasePointerCapture(sheetState.pointerId); } catch (err) { /* noop */ }
@@ -3439,8 +3453,10 @@ function setPanelVisible(show) {
     sheetState.preventClick = false;
     panel.classList.remove('is-dragging');
   }
-  toggleBtn.textContent = panelVisible ? '↕ Panel ausblenden' : '↕ Panel einblenden';
-  toggleBtn.setAttribute('aria-expanded', panelVisible ? 'true' : 'false');
+  if (toggleBtn) {
+    toggleBtn.textContent = panelVisible ? '↕ Panels ausblenden' : '↕ Panels einblenden';
+    toggleBtn.setAttribute('aria-expanded', panelVisible ? 'true' : 'false');
+  }
   updateSheetHandleAria();
 }
 
