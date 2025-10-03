@@ -24,6 +24,8 @@
 
 ## Detaillierter Aufgabenplan
 1. **Baseline vorbereiten**
+   - Remote-Verbindung per Skript herstellen: `GIT_REMOTE_URL=<https-url> ./scripts/bootstrap-remote.sh`
+     - Alternativ akzeptiert das Skript auch `GitRemoteURL` (CamelCase) aus älteren Setups.
    - `git fetch origin` (sobald Remote-Zugriff verfügbar) und lokale Aktualisierung von `main` (`git pull --ff-only origin main`).
    - Für jede Branch-Serie einen Arbeitsbranch `work/pr-<nr>-rebase` anlegen, um Zwischenschritte getrennt zu halten.
    - Smoke-Test-Szenario definieren: Laden der Demo-Seite, Interaktion mit Panel, Konsole auf Fehler prüfen.
@@ -69,6 +71,13 @@
 | #16 | Blockiert | Hängt an #15; ohne vorgelagerte Branches keine Umsetzung möglich. | Nach Fortschritt in #15 rebasen. |
 | #18 | Blockiert | Baut auf #16 auf; ebenfalls kein Remote-Snapshot. | Sobald #16 aktualisiert ist, Konflikte lösen. |
 | #3  | Beobachtung | Weiterhin außerhalb des Scopes; Remote-Zugriff fehlt ebenfalls. | Nach Abschluss der Serie erneut prüfen. |
+
+## Bewertung nach Remote-Bootstrap
+
+- **Durchführbarkeit:** Mit `scripts/bootstrap-remote.sh` lassen sich die fehlenden Remotes wieder anbinden. Sobald `git fetch origin` erfolgreich ist, steht die gesamte Branch-Historie zur Verfügung und die in diesem Plan beschriebene Rebase-Kette kann ohne weitere Blocker gestartet werden.
+- **Konfliktauflösung:** Die einzelnen Rebase-Schritte sind im Abschnitt „Detaillierter Aufgabenplan“ bereits vorbereitet. Durch konsequentes Abarbeiten der Reihenfolge (#11 → #12 → #14 → #15 → #16 → #18) werden sämtliche Änderungen in `main` integriert; anschließend können die ursprünglichen PR-Branches entweder aktualisiert oder – falls die Änderungen komplett neu umgesetzt werden – gelöscht werden.
+- **Alternativpfad (PRs schließen, Änderungen übernehmen):** Falls Rebase/Force-Push organisatorisch nicht gewünscht ist, lassen sich die Commits auch manuell auf neuen lokalen Branches nachbauen. Der Plan dient dann als Feature-Backlog: Nach jedem abgeschlossenen Feature wird ein eigener Commit auf `work` erstellt, die Ergebnisse getestet und dokumentiert. Sobald alle Funktions- und Bugfix-Punkte aus den PRs abgedeckt sind, können die alten Pull Requests geschlossen werden.
+- **Abschlusskriterium:** Egal ob Rebase oder Neuimplementierung – nach dem letzten Schritt sollte das Fortschrittsprotokoll jeden PR mit „erledigt“ markieren. Danach empfiehlt sich eine kurze Konsolidierungs-Review (Smoke-Test + visuelle Kontrolle), bevor die Branches oder PRs endgültig aufgeräumt werden.
 
 ### Heutiger Arbeitsstand (2025-10-03 – Offline-Snapshot)
 
