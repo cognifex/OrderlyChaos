@@ -111,7 +111,8 @@
     .wrap { display: flex; gap: .5rem; align-items: center; }
     .stack { display: flex; flex-direction: column; gap: .4rem; }
     .tag { min-width: 64px; font-size: .75rem; letter-spacing: .02em; text-transform: uppercase; opacity: .7; }
-    input[type=range] { flex: 1; width: 100%; }
+    input[type=range],
+    input[type=number] { flex: 1; width: 100%; }
     .val { min-width: 66px; text-align: right; font-variant-numeric: tabular-nums; }
     select { flex: 1; }
     #bar { position: absolute; top: 10px; left: 10px; z-index: 12; display: flex; gap: 8px; }
@@ -244,9 +245,9 @@
     </button>
     <div class="accordion__panel" id="acc-points-panel" role="region" aria-labelledby="acc-points-trigger">
       <div class="row">
-        <label for="pCount">Anzahl Punkte</label>
+        <label for="pCount">Anzahl Punkte (Summe)</label>
         <div class="wrap">
-          <input id="pCount" type="range" min="500" max="8000" step="100" />
+          <input id="pCount" type="number" min="0" step="1" readonly />
           <div class="val" id="vCount"></div>
         </div>
       </div>
@@ -315,22 +316,22 @@
         </div>
       </div>
       <div class="row">
-        <label>Punktkategorien (%)</label>
+        <label>Punktkategorien (Anzahl)</label>
         <div class="stack">
           <div class="wrap">
             <span class="tag">Klein</span>
-            <input id="pCatSmall" type="range" min="0" max="100" step="1" />
-            <div class="val" id="vCatSmall"></div>
+            <input id="pCatSmallCount" type="number" min="0" step="1" />
+            <div class="val" id="vCatSmallCount"></div>
           </div>
           <div class="wrap">
             <span class="tag">Mittel</span>
-            <input id="pCatMedium" type="range" min="0" max="100" step="1" />
-            <div class="val" id="vCatMedium"></div>
+            <input id="pCatMediumCount" type="number" min="0" step="1" />
+            <div class="val" id="vCatMediumCount"></div>
           </div>
           <div class="wrap">
             <span class="tag">Groß</span>
-            <input id="pCatLarge" type="range" min="0" max="100" step="1" />
-            <div class="val" id="vCatLarge"></div>
+            <input id="pCatLargeCount" type="number" min="0" step="1" />
+            <div class="val" id="vCatLargeCount"></div>
           </div>
         </div>
       </div>
@@ -443,6 +444,33 @@
         </div>
       </div>
       <div class="row">
+        <label>Winkelgeschwindigkeit (rad/s)</label>
+        <div class="stack">
+          <div class="wrap">
+            <span class="tag">X</span>
+            <input id="spinVelX" type="range" min="-3" max="3" step="0.01" />
+            <div class="val" id="vSpinX"></div>
+          </div>
+          <div class="wrap">
+            <span class="tag">Y</span>
+            <input id="spinVelY" type="range" min="-3" max="3" step="0.01" />
+            <div class="val" id="vSpinY"></div>
+          </div>
+          <div class="wrap">
+            <span class="tag">Z</span>
+            <input id="spinVelZ" type="range" min="-3" max="3" step="0.01" />
+            <div class="val" id="vSpinZ"></div>
+          </div>
+        </div>
+      </div>
+      <div class="row">
+        <label for="spinSpeed">Geschwindigkeitsfaktor</label>
+        <div class="wrap">
+          <input id="spinSpeed" type="range" min="0" max="3" step="0.01" />
+          <div class="val" id="vSpinSpeed"></div>
+        </div>
+      </div>
+      <div class="row">
         <label>Trägheit</label>
         <div class="wrap">
           <button id="spinInertia" aria-pressed="true">🪁 Trägheit an</button>
@@ -518,9 +546,9 @@ const params = {
   pointSaturation: 0.75,
   pointValue: 1.0,
   seedStars: 1,
-  catSmall: 45,
-  catMedium: 35,
-  catLarge: 20,
+  catSmallCount: 1125,
+  catMediumCount: 875,
+  catLargeCount: 500,
   // Size factors
   sizeFactorTiny: 0.15,
   sizeFactorSmall: 1.0,
@@ -567,14 +595,18 @@ function makeStars() {
     starMaterial.dispose();
     clusterGroup.remove(starPoints);
   }
+  const smallCount = Math.max(0, Math.floor(Number(params.catSmallCount) || 0));
+  const mediumCount = Math.max(0, Math.floor(Number(params.catMediumCount) || 0));
+  const largeCount = Math.max(0, Math.floor(Number(params.catLargeCount) || 0));
+  const total = Math.max(0, smallCount + mediumCount + largeCount);
+  params.count = total;
   starGeometry = new THREE.BufferGeometry();
-  const positions = new Float32Array(params.count * 3);
-  const sizes = new Float32Array(params.count);
-  const cats  = new Float32Array(params.count);
-  // thresholds for categories based on manual percentages
-  const smallShare = Math.max(0, Math.min(1, params.catSmall / 100));
-  const mediumShare = Math.max(0, Math.min(1, params.catMedium / 100));
-  const smallThreshold = smallShare;
+  const positions = new Float32Array(total * 3);
+  const sizes = new Float32Array(total);
+  const cats  = new Float32Array(total);
+  // thresholds for categories based on counts
+  const smallShare = total > 0 ? smallCount / total : 0;
+  const mediumShare = total > 0 ? mediumCount / total : 0;
   const mediumThreshold = Math.min(1, smallShare + mediumShare);
   const minSize = Math.max(0.05, 1 - params.sizeVar * 0.5);
   const maxSize = 1 + params.sizeVar * 0.5;
@@ -583,14 +615,25 @@ function makeStars() {
   const mediumEnd = minSize + span * mediumThreshold;
   // seeded random for star distribution
   const rand = mulberry32(params.seedStars);
+  const catRand = mulberry32(params.seedStars + 0x9e3779b9);
+  const categoryPool = [];
+  for (let i = 0; i < smallCount; i++) categoryPool.push(0);
+  for (let i = 0; i < mediumCount; i++) categoryPool.push(1);
+  for (let i = 0; i < largeCount; i++) categoryPool.push(2);
+  for (let i = categoryPool.length - 1; i > 0; i--) {
+    const j = Math.floor(catRand() * (i + 1));
+    const tmp = categoryPool[i];
+    categoryPool[i] = categoryPool[j];
+    categoryPool[j] = tmp;
+  }
   const orientation = new THREE.Matrix4();
   const orientEuler = new THREE.Euler(rand() * Math.PI * 2, rand() * Math.PI * 2, rand() * Math.PI * 2);
   orientation.makeRotationFromEuler(orientEuler);
   const tmpVec = new THREE.Vector3();
-  const fibOffset = params.distribution === 'fibonacci' ? (2 / params.count) : 0;
+  const fibOffset = (params.distribution === 'fibonacci' && total > 0) ? (2 / total) : 0;
   const fibIncrement = Math.PI * (3 - Math.sqrt(5));
   const spiralArms = 4;
-  for (let i = 0; i < params.count; i++) {
+  for (let i = 0; i < total; i++) {
     let x = 0, y = 0, z = 0;
     const radius = params.radius;
     if (params.distribution === 'fibonacci') {
@@ -609,7 +652,7 @@ function makeStars() {
       tmpVec.set(x, y, z).applyMatrix4(orientation);
       x = tmpVec.x; y = tmpVec.y; z = tmpVec.z;
     } else if (params.distribution === 'spiral') {
-      const t = i / params.count;
+      const t = total > 0 ? (i / total) : 0;
       const arm = i % spiralArms;
       const baseAngle = t * Math.PI * 6 + arm * (Math.PI * 2 / spiralArms);
       const spread = radius * Math.pow(rand(), 0.55 + params.cluster * 0.9);
@@ -635,13 +678,7 @@ function makeStars() {
       z = r * Math.cos(phi);
     }
     positions.set([x, y, z], i * 3);
-    const catSeed = rand();
-    let cat = 2;
-    if (catSeed < smallThreshold) {
-      cat = 0;
-    } else if (catSeed < mediumThreshold) {
-      cat = 1;
-    }
+    const cat = categoryPool[i] !== undefined ? categoryPool[i] : 2;
     cats[i] = cat;
     let lower = mediumEnd;
     let upper = maxSize;
@@ -754,20 +791,22 @@ function makeTiny() {
   const positions = new Float32Array(Math.max(0, nTiny * 3));
   // Access star positions for connections
   const starPos = starGeometry.getAttribute('position');
-  const nStars = starPos.count;
-  const rand = mulberry32(params.seedTiny);
-  for (let i = 0; i < nTiny; i++) {
-    // pick two random stars
-    const idxA = Math.floor(rand() * nStars);
-    const idxB = Math.floor(rand() * nStars);
-    const ax = starPos.getX(idxA), ay = starPos.getY(idxA), az = starPos.getZ(idxA);
-    const bx = starPos.getX(idxB), by = starPos.getY(idxB), bz = starPos.getZ(idxB);
-    const t = rand();
-    // linear interpolation between stars
-    const x = ax + (bx - ax) * t;
-    const y = ay + (by - ay) * t;
-    const z = az + (bz - az) * t;
-    positions.set([x, y, z], i * 3);
+  const nStars = starPos ? starPos.count : 0;
+  if (starPos && nStars > 0) {
+    const rand = mulberry32(params.seedTiny);
+    for (let i = 0; i < nTiny; i++) {
+      // pick two random stars
+      const idxA = Math.floor(rand() * nStars);
+      const idxB = Math.floor(rand() * nStars);
+      const ax = starPos.getX(idxA), ay = starPos.getY(idxA), az = starPos.getZ(idxA);
+      const bx = starPos.getX(idxB), by = starPos.getY(idxB), bz = starPos.getZ(idxB);
+      const t = rand();
+      // linear interpolation between stars
+      const x = ax + (bx - ax) * t;
+      const y = ay + (by - ay) * t;
+      const z = az + (bz - az) * t;
+      positions.set([x, y, z], i * 3);
+    }
   }
   tinyGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
   const tinyVert = `
@@ -1075,12 +1114,27 @@ const spinInertiaBtn = $('spinInertia');
 const spinDecaySlider = $('spinDecay');
 const spinDecayValue = $('vSpinDecay');
 const spinInertiaValue = $('vInertia');
+const spinAxisSliders = {
+  x: $('spinVelX'),
+  y: $('spinVelY'),
+  z: $('spinVelZ'),
+};
+const spinAxisValues = {
+  x: $('vSpinX'),
+  y: $('vSpinY'),
+  z: $('vSpinZ'),
+};
+const spinSpeedSlider = $('spinSpeed');
+const spinSpeedValue = $('vSpinSpeed');
+const spinAxisKeys = ['x', 'y', 'z'];
 
 const spinState = {
   autoEnabled: false,
   inertiaEnabled: true,
   inertiaDuration: 12,
   velocity: new THREE.Vector3(),
+  velocityComponents: new THREE.Vector3(),
+  speedMultiplier: 1,
   isDragging: false,
   activePointerId: null,
   prevPointerTime: 0,
@@ -1098,6 +1152,85 @@ const spinVectors = {
 const defaultSpinSpeed = 0.35;
 const defaultSpinAxis = new THREE.Vector3(0, 1, 0);
 const spinApplyAxis = new THREE.Vector3();
+
+function syncSpinSliderUI() {
+  spinAxisKeys.forEach(axis => {
+    const slider = spinAxisSliders[axis];
+    const valueEl = spinAxisValues[axis];
+    const component = spinState.velocityComponents[axis];
+    if (slider) {
+      const clamped = Math.max(parseFloat(slider.min), Math.min(parseFloat(slider.max), component));
+      slider.value = clamped.toFixed(2);
+    }
+    if (valueEl) {
+      valueEl.textContent = component.toFixed(2) + ' rad/s';
+    }
+  });
+  if (spinSpeedSlider) {
+    const min = parseFloat(spinSpeedSlider.min);
+    const max = parseFloat(spinSpeedSlider.max);
+    const clamped = Math.max(min, Math.min(max, spinState.speedMultiplier));
+    spinSpeedSlider.value = clamped.toFixed(2);
+  }
+  if (spinSpeedValue) {
+    spinSpeedValue.textContent = '×' + spinState.speedMultiplier.toFixed(2);
+  }
+}
+
+function updateVelocityFromComponents() {
+  spinState.velocity.set(
+    spinState.velocityComponents.x * spinState.speedMultiplier,
+    spinState.velocityComponents.y * spinState.speedMultiplier,
+    spinState.velocityComponents.z * spinState.speedMultiplier,
+  );
+}
+
+function updateComponentsFromVelocity(syncUI = true) {
+  if (Math.abs(spinState.speedMultiplier) <= 1e-6) {
+    spinState.velocityComponents.copy(spinState.velocity);
+  } else {
+    spinState.velocityComponents.copy(spinState.velocity).divideScalar(spinState.speedMultiplier);
+  }
+  spinAxisKeys.forEach(axis => {
+    const slider = spinAxisSliders[axis];
+    const min = slider ? parseFloat(slider.min) : -3;
+    const max = slider ? parseFloat(slider.max) : 3;
+    spinState.velocityComponents[axis] = Math.max(min, Math.min(max, spinState.velocityComponents[axis]));
+  });
+  if (syncUI) {
+    syncSpinSliderUI();
+  }
+}
+
+function handleVelocityChange(updateUI = true) {
+  const speed = spinState.velocity.length();
+  spinState.decayTime = 0;
+  if (spinState.autoEnabled && spinState.inertiaEnabled && speed > 1e-6) {
+    spinState.decayStartSpeed = speed;
+  } else if (!spinState.autoEnabled || speed <= 1e-6) {
+    spinState.decayStartSpeed = 0;
+  } else {
+    spinState.decayStartSpeed = 0;
+  }
+  if (updateUI) {
+    updateRotationUI();
+  }
+}
+
+function clearSpinVelocity({ resetMultiplier = false, updateUI = true } = {}) {
+  spinState.velocity.set(0, 0, 0);
+  spinState.velocityComponents.set(0, 0, 0);
+  if (resetMultiplier) {
+    spinState.speedMultiplier = 1;
+  }
+  spinState.decayStartSpeed = 0;
+  spinState.decayTime = 0;
+  if (updateUI) {
+    updateRotationUI();
+  } else {
+    syncSpinSliderUI();
+  }
+}
 
 function hasSpinVelocity() {
   return spinState.velocity.lengthSq() > 1e-8;
@@ -1124,28 +1257,27 @@ function updateRotationUI() {
     spinStopBtn.disabled = !velocityActive;
     spinStopBtn.setAttribute('aria-disabled', velocityActive ? 'false' : 'true');
   }
+  syncSpinSliderUI();
 }
 
 function stopRotation(updateUI = true) {
-  spinState.velocity.set(0, 0, 0);
-  spinState.decayStartSpeed = 0;
-  spinState.decayTime = 0;
-  if (updateUI) {
-    updateRotationUI();
-  }
+  clearSpinVelocity({ updateUI });
 }
 
 function setAutoRotation(enabled) {
   if (!enabled) {
     spinState.autoEnabled = false;
-    stopRotation(false);
+    clearSpinVelocity({ resetMultiplier: true, updateUI: false });
     updateRotationUI();
     return;
   }
   spinState.autoEnabled = true;
   if (!hasSpinVelocity()) {
-    spinState.velocity.copy(defaultSpinAxis).multiplyScalar(defaultSpinSpeed);
+    spinState.velocityComponents.copy(defaultSpinAxis).multiplyScalar(defaultSpinSpeed);
+  } else {
+    updateComponentsFromVelocity(false);
   }
+  updateVelocityFromComponents();
   spinState.decayStartSpeed = spinState.inertiaEnabled ? spinState.velocity.length() : 0;
   spinState.decayTime = 0;
   updateRotationUI();
@@ -1220,6 +1352,7 @@ function onSpinPointerMove(e) {
       const dt = Math.max((now - spinState.prevPointerTime) / 1000, 1e-3);
       spinState.prevPointerTime = now;
       spinState.velocity.copy(spinVectors.axis).multiplyScalar(angle / dt);
+      updateComponentsFromVelocity();
     }
   }
   spinVectors.prev.copy(spinVectors.curr);
@@ -1293,54 +1426,42 @@ if (spinDecaySlider) {
   });
 }
 
-function setCategoryPercent(kind, value) {
-  const keyMap = { small: 'catSmall', medium: 'catMedium', large: 'catLarge' };
+spinAxisKeys.forEach(axis => {
+  const slider = spinAxisSliders[axis];
+  if (!slider) return;
+  slider.addEventListener('input', e => {
+    const next = parseFloat(e.target.value);
+    if (Number.isNaN(next)) return;
+    const min = parseFloat(slider.min);
+    const max = parseFloat(slider.max);
+    spinState.velocityComponents[axis] = Math.max(min, Math.min(max, next));
+    updateVelocityFromComponents();
+    handleVelocityChange();
+  });
+});
+
+if (spinSpeedSlider) {
+  spinSpeedSlider.addEventListener('input', e => {
+    const next = parseFloat(e.target.value);
+    if (Number.isNaN(next)) return;
+    const min = parseFloat(spinSpeedSlider.min);
+    const max = parseFloat(spinSpeedSlider.max);
+    spinState.speedMultiplier = Math.max(min, Math.min(max, next));
+    updateVelocityFromComponents();
+    handleVelocityChange();
+  });
+}
+
+function setCategoryCount(kind, value) {
+  const keyMap = { small: 'catSmallCount', medium: 'catMediumCount', large: 'catLargeCount' };
   const key = keyMap[kind];
   if (!key) return;
-  const allKeys = ['catSmall', 'catMedium', 'catLarge'];
-  value = Math.max(0, Math.min(100, Math.round(value)));
-  params[key] = value;
-  const otherKeys = allKeys.filter(k => k !== key);
-  let remainder = 100 - params[key];
-  if (remainder < 0) {
-    params[key] = 100;
-    remainder = 0;
+  const next = Math.max(0, Math.floor(Number(value) || 0));
+  if (params[key] === next) {
+    return;
   }
-  const sumOthers = otherKeys.reduce((sum, k) => sum + params[k], 0);
-  if (otherKeys.length) {
-    if (sumOthers === 0) {
-      const even = remainder / otherKeys.length;
-      let acc = 0;
-      otherKeys.forEach((k, idx) => {
-        const val = (idx === otherKeys.length - 1) ? remainder - acc : Math.round(even);
-        params[k] = Math.max(0, Math.min(100, val));
-        acc += params[k];
-      });
-    } else {
-      let acc = 0;
-      otherKeys.forEach((k, idx) => {
-        const ratio = params[k] / sumOthers;
-        const scaled = remainder * ratio;
-        if (idx === otherKeys.length - 1) {
-          params[k] = Math.max(0, Math.min(100, Math.round(remainder - acc)));
-        } else {
-          const rounded = Math.round(scaled);
-          params[k] = Math.max(0, Math.min(100, rounded));
-          acc += params[k];
-        }
-      });
-    }
-  }
-  const total = allKeys.reduce((sum, k) => sum + params[k], 0);
-  let diff = 100 - total;
-  let idx = 0;
-  const adjustOrder = otherKeys.length ? otherKeys : [key];
-  while (diff !== 0 && idx < 300) {
-    const adjustKey = adjustOrder[idx % adjustOrder.length];
-    params[adjustKey] = Math.max(0, Math.min(100, params[adjustKey] + Math.sign(diff)));
-    diff -= Math.sign(diff);
-    idx++;
-  }
+  params[key] = next;
+  rebuildStars();
 }
 
 function getSizeRange() {
@@ -1350,7 +1471,6 @@ function getSizeRange() {
 }
 
 const sliders = {
-  pCount:       val => { params.count = parseInt(val, 10); rebuildStars(); },
   pRadius:      val => { params.radius = parseFloat(val); rebuildStars(); },
   pSizeVar:     val => { params.sizeVar = parseFloat(val); rebuildStars(); },
   pCluster:     val => { params.cluster = parseFloat(val); rebuildStars(); },
@@ -1359,9 +1479,9 @@ const sliders = {
   pSaturation:  val => { params.pointSaturation = parseFloat(val); updatePointColor(); updateStarUniforms(); updateTinyMaterial(); },
   pValue:       val => { params.pointValue = parseFloat(val); updatePointColor(); updateStarUniforms(); updateTinyMaterial(); },
   pSeedStars:   val => { params.seedStars = parseInt(val, 10); rebuildStars(); },
-  pCatSmall:    val => { setCategoryPercent('small', parseInt(val, 10)); rebuildStars(); },
-  pCatMedium:   val => { setCategoryPercent('medium', parseInt(val, 10)); rebuildStars(); },
-  pCatLarge:    val => { setCategoryPercent('large', parseInt(val, 10)); rebuildStars(); },
+  pCatSmallCount:  val => { setCategoryCount('small', val); },
+  pCatMediumCount: val => { setCategoryCount('medium', val); },
+  pCatLargeCount:  val => { setCategoryCount('large', val); },
   pSizeTiny:    val => { params.sizeFactorTiny = parseFloat(val); updateTinyMaterial(); },
   pSizeSmall:   val => { params.sizeFactorSmall = parseFloat(val); updateStarUniforms(); },
   pSizeMedium:  val => { params.sizeFactorMedium = parseFloat(val); updateStarUniforms(); },
@@ -1456,7 +1576,8 @@ lockBtn.addEventListener('click', () => {
 
 $('random').addEventListener('click', () => {
   // randomize many parameters
-  params.count = 500 + Math.floor(Math.random() * 7500);
+  const totalCount = 500 + Math.floor(Math.random() * 7500);
+  params.count = totalCount;
   params.radius = 60 + Math.random() * 180;
   params.sizeVar = Math.random() * 9.5;
   params.cluster = Math.random() * 0.95;
@@ -1467,11 +1588,22 @@ $('random').addEventListener('click', () => {
   params.seedStars = 1 + Math.floor(Math.random() * 9999);
   const distributions = ['random', 'fibonacci', 'spiral'];
   params.distribution = distributions[Math.floor(Math.random() * distributions.length)];
-  const smallShare = Math.floor(Math.random() * 70);
-  const mediumShare = Math.floor(Math.random() * (100 - smallShare));
-  params.catSmall = smallShare;
-  params.catMedium = mediumShare;
-  params.catLarge = 100 - params.catSmall - params.catMedium;
+  const weights = [Math.random(), Math.random(), Math.random()];
+  const weightSum = weights.reduce((sum, value) => sum + value, 0) || 1;
+  const provisional = weights.map(value => Math.max(0, Math.floor((value / weightSum) * totalCount)));
+  let assigned = provisional.reduce((sum, value) => sum + value, 0);
+  let diff = totalCount - assigned;
+  let idx = 0;
+  const adjustOrder = [0, 1, 2];
+  while (diff > 0 && idx < 300) {
+    const target = adjustOrder[idx % adjustOrder.length];
+    provisional[target] += 1;
+    diff -= 1;
+    idx += 1;
+  }
+  params.catSmallCount = provisional[0];
+  params.catMediumCount = provisional[1];
+  params.catLargeCount = Math.max(0, totalCount - params.catSmallCount - params.catMediumCount);
   params.sizeFactorSmall = 0.5 + Math.random() * 2.5;
   params.sizeFactorMedium = 0.5 + Math.random() * 2.5;
   params.sizeFactorLarge = 0.5 + Math.random() * 2.5;
@@ -1491,7 +1623,10 @@ $('random').addEventListener('click', () => {
 /* Update slider displays */
 function setSliders() {
   // star params
-  $('pCount').value = params.count; $('vCount').textContent = params.count;
+  if ($('pCount')) {
+    $('pCount').value = params.count;
+  }
+  $('vCount').textContent = params.count;
   $('pRadius').value = params.radius; $('vRadius').textContent = params.radius;
   $('pDistribution').value = params.distribution;
   $('pSizeVar').value = params.sizeVar;
@@ -1503,9 +1638,9 @@ function setSliders() {
   $('pSaturation').value = params.pointSaturation; $('vSaturation').textContent = (params.pointSaturation * 100).toFixed(0) + '%';
   $('pValue').value = params.pointValue; $('vValue').textContent = (params.pointValue * 100).toFixed(0) + '%';
   $('pSeedStars').value = params.seedStars; $('vSeedStars').textContent = params.seedStars;
-  $('pCatSmall').value = params.catSmall; $('vCatSmall').textContent = params.catSmall + '%';
-  $('pCatMedium').value = params.catMedium; $('vCatMedium').textContent = params.catMedium + '%';
-  $('pCatLarge').value = params.catLarge; $('vCatLarge').textContent = params.catLarge + '%';
+  $('pCatSmallCount').value = params.catSmallCount; $('vCatSmallCount').textContent = params.catSmallCount;
+  $('pCatMediumCount').value = params.catMediumCount; $('vCatMediumCount').textContent = params.catMediumCount;
+  $('pCatLargeCount').value = params.catLargeCount; $('vCatLargeCount').textContent = params.catLargeCount;
   // size factors
   $('pSizeTiny').value = params.sizeFactorTiny; $('vSizeTiny').textContent = params.sizeFactorTiny.toFixed(2);
   $('pSizeSmall').value = params.sizeFactorSmall; $('vSizeSmall').textContent = params.sizeFactorSmall.toFixed(2);
@@ -1553,6 +1688,7 @@ function animate(now) {
   lastFrameTime = current;
 
   if (spinState.autoEnabled && !spinState.isDragging) {
+    updateVelocityFromComponents();
     if (spinState.inertiaEnabled && spinState.decayStartSpeed > 0 && hasSpinVelocity()) {
       spinState.decayTime += delta;
       const duration = Math.max(spinState.inertiaDuration, 0.001);
@@ -1563,6 +1699,7 @@ function animate(now) {
         updateRotationUI();
       } else {
         spinState.velocity.setLength(newSpeed);
+        updateComponentsFromVelocity();
       }
     }
     const speed = spinState.velocity.length();
