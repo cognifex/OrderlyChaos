@@ -24,6 +24,8 @@
 
 ## Detaillierter Aufgabenplan
 1. **Baseline vorbereiten**
+   - Remote-Verbindung per Skript herstellen: `GIT_REMOTE_URL=<https-url> ./scripts/bootstrap-remote.sh`
+     - Alternativ akzeptiert das Skript auch `GitRemoteURL` (CamelCase) aus älteren Setups.
    - `git fetch origin` (sobald Remote-Zugriff verfügbar) und lokale Aktualisierung von `main` (`git pull --ff-only origin main`).
    - Für jede Branch-Serie einen Arbeitsbranch `work/pr-<nr>-rebase` anlegen, um Zwischenschritte getrennt zu halten.
    - Smoke-Test-Szenario definieren: Laden der Demo-Seite, Interaktion mit Panel, Konsole auf Fehler prüfen.
