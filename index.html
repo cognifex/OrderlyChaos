@@ -1401,6 +1401,8 @@ function makeTiny() {
   const nStars = starPos ? starPos.count : 0;
   if (!starPos || nStars === 0 || nTiny <= 0) {
     tinyPoints = undefined;
+    tinyGeometry = undefined;
+    tinyMaterial = undefined;
     return;
   }
 
