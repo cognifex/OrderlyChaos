@@ -754,7 +754,7 @@ const audioState = {
   fileName: '',
   status: 'idle',
   metrics: { energy: 0, bass: 0, mid: 0, treble: 0, wave: 0 },
-  visual: { motion: 0, size: 1, hue: 0, alpha: 0 },
+  visual: { motion: 0, size: 1, hue: 0, alpha: 0, scale: 1 },
   color: new THREE.Color(),
   needsResume: false
 };
@@ -769,6 +769,8 @@ const audioUI = {
   statusText: null,
   statusDot: null
 };
+
+const audioBandVector = new THREE.Vector3();
 
 function isAudioSupported() {
   return !!AudioContextClass;
@@ -819,6 +821,7 @@ function resetAudioMetrics() {
   audioState.visual.size = 1;
   audioState.visual.hue = 0;
   audioState.visual.alpha = 0;
+  audioState.visual.scale = 1;
 }
 
 function disconnectAnalyser() {
@@ -1059,11 +1062,13 @@ function updateAudioReactive(delta) {
 
   const targetMotion = Math.min(2.4, audioState.metrics.energy * 1.1 + audioState.metrics.bass * 1.7);
   const targetSize = Math.min(1.9, 1 + audioState.metrics.mid * 1.1 + audioState.metrics.wave * 0.45);
+  const targetScale = Math.min(2.2, 1 + audioState.metrics.energy * 0.45 + audioState.metrics.wave * 0.35 + audioState.metrics.bass * 0.25);
   const targetHue = audioState.metrics.treble * 90;
   const targetAlpha = Math.min(0.5, audioState.metrics.energy * 0.35 + audioState.metrics.wave * 0.2);
 
   audioState.visual.motion = damp(audioState.visual.motion, targetMotion, 6, delta);
   audioState.visual.size = damp(audioState.visual.size, targetSize, 7, delta);
+  audioState.visual.scale = damp(audioState.visual.scale, targetScale, 5, delta);
   audioState.visual.hue = damp(audioState.visual.hue, targetHue, 3, delta);
   audioState.visual.alpha = damp(audioState.visual.alpha, targetAlpha, 6, delta);
 }
@@ -1077,7 +1082,27 @@ function applyAudioVisuals(delta) {
   const reactiveColor = hsv2rgb(hue, saturation, brightness);
   audioState.color.copy(reactiveColor);
 
+  const sphereScale = Math.max(0.35, Math.min(2.2, audioState.visual.scale));
+  if (Number.isFinite(sphereScale)) {
+    if (Math.abs(clusterGroup.scale.x - sphereScale) > 1e-4 ||
+        Math.abs(clusterGroup.scale.y - sphereScale) > 1e-4 ||
+        Math.abs(clusterGroup.scale.z - sphereScale) > 1e-4) {
+      clusterGroup.scale.setScalar(sphereScale);
+    }
+  }
+
+  audioBandVector.set(audioState.metrics.bass, audioState.metrics.mid, audioState.metrics.treble);
+
   if (starMaterial && starMaterial.uniforms) {
+    if (starMaterial.uniforms.uAudioBands && starMaterial.uniforms.uAudioBands.value) {
+      starMaterial.uniforms.uAudioBands.value.copy(audioBandVector);
+    }
+    if (starMaterial.uniforms.uAudioEnergy) {
+      starMaterial.uniforms.uAudioEnergy.value = audioState.metrics.energy;
+    }
+    if (starMaterial.uniforms.uAudioWave) {
+      starMaterial.uniforms.uAudioWave.value = audioState.metrics.wave;
+    }
     if (starMaterial.uniforms.uSizeFactorSmall) {
       starMaterial.uniforms.uSizeFactorSmall.value = params.sizeFactorSmall * sizeBoost;
     }
@@ -1098,6 +1123,15 @@ function applyAudioVisuals(delta) {
   }
 
   if (tinyMaterial && tinyMaterial.uniforms) {
+    if (tinyMaterial.uniforms.uAudioBands && tinyMaterial.uniforms.uAudioBands.value) {
+      tinyMaterial.uniforms.uAudioBands.value.copy(audioBandVector);
+    }
+    if (tinyMaterial.uniforms.uAudioEnergy) {
+      tinyMaterial.uniforms.uAudioEnergy.value = audioState.metrics.energy;
+    }
+    if (tinyMaterial.uniforms.uAudioWave) {
+      tinyMaterial.uniforms.uAudioWave.value = audioState.metrics.wave;
+    }
     const tinySize = params.sizeFactorTiny * Math.max(0.05, 0.8 + sizeBoost * 0.2 + audioState.metrics.wave * 0.35);
     if (tinyMaterial.uniforms.uSize) {
       tinyMaterial.uniforms.uSize.value = tinySize;
@@ -1327,6 +1361,9 @@ function makeStars() {
     uniform float uMotionAmplitude;
     uniform float uNoiseStrength;
     uniform float uNoiseScale;
+    uniform vec3 uAudioBands;
+    uniform float uAudioEnergy;
+    uniform float uAudioWave;
 
     float hash3(vec3 p) {
       return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453123);
@@ -1351,6 +1388,21 @@ function makeStars() {
       float nxy0 = mix(nx00, nx10, u.y);
       float nxy1 = mix(nx01, nx11, u.y);
       return mix(nxy0, nxy1, u.z);
+    }
+
+    vec3 applyAudioReactive(vec3 pos) {
+      float radius = length(pos);
+      if (radius < 1e-4) {
+        return pos;
+      }
+      float bandMix = dot(uAudioBands, vec3(0.65, 0.28, 0.12));
+      float wavePulse = uAudioWave * 0.7;
+      float energyPulse = uAudioEnergy * 0.45;
+      float ripple = sin(uTime * 4.0 + aPhase * 12.5663706) * (0.2 + wavePulse * 0.6);
+      float scale = 1.0 + bandMix * 0.3 + energyPulse * 0.25 + wavePulse * 0.25;
+      float newRadius = max(0.05, radius * scale + ripple * 10.0);
+      vec3 radial = normalize(pos);
+      return radial * newRadius;
     }
 
     vec3 applyMotion(vec3 base) {
@@ -1399,7 +1451,8 @@ function makeStars() {
 
     void main() {
       vec3 animated = applyMotion(aBase);
-      vec4 mv = modelViewMatrix * vec4(animated, 1.0);
+      vec3 audioDriven = applyAudioReactive(animated);
+      vec4 mv = modelViewMatrix * vec4(audioDriven, 1.0);
       vDepth = -mv.z;
       float factor;
       if (aCat < 0.5) {
@@ -1449,6 +1502,9 @@ function makeStars() {
       uMotionAmplitude: { value: params.motionAmplitude },
       uNoiseStrength: { value: params.motionNoiseStrength },
       uNoiseScale: { value: params.motionNoiseScale },
+      uAudioBands: { value: new THREE.Vector3() },
+      uAudioEnergy: { value: 0 },
+      uAudioWave: { value: 0 },
       uColor: { value: colorState.point.clone() }
     }
   });
@@ -1506,6 +1562,9 @@ function makeTiny() {
     uniform float uMotionAmplitude;
     uniform float uNoiseStrength;
     uniform float uNoiseScale;
+    uniform vec3 uAudioBands;
+    uniform float uAudioEnergy;
+    uniform float uAudioWave;
     varying float vDepth;
 
     float hash3(vec3 p) {
@@ -1531,6 +1590,21 @@ function makeTiny() {
       float nxy0 = mix(nx00, nx10, u.y);
       float nxy1 = mix(nx01, nx11, u.y);
       return mix(nxy0, nxy1, u.z);
+    }
+
+    vec3 applyAudioReactive(vec3 pos) {
+      float radius = length(pos);
+      if (radius < 1e-4) {
+        return pos;
+      }
+      float bandMix = dot(uAudioBands, vec3(0.6, 0.3, 0.15));
+      float wavePulse = uAudioWave * 0.6;
+      float energyPulse = uAudioEnergy * 0.35;
+      float ripple = sin(uTime * 4.2 + aPhase * 12.5663706) * (0.15 + wavePulse * 0.55);
+      float scale = 1.0 + bandMix * 0.25 + energyPulse * 0.2 + wavePulse * 0.25;
+      float newRadius = max(0.02, radius * scale + ripple * 6.0);
+      vec3 radial = normalize(pos);
+      return radial * newRadius;
     }
 
     vec3 applyMotion(vec3 base) {
@@ -1579,7 +1653,8 @@ function makeTiny() {
 
     void main() {
       vec3 animated = applyMotion(aBase);
-      vec4 mv = modelViewMatrix * vec4(animated, 1.0);
+      vec3 audioDriven = applyAudioReactive(animated);
+      vec4 mv = modelViewMatrix * vec4(audioDriven, 1.0);
       vDepth = -mv.z;
       float px = max(1.0, uSize * 6.0);
       gl_PointSize = px * (300.0 / max(1.0, vDepth));
@@ -1613,6 +1688,9 @@ function makeTiny() {
       uMotionAmplitude: { value: params.motionAmplitude },
       uNoiseStrength: { value: params.motionNoiseStrength },
       uNoiseScale: { value: params.motionNoiseScale },
+      uAudioBands: { value: new THREE.Vector3() },
+      uAudioEnergy: { value: 0 },
+      uAudioWave: { value: 0 },
       uColor: { value: colorState.point.clone() }
     }
   });
