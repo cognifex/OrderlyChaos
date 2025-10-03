@@ -12,6 +12,54 @@
       --sheet-expanded-height: 84vh;
     }
     html, body { margin: 0; height: 100%; overflow: hidden; background: #000; color: var(--fg); font-family: system-ui, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }
+    #audioOverlay {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 30;
+      pointer-events: none;
+      opacity: 0;
+      transform: translateY(18px);
+      transition: opacity .35s ease, transform .35s ease;
+    }
+    #audioOverlay[data-visible="true"] {
+      opacity: 1;
+      pointer-events: auto;
+      transform: translateY(0);
+    }
+    #audioOverlayButton {
+      display: inline-flex;
+      align-items: center;
+      gap: .6rem;
+      padding: 1.2rem 1.9rem;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,0.2);
+      background: rgba(0, 0, 0, 0.68);
+      color: var(--fg);
+      font-size: 1.05rem;
+      font-weight: 600;
+      letter-spacing: .02em;
+      cursor: pointer;
+      box-shadow: 0 14px 42px rgba(0,0,0,0.45);
+      transition: transform .25s ease, box-shadow .25s ease, border-color .25s ease, background .25s ease;
+    }
+    #audioOverlayButton:hover,
+    #audioOverlayButton:focus-visible {
+      transform: scale(1.04);
+      border-color: rgba(90, 190, 255, 0.85);
+      box-shadow: 0 16px 46px rgba(20,120,200,0.45);
+      background: rgba(20, 40, 70, 0.75);
+      outline: none;
+    }
+    #audioOverlayButton:focus-visible {
+      box-shadow: 0 0 0 3px rgba(90, 190, 255, 0.45), 0 16px 46px rgba(20,120,200,0.45);
+    }
+    #audioOverlayButton[disabled] {
+      cursor: wait;
+      opacity: .7;
+    }
     #panel {
       position: absolute;
       top: 56px;
@@ -961,6 +1009,11 @@
     <div class="panel-footnote" id="audioSupportNotice">Nutze eine Datei oder das Mikrofon, um die Punktfarben an Audio zu koppeln.</div>
   </div>
 </div>
+<div id="audioOverlay" data-visible="false" aria-hidden="true">
+  <button type="button" id="audioOverlayButton" aria-label="Zufällige Musik aus der Playlist starten">
+    ▶️ Zufalls-Track starten
+  </button>
+</div>
 <script>
 /* Utility: HSV→RGB (for potential future color variations) */
 function hsv2rgb(h, s, v) {
@@ -1164,8 +1217,91 @@ const AUDIO_INTENSITY_DEFAULTS = Object.freeze({
   alpha: 1
 });
 
+const AUDIO_DYNAMIC_INTENSITY_CONFIG = Object.freeze({
+  motion: {
+    min: 0.45,
+    max: 1.55,
+    hold: { min: 0.38, max: 1.1 },
+    driver: metrics => Math.min(1.2, metrics.energy * 0.6 + metrics.bass * 0.85),
+    pulse: 'bass',
+    pulseThreshold: 0.08,
+    pulseWeight: 0.65,
+    randomWeight: 0.4,
+    jitter: 0.18,
+    damping: 3.8,
+    relaxRate: 2.6
+  },
+  size: {
+    min: 0.5,
+    max: 1.8,
+    hold: { min: 0.42, max: 1.35 },
+    driver: metrics => Math.min(1.2, metrics.mid * 0.85 + metrics.wave * 0.65),
+    pulse: 'mid',
+    pulseThreshold: 0.07,
+    pulseWeight: 0.6,
+    randomWeight: 0.35,
+    jitter: 0.22,
+    damping: 3.4,
+    relaxRate: 2.4
+  },
+  hue: {
+    min: 0.35,
+    max: 1.45,
+    hold: { min: 0.52, max: 1.4 },
+    driver: metrics => Math.min(1.2, metrics.treble * 0.95 + metrics.energy * 0.45),
+    pulse: 'treble',
+    pulseThreshold: 0.07,
+    pulseWeight: 0.65,
+    randomWeight: 0.45,
+    jitter: 0.25,
+    damping: 2.8,
+    relaxRate: 2.2
+  },
+  saturation: {
+    min: 0.45,
+    max: 1.6,
+    hold: { min: 0.55, max: 1.55 },
+    driver: metrics => Math.min(1.2, metrics.treble * 0.9 + metrics.wave * 0.6),
+    pulse: 'treble',
+    pulseThreshold: 0.06,
+    pulseWeight: 0.7,
+    randomWeight: 0.4,
+    jitter: 0.23,
+    damping: 2.9,
+    relaxRate: 2.3
+  },
+  brightness: {
+    min: 0.45,
+    max: 1.65,
+    hold: { min: 0.5, max: 1.45 },
+    driver: metrics => Math.min(1.2, metrics.energy * 0.95 + metrics.mid * 0.45),
+    pulse: 'energy',
+    pulseThreshold: 0.07,
+    pulseWeight: 0.7,
+    randomWeight: 0.35,
+    jitter: 0.19,
+    damping: 3.1,
+    relaxRate: 2.5
+  },
+  alpha: {
+    min: 0.4,
+    max: 1.25,
+    hold: { min: 0.55, max: 1.6 },
+    driver: metrics => Math.min(1.2, metrics.wave * 0.85 + metrics.energy * 0.55),
+    pulse: 'wave',
+    pulseThreshold: 0.05,
+    pulseWeight: 0.6,
+    randomWeight: 0.32,
+    jitter: 0.2,
+    damping: 3.0,
+    relaxRate: 2.4
+  }
+});
+
 const PRESET_AUDIO_DIRECTORY = 'Musik/';
 const PRESET_PLAYLIST_MANIFEST = `${PRESET_AUDIO_DIRECTORY}playlist.json`;
+
+let presetPlaylistPromise = null;
 
 const audioState = {
   context: null,
@@ -1194,6 +1330,9 @@ const audioState = {
     alpha: true
   },
   intensity: { ...AUDIO_INTENSITY_DEFAULTS },
+  dynamicIntensity: { ...AUDIO_INTENSITY_DEFAULTS },
+  dynamicTargets: { ...AUDIO_INTENSITY_DEFAULTS },
+  dynamicTimers: {},
   color: new THREE.Color(),
   needsResume: false,
   motionDirection: 1,
@@ -1203,7 +1342,8 @@ const audioState = {
   previousBass: 0,
   previousTreble: 0,
   previousEnergy: 0,
-  previousWave: 0
+  previousWave: 0,
+  previousMid: 0
 };
 
 const AUDIO_VISUAL_BASE = Object.freeze({
@@ -1231,7 +1371,9 @@ const audioUI = {
   modifierButtons: null,
   intensityControls: null,
   supportNotice: null,
-  autoRandomBtn: null
+  autoRandomBtn: null,
+  overlay: null,
+  overlayButton: null
 };
 
 const autoRandomState = {
@@ -1261,8 +1403,13 @@ function getAudioIntensity(key) {
     const fallback = (key in AUDIO_INTENSITY_DEFAULTS) ? AUDIO_INTENSITY_DEFAULTS[key] : 1;
     audioState.intensity[key] = Number.isFinite(fallback) ? fallback : 1;
   }
-  const current = audioState.intensity[key];
-  return Number.isFinite(current) ? Math.max(0, current) : 1;
+  const base = audioState.intensity[key];
+  const baseValue = Number.isFinite(base) ? Math.max(0, base) : 1;
+  const dynamicSource = audioState.dynamicIntensity && key in audioState.dynamicIntensity
+    ? audioState.dynamicIntensity[key]
+    : 1;
+  const dynamicValue = Number.isFinite(dynamicSource) ? Math.max(0, dynamicSource) : 1;
+  return baseValue * (dynamicValue || 1);
 }
 
 function syncAudioIntensityControls() {
@@ -1271,7 +1418,10 @@ function syncAudioIntensityControls() {
   }
   const modifiers = audioState.modifiers || {};
   audioUI.intensityControls.forEach(({ input, valueEl, container }, key) => {
-    const percent = clampIntensityPercent(getAudioIntensity(key) * 100);
+    const base = audioState.intensity && key in audioState.intensity
+      ? audioState.intensity[key]
+      : (AUDIO_INTENSITY_DEFAULTS[key] || 1);
+    const percent = clampIntensityPercent((Number.isFinite(base) ? base : 1) * 100);
     const enabled = modifiers[key] !== false;
     if (input) {
       if (document.activeElement !== input) {
@@ -1321,6 +1471,80 @@ function applyIntensityToTarget(rawValue, key, base = 0, { min, max } = {}) {
     result = Math.min(max, result);
   }
   return result;
+}
+
+function updateAudioIntensityDynamics(delta, metrics, pulses, playing) {
+  if (!audioState.dynamicIntensity) {
+    audioState.dynamicIntensity = { ...AUDIO_INTENSITY_DEFAULTS };
+  }
+  if (!audioState.dynamicTargets) {
+    audioState.dynamicTargets = { ...AUDIO_INTENSITY_DEFAULTS };
+  }
+  if (!audioState.dynamicTimers) {
+    audioState.dynamicTimers = {};
+  }
+  const configEntries = Object.entries(AUDIO_DYNAMIC_INTENSITY_CONFIG);
+  const modifiers = audioState.modifiers || {};
+  if (!playing) {
+    configEntries.forEach(([key, cfg]) => {
+      const relax = Number.isFinite(cfg?.relaxRate) ? cfg.relaxRate : 2.4;
+      const current = Number.isFinite(audioState.dynamicIntensity[key]) ? audioState.dynamicIntensity[key] : 1;
+      audioState.dynamicIntensity[key] = damp(current, 1, relax, delta);
+      audioState.dynamicTargets[key] = 1;
+      audioState.dynamicTimers[key] = 0;
+    });
+    return;
+  }
+  configEntries.forEach(([key, cfg]) => {
+    const modifierActive = modifiers[key] !== false;
+    const current = Number.isFinite(audioState.dynamicIntensity[key]) ? audioState.dynamicIntensity[key] : 1;
+    if (!modifierActive) {
+      const relax = Number.isFinite(cfg?.relaxRate) ? cfg.relaxRate : 2.5;
+      audioState.dynamicIntensity[key] = damp(current, 1, relax, delta);
+      audioState.dynamicTargets[key] = 1;
+      audioState.dynamicTimers[key] = 0;
+      return;
+    }
+    const hold = cfg && cfg.hold ? cfg.hold : { min: 0.45, max: 1.2 };
+    const holdMin = Number.isFinite(hold.min) ? Math.max(0.1, hold.min) : 0.45;
+    const holdMaxRaw = Number.isFinite(hold.max) ? hold.max : holdMin + 0.8;
+    const holdMax = Math.max(holdMin + 0.05, holdMaxRaw);
+    const timerBaseline = Number.isFinite(audioState.dynamicTimers[key])
+      ? audioState.dynamicTimers[key]
+      : randomRange(holdMin, holdMax);
+    let timer = timerBaseline - delta;
+    audioState.dynamicTimers[key] = timer;
+    const driverFn = typeof cfg.driver === 'function' ? cfg.driver : () => 0;
+    const drive = clampValue(driverFn(metrics || {}, pulses || {}, playing) || 0, 0, 1.2);
+    const jitter = cfg && Number.isFinite(cfg.jitter) ? cfg.jitter : 0;
+    const jitterValue = jitter > 0 ? clampValue(randomRange(-jitter, jitter), -jitter, jitter) : 0;
+    const pulseKey = cfg && cfg.pulse ? cfg.pulse : 'energy';
+    const pulseValue = pulses && Number.isFinite(pulses[pulseKey]) ? Math.max(0, pulses[pulseKey]) : 0;
+    const threshold = cfg && Number.isFinite(cfg.pulseThreshold) ? cfg.pulseThreshold : 0.08;
+    if (timer <= 0 || pulseValue > threshold) {
+      const randomWeight = cfg && Number.isFinite(cfg.randomWeight) ? cfg.randomWeight : 0.3;
+      const pulseWeight = cfg && Number.isFinite(cfg.pulseWeight) ? cfg.pulseWeight : 0.5;
+      const combined = clampValue(
+        drive + jitterValue + pulseValue * pulseWeight + randomRange(0, randomWeight),
+        0,
+        1.2
+      );
+      const minVal = cfg && Number.isFinite(cfg.min) ? Math.max(0, cfg.min) : 0.35;
+      const maxVal = cfg && Number.isFinite(cfg.max) ? Math.max(minVal + 0.05, cfg.max) : Math.max(minVal + 0.05, 1.5);
+      const target = clampValue(minVal + (maxVal - minVal) * Math.min(1, combined), minVal, maxVal);
+      audioState.dynamicTargets[key] = target;
+      timer = randomRange(holdMin, holdMax);
+      audioState.dynamicTimers[key] = timer;
+    }
+    const targetValue = Number.isFinite(audioState.dynamicTargets[key])
+      ? clampValue(audioState.dynamicTargets[key], cfg?.min ?? 0.35, cfg?.max ?? 1.5)
+      : 1;
+    const damping = cfg && Number.isFinite(cfg.damping) ? cfg.damping : 3;
+    const eased = damp(current, targetValue, damping, delta);
+    const minClamp = cfg && Number.isFinite(cfg.min) ? cfg.min : 0.3;
+    const maxClamp = cfg && Number.isFinite(cfg.max) ? cfg.max : 1.6;
+    audioState.dynamicIntensity[key] = clampValue(eased, minClamp, maxClamp);
+  });
 }
 
 const audioBandVector = new THREE.Vector3();
@@ -1528,6 +1752,16 @@ function resetAudioMetrics() {
   audioState.previousTreble = 0;
   audioState.previousEnergy = 0;
   audioState.previousWave = 0;
+  audioState.previousMid = 0;
+  if (!audioState.dynamicIntensity) {
+    audioState.dynamicIntensity = { ...AUDIO_INTENSITY_DEFAULTS };
+  } else {
+    Object.keys(AUDIO_INTENSITY_DEFAULTS).forEach(key => {
+      audioState.dynamicIntensity[key] = 1;
+    });
+  }
+  audioState.dynamicTargets = { ...AUDIO_INTENSITY_DEFAULTS };
+  audioState.dynamicTimers = {};
 }
 
 function disconnectAnalyser() {
@@ -1566,6 +1800,7 @@ function setAudioStatus(message, state = 'idle') {
   if (audioUI.statusDot) {
     audioUI.statusDot.dataset.state = state;
   }
+  updateAudioOverlayVisibility();
 }
 
 function setAudioModifier(key, enabled) {
@@ -1585,6 +1820,30 @@ function setAudioModifier(key, enabled) {
 function toggleAudioModifier(key) {
   if (!audioState.modifiers || !(key in audioState.modifiers)) return;
   setAudioModifier(key, !audioState.modifiers[key]);
+}
+
+function shouldShowAudioOverlay() {
+  if (!audioUI.overlay) return false;
+  if (!isAudioSupported()) return false;
+  if (audioState.playing || audioState.usingMic) return false;
+  if (audioState.status === 'waiting' || audioState.status === 'error') return false;
+  return true;
+}
+
+function updateAudioOverlayVisibility() {
+  if (!audioUI.overlay) return;
+  const visible = shouldShowAudioOverlay();
+  audioUI.overlay.dataset.visible = visible ? 'true' : 'false';
+  audioUI.overlay.setAttribute('aria-hidden', visible ? 'false' : 'true');
+  if (audioUI.overlayButton) {
+    if (visible) {
+      audioUI.overlayButton.disabled = false;
+      audioUI.overlayButton.removeAttribute('aria-busy');
+      audioUI.overlayButton.removeAttribute('tabindex');
+    } else {
+      audioUI.overlayButton.setAttribute('tabindex', '-1');
+    }
+  }
 }
 
 function refreshAudioUI() {
@@ -1653,6 +1912,7 @@ function refreshAudioUI() {
     }
     updateAutoRandomButton(!supportedAudio);
   }
+  updateAudioOverlayVisibility();
 }
 
 function getPlaylistLength() {
@@ -1925,6 +2185,13 @@ function normalizePresetDescriptor(entry) {
   };
 }
 
+function ensurePresetPlaylistInitialized() {
+  if (!presetPlaylistPromise) {
+    presetPlaylistPromise = initializePresetPlaylist();
+  }
+  return presetPlaylistPromise;
+}
+
 async function initializePresetPlaylist() {
   const descriptors = await fetchPresetTrackDescriptors();
   if (getPlaylistLength() > 0) {
@@ -1970,6 +2237,26 @@ function playCurrentTrack() {
     return false;
   }
   playSelectedFile();
+  return true;
+}
+
+async function startRandomPlaylistPlayback() {
+  try {
+    await ensurePresetPlaylistInitialized();
+  } catch (error) {
+    console.warn('Preset-Playlist konnte nicht initialisiert werden:', error);
+  }
+  const total = getPlaylistLength();
+  if (total <= 0) {
+    setAudioStatus('Keine Musikdateien verfügbar.', 'warning');
+    refreshAudioUI();
+    return false;
+  }
+  const randomIndex = Math.floor(Math.random() * total);
+  if (!setCurrentTrack(randomIndex)) {
+    return false;
+  }
+  await playSelectedFile();
   return true;
 }
 
@@ -2212,15 +2499,31 @@ function updateAudioReactive(delta) {
   audioState.metrics.wave = damp(audioState.metrics.wave, waveTarget, metricRate, delta);
 
   const modifiers = audioState.modifiers || {};
+  const playing = audioState.playing || audioState.usingMic;
+  const bassPulse = Math.max(0, bassTarget - audioState.previousBass);
+  const energyPulse = Math.max(0, energyTarget - audioState.previousEnergy);
+  const wavePulse = Math.max(0, waveTarget - audioState.previousWave);
+  const treblePulse = Math.max(0, trebleTarget - audioState.previousTreble);
+  const midPulse = Math.max(0, midTarget - audioState.previousMid);
+
+  updateAudioIntensityDynamics(
+    delta,
+    {
+      energy: audioState.metrics.energy,
+      bass: audioState.metrics.bass,
+      mid: audioState.metrics.mid,
+      treble: audioState.metrics.treble,
+      wave: audioState.metrics.wave
+    },
+    { energy: energyPulse, bass: bassPulse, mid: midPulse, treble: treblePulse, wave: wavePulse },
+    playing
+  );
+
   const motionIntensity = Math.max(0, getAudioIntensity('motion'));
   audioState.motionFlipCooldown = Math.max(0, audioState.motionFlipCooldown - delta);
   audioState.pitchFlipCooldown = Math.max(0, audioState.pitchFlipCooldown - delta);
 
   const motionActive = modifiers.motion && motionIntensity > 0;
-  const bassPulse = Math.max(0, bassTarget - audioState.previousBass);
-  const energyPulse = Math.max(0, energyTarget - audioState.previousEnergy);
-  const wavePulse = Math.max(0, waveTarget - audioState.previousWave);
-  const treblePulse = Math.max(0, trebleTarget - audioState.previousTreble);
 
   if (motionActive) {
     if (audioState.motionFlipCooldown <= 0) {
@@ -2282,6 +2585,7 @@ function updateAudioReactive(delta) {
   audioState.previousEnergy = energyTarget;
   audioState.previousTreble = trebleTarget;
   audioState.previousWave = waveTarget;
+  audioState.previousMid = midTarget;
 }
 
 function applyAudioVisuals(delta, skipReactive = false) {
@@ -3241,6 +3545,8 @@ audioUI.modifierButtons = Array.from(document.querySelectorAll('#audioModifierGr
 audioUI.intensityControls = new Map();
 audioUI.supportNotice = $('audioSupportNotice');
 audioUI.autoRandomBtn = $('audioRandomMode');
+audioUI.overlay = $('audioOverlay');
+audioUI.overlayButton = $('audioOverlayButton');
 
 if (audioUI.toggle && audioUI.body) {
   audioUI.toggle.addEventListener('click', () => {
@@ -3263,7 +3569,10 @@ document.querySelectorAll('[data-intensity-target]').forEach(input => {
   const container = input.closest('[data-intensity-row]') || input.parentElement;
   const valueEl = document.querySelector(`[data-intensity-value="${key}"]`);
   audioUI.intensityControls.set(key, { input, valueEl, container });
-  const initialPercent = clampIntensityPercent(getAudioIntensity(key) * 100);
+  const baseValue = audioState.intensity && key in audioState.intensity
+    ? audioState.intensity[key]
+    : (AUDIO_INTENSITY_DEFAULTS[key] || 1);
+  const initialPercent = clampIntensityPercent((Number.isFinite(baseValue) ? baseValue : 1) * 100);
   input.value = String(initialPercent);
   if (valueEl) {
     valueEl.textContent = `${initialPercent}%`;
@@ -3434,6 +3743,23 @@ if (audioUI.autoRandomBtn) {
   updateAutoRandomButton(false);
 }
 
+if (audioUI.overlayButton) {
+  audioUI.overlayButton.addEventListener('click', async () => {
+    if (audioUI.overlayButton.disabled) return;
+    audioUI.overlayButton.disabled = true;
+    audioUI.overlayButton.setAttribute('aria-busy', 'true');
+    const started = await startRandomPlaylistPlayback();
+    if (!started && shouldShowAudioOverlay()) {
+      audioUI.overlayButton.disabled = false;
+    }
+    audioUI.overlayButton.removeAttribute('aria-busy');
+    updateAudioOverlayVisibility();
+  });
+}
+
+setAutoRandomEnabled(true);
+updateAudioOverlayVisibility();
+
 if (audioUI.fileInput) {
   audioUI.fileInput.addEventListener('change', event => {
     const files = event.target.files ? Array.from(event.target.files).filter(Boolean) : [];
@@ -3501,7 +3827,7 @@ if (audioUI.fileMeta || audioUI.playlistMeta) {
 }
 setAudioStatus('Audio-Reaktivität inaktiv', 'idle');
 refreshAudioUI();
-initializePresetPlaylist();
+presetPlaylistPromise = ensurePresetPlaylistInitialized();
 let panelVisible = true;
 let audioPanelVisible = true;
 let cameraLocked = false;
