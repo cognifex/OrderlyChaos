@@ -12,7 +12,21 @@
        ⚠️ Kopiere den Inhalt von `~/.ssh/id_ed25519.pub` und füge ihn bei GitHub unter
        **Settings → SSH and GPG Keys → New SSH Key** ein.
 
-  2. **GitHub CLI installieren (falls nicht vorhanden):**
+  2. **Origin-Remote automatisch anhand von `$GIT_REMOTE_URL` setzen (falls vorhanden):**
+     ```bash
+     if [ -n "$GIT_REMOTE_URL" ]; then
+       if git remote get-url origin >/dev/null 2>&1; then
+         git remote set-url origin "$GIT_REMOTE_URL"
+       else
+         git remote add origin "$GIT_REMOTE_URL"
+       fi
+       git fetch origin --prune
+     fi
+     ```
+
+     - Wenn keine URL gesetzt ist, bitte `GIT_REMOTE_URL` (z. B. `https://github.com/<owner>/<repo>.git`) bereitstellen.
+
+  3. **GitHub CLI installieren (falls nicht vorhanden):**
      ```bash
      if ! command -v gh &> /dev/null; then
        apt-get update
@@ -20,15 +34,14 @@
      fi
      ```
 
-  3. **Authentifizierung mit Token (falls GH_TOKEN gesetzt ist):**
+  4. **Authentifizierung mit Token (falls GH_TOKEN gesetzt ist):**
      ```bash
      if [ -n "$GH_TOKEN" ]; then
        echo "$GH_TOKEN" | gh auth login --with-token
-       git remote set-url origin https://github.com/cognifex/OrderlyChaos.git
      fi
      ```
 
-  4. **SSH-Fallback einrichten (wenn HTTPS blockiert ist):**
+  5. **SSH-Fallback einrichten (wenn HTTPS blockiert ist):**
      - Prüfe, ob ein Key existiert:
        ```bash
        if [ ! -f ~/.ssh/id_ed25519 ]; then
@@ -58,19 +71,19 @@
        git remote set-url origin git@github.com:cognifex/OrderlyChaos.git
        ```
 
-  5. **Verbindung testen:**
-     ```bash
-     if [ -n "$GH_TOKEN" ]; then
-       gh auth status
-     else
-       ssh -T git@github.com || true
-     fi
-     ```
+  6. **Verbindung testen:**
+  ```bash
+  if [ -n "$GH_TOKEN" ]; then
+    gh auth status
+  else
+    ssh -T git@github.com || true
+  fi
+  ```
 
-  6. **Push-Befehl:**
-     ```bash
-     git push -u origin work
-     ```
+  7. **Push-Befehl:**
+  ```bash
+  git push -u origin work
+  ```
 
 ## Workflow-Erinnerungen
 
