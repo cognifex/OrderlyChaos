@@ -103,6 +103,78 @@
       background: rgba(40, 160, 220, 0.35);
       border-color: rgba(90, 190, 255, 0.7);
     }
+    .swatch-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+      gap: .35rem;
+    }
+    .color-swatch {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: .45rem .5rem;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 8px;
+      background: var(--swatch, rgba(255, 255, 255, 0.1));
+      color: var(--swatch-text, #fff);
+      font-size: .75rem;
+      font-weight: 600;
+      letter-spacing: .01em;
+      cursor: pointer;
+      transition: transform .15s ease, border-color .2s ease, box-shadow .2s ease;
+      text-shadow: 0 0 4px rgba(0, 0, 0, 0.45);
+    }
+    .color-swatch:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.35);
+    }
+    .color-swatch[aria-pressed="true"] {
+      border-color: rgba(255, 255, 255, 0.8);
+      box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.35);
+    }
+    .color-swatch--picker {
+      display: flex;
+      flex-direction: column;
+      gap: .3rem;
+      padding: .55rem .6rem .45rem;
+      background: rgba(255, 255, 255, 0.07);
+      text-shadow: none;
+      color: #fff;
+    }
+    .color-swatch--picker input[type=color] {
+      width: 100%;
+      height: 32px;
+      border: none;
+      border-radius: 6px;
+      padding: 0;
+      background: transparent;
+      cursor: pointer;
+    }
+    .color-swatch--picker input[type=color]::-webkit-color-swatch-wrapper {
+      padding: 0;
+      border-radius: 6px;
+    }
+    .color-swatch--picker input[type=color]::-webkit-color-swatch {
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      border-radius: 6px;
+    }
+    .color-swatch--picker input[type=color]::-moz-color-swatch {
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      border-radius: 6px;
+    }
+    .color-swatch__label {
+      font-size: .72rem;
+      font-weight: 600;
+      letter-spacing: .02em;
+      opacity: .85;
+    }
+    .hint {
+      margin: .35rem 0 0;
+      font-size: .72rem;
+      line-height: 1.35;
+      opacity: .68;
+    }
     .row button:disabled,
     .row button[aria-disabled="true"] {
       opacity: 0.55;
@@ -3149,6 +3221,68 @@ const sliderValueGetters = {
   spinSpeed: () => spinState.speedMultiplier,
   spinDecay: () => spinState.inertiaDuration,
 };
+
+const colorPickerInput = $('pHueColor');
+const colorSwatchButtons = Array.from(document.querySelectorAll('[data-color-swatch]'));
+
+function updateColorPickerInput() {
+  if (!colorPickerInput) return;
+  const hex = hsvToHex(params.pointHue, params.pointSaturation, params.pointValue);
+  if (hex && colorPickerInput.value.toLowerCase() !== hex) {
+    colorPickerInput.value = hex;
+  }
+}
+
+function updateColorSwatchState() {
+  if (!colorSwatchButtons.length) return;
+  const hue = normalizeHue(params.pointHue);
+  const saturation = clamp01(params.pointSaturation);
+  const value = clamp01(params.pointValue);
+  colorSwatchButtons.forEach(button => {
+    const btnHue = normalizeHue(parseFloat(button.dataset.h));
+    const btnSat = clamp01(parseFloat(button.dataset.s));
+    const btnVal = clamp01(parseFloat(button.dataset.v));
+    const isMatch = hueDifference(hue, btnHue) < 6 &&
+      Math.abs(saturation - btnSat) < 0.08 &&
+      Math.abs(value - btnVal) < 0.08;
+    button.setAttribute('aria-pressed', String(isMatch));
+  });
+}
+
+function applyBaseColorFromHSV(h, s, v) {
+  params.pointHue = normalizeHue(h);
+  params.pointSaturation = clamp01(s);
+  params.pointValue = clamp01(v);
+  updatePointColor();
+  updateStarUniforms();
+  updateTinyMaterial();
+  setSliders();
+}
+
+if (colorPickerInput) {
+  const initialHex = hsvToHex(params.pointHue, params.pointSaturation, params.pointValue);
+  if (initialHex) {
+    colorPickerInput.value = initialHex;
+  }
+  colorPickerInput.addEventListener('input', event => {
+    const hsv = hexToHsv(event.target.value);
+    if (!hsv) return;
+    applyBaseColorFromHSV(hsv.h, hsv.s, hsv.v);
+  });
+}
+
+if (colorSwatchButtons.length) {
+  colorSwatchButtons.forEach(button => {
+    button.addEventListener('click', () => {
+      const h = parseFloat(button.dataset.h);
+      const s = parseFloat(button.dataset.s);
+      const v = parseFloat(button.dataset.v);
+      if ([h, s, v].some(val => Number.isNaN(val))) return;
+      applyBaseColorFromHSV(h, s, v);
+    });
+  });
+}
+
 initializeSliderBounds();
 enforceBounds();
 // assign input event handlers
