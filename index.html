@@ -932,6 +932,12 @@
         </div>
       </div>
     </div>
+    <div class="row">
+      <label for="audioRandomMode">Random-Modus</label>
+      <div class="audio-controls">
+        <button type="button" id="audioRandomMode" aria-pressed="false">🔀 Random-Modus aus</button>
+      </div>
+    </div>
     <div class="row status-row" role="status" aria-live="polite">
       <span class="status-indicator" id="audioStatusDot" data-state="idle" aria-hidden="true"></span>
       <span class="status-text" id="audioStatus" data-state="idle">Audio-Reaktivität inaktiv</span>
@@ -1027,6 +1033,12 @@ function mulberry32(seed) {
     t ^= t + Math.imul(t ^ (t >>> 7), 61 | t);
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
+}
+
+function randomRange(min, max) {
+  const a = Number.isFinite(min) ? min : 0;
+  const b = Number.isFinite(max) ? max : 0;
+  return a + Math.random() * (b - a);
 }
 
 function damp(current, target, rate, delta) {
@@ -1149,7 +1161,7 @@ const audioState = {
   fileName: '',
   status: 'idle',
   metrics: { energy: 0, bass: 0, mid: 0, treble: 0, wave: 0 },
-  visual: { motion: 0, size: 1, hue: 0, alpha: 0, scale: 1 },
+  visual: { motion: 0, size: 1, hue: 0, alpha: 0, scale: 1, saturation: 0, brightness: 0 },
   modifiers: {
     motion: true,
     scale: true,
@@ -1161,10 +1173,26 @@ const audioState = {
   },
   intensity: { ...AUDIO_INTENSITY_DEFAULTS },
   color: new THREE.Color(),
-  needsResume: false
+  needsResume: false,
+  motionDirection: 1,
+  pitchDirection: 1,
+  motionFlipCooldown: 0,
+  pitchFlipCooldown: 0,
+  previousBass: 0,
+  previousTreble: 0,
+  previousEnergy: 0,
+  previousWave: 0
 };
 
-const AUDIO_VISUAL_BASE = Object.freeze({ motion: 0, size: 1, hue: 0, alpha: 0, scale: 1 });
+const AUDIO_VISUAL_BASE = Object.freeze({
+  motion: 0,
+  size: 1,
+  hue: 0,
+  alpha: 0,
+  scale: 1,
+  saturation: 0,
+  brightness: 0
+});
 
 const audioUI = {
   panel: null,
@@ -1180,7 +1208,18 @@ const audioUI = {
   statusDot: null,
   modifierButtons: null,
   intensityControls: null,
-  supportNotice: null
+  supportNotice: null,
+  autoRandomBtn: null
+};
+
+const autoRandomState = {
+  enabled: false,
+  elapsed: 0,
+  nextTrigger: Infinity,
+  nudgeAccumulator: 0,
+  minInterval: 12,
+  maxInterval: 26,
+  nudgeInterval: 0.45
 };
 
 function clampIntensityPercent(value, fallback = 100) {
@@ -1211,17 +1250,19 @@ function syncAudioIntensityControls() {
   const modifiers = audioState.modifiers || {};
   audioUI.intensityControls.forEach(({ input, valueEl, container }, key) => {
     const percent = clampIntensityPercent(getAudioIntensity(key) * 100);
+    const enabled = modifiers[key] !== false;
     if (input) {
       if (document.activeElement !== input) {
         input.value = String(percent);
       }
       input.setAttribute('aria-valuenow', String(percent));
+      input.toggleAttribute('disabled', !enabled);
+      input.setAttribute('aria-disabled', String(!enabled));
     }
     if (valueEl) {
       valueEl.textContent = `${percent}%`;
     }
     if (container) {
-      const enabled = modifiers[key] !== false;
       container.classList.toggle('is-disabled', !enabled);
     }
   });
@@ -1240,21 +1281,45 @@ function setAudioIntensity(key, percentValue) {
   applyAudioVisualState();
 }
 
+function applyIntensityToTarget(rawValue, key, base = 0, { min, max } = {}) {
+  const intensity = Math.max(0, getAudioIntensity(key));
+  let result = Number(rawValue);
+  if (!Number.isFinite(result)) {
+    result = base;
+  }
+  if (Number.isFinite(base)) {
+    result = base + (result - base) * intensity;
+  } else {
+    result *= intensity;
+  }
+  if (Number.isFinite(min)) {
+    result = Math.max(min, result);
+  }
+  if (Number.isFinite(max)) {
+    result = Math.min(max, result);
+  }
+  return result;
+}
+
 const audioBandVector = new THREE.Vector3();
 
 function applyAudioVisualState(modifiers = audioState.modifiers || {}) {
-  const sizeBoost = modifiers.size ? audioState.visual.size : AUDIO_VISUAL_BASE.size;
-  const hueOffset = modifiers.hue ? audioState.visual.hue : AUDIO_VISUAL_BASE.hue;
-  const saturationBoost = modifiers.saturation ? audioState.metrics.treble * 0.18 : 0;
-  const brightnessBoost = modifiers.brightness ? audioState.metrics.energy * 0.25 : 0;
-  const hue = (params.pointHue + hueOffset) % 360;
-  const saturation = Math.min(1, params.pointSaturation + saturationBoost);
-  const brightness = Math.min(1.1, params.pointValue + brightnessBoost);
+  const sizeBoost = modifiers.size ? clampValue(audioState.visual.size, 0.2, 4.5) : AUDIO_VISUAL_BASE.size;
+  const hueOffset = modifiers.hue ? clampValue(audioState.visual.hue, -540, 540) : AUDIO_VISUAL_BASE.hue;
+  const saturationDelta = modifiers.saturation
+    ? clampValue(audioState.visual.saturation, -0.35, 0.9)
+    : AUDIO_VISUAL_BASE.saturation;
+  const brightnessDelta = modifiers.brightness
+    ? clampValue(audioState.visual.brightness, -0.35, 1.05)
+    : AUDIO_VISUAL_BASE.brightness;
+  const hue = ((params.pointHue + hueOffset) % 360 + 360) % 360;
+  const saturation = clampValue(params.pointSaturation + saturationDelta, 0.05, 1.4);
+  const brightness = clampValue(params.pointValue + brightnessDelta, 0.05, 1.6);
   const reactiveColor = hsv2rgb(hue, saturation, brightness);
   audioState.color.copy(reactiveColor);
 
-  const targetScale = modifiers.scale ? audioState.visual.scale : AUDIO_VISUAL_BASE.scale;
-  const sphereScale = Math.max(0.35, Math.min(2.2, targetScale));
+  const targetScale = modifiers.scale ? clampValue(audioState.visual.scale, 0.25, 3.5) : AUDIO_VISUAL_BASE.scale;
+  const sphereScale = Math.max(0.25, Math.min(3.5, targetScale));
   if (Number.isFinite(sphereScale)) {
     if (Math.abs(clusterGroup.scale.x - sphereScale) > 1e-4 ||
         Math.abs(clusterGroup.scale.y - sphereScale) > 1e-4 ||
@@ -1263,17 +1328,23 @@ function applyAudioVisualState(modifiers = audioState.modifiers || {}) {
     }
   }
 
-  audioBandVector.set(audioState.metrics.bass, audioState.metrics.mid, audioState.metrics.treble);
+  const bandGain = 0.75 + Math.max(0, getAudioIntensity('scale')) * 0.75;
+  const bassValue = Math.min(3, audioState.metrics.bass * bandGain);
+  const midValue = Math.min(3, audioState.metrics.mid * bandGain * 0.92);
+  const trebleValue = Math.min(3, audioState.metrics.treble * bandGain * 1.08);
+  audioBandVector.set(bassValue, midValue, trebleValue);
+  const energyUniform = Math.min(3, audioState.metrics.energy * (0.8 + Math.max(0, getAudioIntensity('motion')) * 0.7));
+  const waveUniform = Math.min(3, audioState.metrics.wave * (0.8 + Math.max(0, getAudioIntensity('size')) * 0.7));
 
   if (starMaterial && starMaterial.uniforms) {
     if (starMaterial.uniforms.uAudioBands && starMaterial.uniforms.uAudioBands.value) {
       starMaterial.uniforms.uAudioBands.value.copy(audioBandVector);
     }
     if (starMaterial.uniforms.uAudioEnergy) {
-      starMaterial.uniforms.uAudioEnergy.value = audioState.metrics.energy;
+      starMaterial.uniforms.uAudioEnergy.value = energyUniform;
     }
     if (starMaterial.uniforms.uAudioWave) {
-      starMaterial.uniforms.uAudioWave.value = audioState.metrics.wave;
+      starMaterial.uniforms.uAudioWave.value = waveUniform;
     }
     if (starMaterial.uniforms.uSizeFactorSmall) {
       starMaterial.uniforms.uSizeFactorSmall.value = params.sizeFactorSmall * sizeBoost;
@@ -1286,8 +1357,8 @@ function applyAudioVisualState(modifiers = audioState.modifiers || {}) {
     }
     if (starMaterial.uniforms.uAlpha) {
       const baseAlpha = params.pointAlpha;
-      const alphaBoost = modifiers.alpha ? audioState.visual.alpha : AUDIO_VISUAL_BASE.alpha;
-      const boostedAlpha = Math.max(0.05, Math.min(1, baseAlpha + alphaBoost));
+      const alphaVisual = modifiers.alpha ? clampValue(audioState.visual.alpha, 0, 1.2) : AUDIO_VISUAL_BASE.alpha;
+      const boostedAlpha = Math.max(0.05, Math.min(1, baseAlpha + alphaVisual));
       starMaterial.uniforms.uAlpha.value = boostedAlpha;
     }
     if (starMaterial.uniforms.uColor) {
@@ -1300,20 +1371,20 @@ function applyAudioVisualState(modifiers = audioState.modifiers || {}) {
       tinyMaterial.uniforms.uAudioBands.value.copy(audioBandVector);
     }
     if (tinyMaterial.uniforms.uAudioEnergy) {
-      tinyMaterial.uniforms.uAudioEnergy.value = audioState.metrics.energy;
+      tinyMaterial.uniforms.uAudioEnergy.value = energyUniform;
     }
     if (tinyMaterial.uniforms.uAudioWave) {
-      tinyMaterial.uniforms.uAudioWave.value = audioState.metrics.wave;
+      tinyMaterial.uniforms.uAudioWave.value = waveUniform;
     }
-    const waveContribution = modifiers.size ? audioState.metrics.wave : 0;
-    const tinySize = params.sizeFactorTiny * Math.max(0.05, 0.8 + sizeBoost * 0.2 + waveContribution * 0.35);
+    const waveContribution = modifiers.size ? waveUniform : 0;
+    const tinySize = params.sizeFactorTiny * Math.max(0.05, 0.8 + sizeBoost * 0.2 + waveContribution * 0.25);
     if (tinyMaterial.uniforms.uSize) {
       tinyMaterial.uniforms.uSize.value = tinySize;
     }
     if (tinyMaterial.uniforms.uAlpha) {
       const baseTinyAlpha = params.tinyAlpha;
-      const alphaBoost = modifiers.alpha ? audioState.visual.alpha : AUDIO_VISUAL_BASE.alpha;
-      const boostedTinyAlpha = Math.min(1, baseTinyAlpha + alphaBoost * 0.4);
+      const alphaVisual = modifiers.alpha ? clampValue(audioState.visual.alpha, 0, 1.2) : AUDIO_VISUAL_BASE.alpha;
+      const boostedTinyAlpha = Math.min(1, baseTinyAlpha + alphaVisual * 0.4);
       tinyMaterial.uniforms.uAlpha.value = boostedTinyAlpha;
     }
     if (tinyMaterial.uniforms.uColor) {
@@ -1323,16 +1394,28 @@ function applyAudioVisualState(modifiers = audioState.modifiers || {}) {
 }
 
 function applyAudioMotion(delta, modifiers = audioState.modifiers || {}) {
-  const extraRotation = modifiers.motion ? audioState.visual.motion : AUDIO_VISUAL_BASE.motion;
-  if (extraRotation > 1e-4) {
-    const yaw = extraRotation * delta * 0.85;
-    const pitch = (modifiers.motion ? audioState.metrics.wave : 0) * delta * 0.35;
-    if (Number.isFinite(yaw) && Math.abs(yaw) < Math.PI) {
-      clusterGroup.rotateY(yaw);
-    }
-    if (Number.isFinite(pitch) && Math.abs(pitch) < Math.PI) {
-      clusterGroup.rotateX(pitch);
-    }
+  if (!modifiers.motion) {
+    return;
+  }
+  const motionIntensity = Math.max(0, getAudioIntensity('motion'));
+  const rotationStrength = clampValue(audioState.visual.motion, 0, 4.5);
+  if (rotationStrength <= 1e-4 || motionIntensity <= 0) {
+    return;
+  }
+  const yaw = rotationStrength * audioState.motionDirection * delta * (0.55 + motionIntensity * 0.95);
+  const waveTilt = clampValue(audioState.metrics.wave * (0.3 + motionIntensity * 0.5), -3, 3);
+  const pitch = waveTilt * audioState.pitchDirection * delta * 0.55;
+  const rollBase = clampValue(audioState.metrics.treble * (0.22 + motionIntensity * 0.35), 0, 3.2);
+  const rollDirection = audioState.motionDirection >= 0 ? 1 : -1;
+  const roll = rollBase * rollDirection * delta * 0.3;
+  if (Number.isFinite(yaw) && Math.abs(yaw) < Math.PI) {
+    clusterGroup.rotateY(yaw);
+  }
+  if (Number.isFinite(pitch) && Math.abs(pitch) < Math.PI) {
+    clusterGroup.rotateX(pitch);
+  }
+  if (Number.isFinite(roll) && Math.abs(roll) < Math.PI) {
+    clusterGroup.rotateZ(roll);
   }
 }
 
@@ -1391,6 +1474,16 @@ function resetAudioMetrics() {
   audioState.visual.hue = 0;
   audioState.visual.alpha = 0;
   audioState.visual.scale = 1;
+  audioState.visual.saturation = 0;
+  audioState.visual.brightness = 0;
+  audioState.motionDirection = 1;
+  audioState.pitchDirection = 1;
+  audioState.motionFlipCooldown = 0;
+  audioState.pitchFlipCooldown = 0;
+  audioState.previousBass = 0;
+  audioState.previousTreble = 0;
+  audioState.previousEnergy = 0;
+  audioState.previousWave = 0;
 }
 
 function disconnectAnalyser() {
@@ -1436,6 +1529,10 @@ function setAudioModifier(key, enabled) {
   audioState.modifiers[key] = Boolean(enabled);
   if (!audioState.modifiers[key] && AUDIO_VISUAL_BASE[key] !== undefined && audioState.visual && key in audioState.visual) {
     audioState.visual[key] = AUDIO_VISUAL_BASE[key];
+    if (key === 'motion') {
+      audioState.motionDirection = 1;
+      audioState.pitchDirection = 1;
+    }
   }
   refreshAudioUI();
   applyAudioVisualState();
@@ -1494,6 +1591,12 @@ function refreshAudioUI() {
     });
   }
   syncAudioIntensityControls();
+  if (audioUI.autoRandomBtn) {
+    if (!supportedAudio && autoRandomState.enabled) {
+      setAutoRandomEnabled(false);
+    }
+    updateAutoRandomButton(!supportedAudio);
+  }
 }
 
 function updateAudioFileMeta(file) {
@@ -1675,22 +1778,83 @@ function updateAudioReactive(delta) {
   audioState.metrics.treble = damp(audioState.metrics.treble, trebleTarget, metricRate, delta);
   audioState.metrics.wave = damp(audioState.metrics.wave, waveTarget, metricRate, delta);
 
-  const targetMotion = Math.min(2.4, audioState.metrics.energy * 1.1 + audioState.metrics.bass * 1.7);
-  const targetSize = Math.min(1.9, 1 + audioState.metrics.mid * 1.1 + audioState.metrics.wave * 0.45);
-  const targetScale = Math.min(2.2, 1 + audioState.metrics.energy * 0.45 + audioState.metrics.wave * 0.35 + audioState.metrics.bass * 0.25);
-  const targetHue = audioState.metrics.treble * 90;
-  const targetAlpha = Math.min(0.5, audioState.metrics.energy * 0.35 + audioState.metrics.wave * 0.2);
   const modifiers = audioState.modifiers || {};
+  const motionIntensity = Math.max(0, getAudioIntensity('motion'));
+  audioState.motionFlipCooldown = Math.max(0, audioState.motionFlipCooldown - delta);
+  audioState.pitchFlipCooldown = Math.max(0, audioState.pitchFlipCooldown - delta);
+
+  const motionActive = modifiers.motion && motionIntensity > 0;
+  const bassPulse = Math.max(0, bassTarget - audioState.previousBass);
+  const energyPulse = Math.max(0, energyTarget - audioState.previousEnergy);
+  const wavePulse = Math.max(0, waveTarget - audioState.previousWave);
+  const treblePulse = Math.max(0, trebleTarget - audioState.previousTreble);
+
+  if (motionActive) {
+    if (audioState.motionFlipCooldown <= 0) {
+      const beatPulse = bassPulse * 0.7 + energyPulse * 0.4;
+      if (beatPulse > 0.12 && (bassTarget > 0.38 || energyTarget > 0.52)) {
+        audioState.motionDirection = (audioState.motionDirection || 1) * -1;
+        const cooldownBase = 0.3 + (1 - Math.min(1, motionIntensity)) * 0.4;
+        audioState.motionFlipCooldown = cooldownBase + Math.random() * 0.25;
+      }
+    }
+    if (audioState.pitchFlipCooldown <= 0) {
+      const tiltPulse = treblePulse * 0.6 + wavePulse * 0.8;
+      if (tiltPulse > 0.16) {
+        audioState.pitchDirection = (audioState.pitchDirection || 1) * -1;
+        const pitchCooldownBase = 0.45 + (1 - Math.min(1, motionIntensity)) * 0.35;
+        audioState.pitchFlipCooldown = pitchCooldownBase + Math.random() * 0.2;
+      }
+    }
+  } else {
+    audioState.motionDirection = 1;
+    audioState.pitchDirection = 1;
+  }
+
+  const rawMotion = Math.min(3.2, audioState.metrics.energy * 1.6 + audioState.metrics.bass * 2.5);
+  const baseSize = Math.min(2.6, 1 + audioState.metrics.mid * 1.45 + audioState.metrics.wave * 0.6);
+  const baseScale = Math.min(2.6, 1 + audioState.metrics.energy * 0.65 + audioState.metrics.wave * 0.5 + audioState.metrics.bass * 0.45);
+  const hueBase = audioState.metrics.treble * 160 + audioState.metrics.energy * 20;
+  const alphaBase = Math.min(0.7, audioState.metrics.energy * 0.45 + audioState.metrics.wave * 0.3 + audioState.metrics.mid * 0.2);
+  const saturationBase = audioState.metrics.treble * 0.6 + audioState.metrics.wave * 0.28;
+  const brightnessBase = audioState.metrics.energy * 0.75 + audioState.metrics.mid * 0.35;
+
+  const targetMotion = applyIntensityToTarget(rawMotion, 'motion', 0, { min: 0, max: 3.8 });
+  const targetSize = applyIntensityToTarget(baseSize, 'size', 1, { min: 0.4, max: 3.4 });
+  const targetScale = applyIntensityToTarget(baseScale, 'scale', 1, { min: 0.4, max: 3.4 });
+  const targetHue = applyIntensityToTarget(hueBase, 'hue', 0, { min: -720, max: 720 });
+  const targetAlpha = applyIntensityToTarget(alphaBase, 'alpha', 0, { min: 0, max: 0.9 });
+  const targetSaturation = applyIntensityToTarget(saturationBase, 'saturation', 0, { min: -0.4, max: 1 });
+  const targetBrightness = applyIntensityToTarget(brightnessBase, 'brightness', 0, { min: -0.4, max: 1.1 });
 
   audioState.visual.motion = damp(audioState.visual.motion, modifiers.motion ? targetMotion : AUDIO_VISUAL_BASE.motion, 6, delta);
   audioState.visual.size = damp(audioState.visual.size, modifiers.size ? targetSize : AUDIO_VISUAL_BASE.size, 7, delta);
   audioState.visual.scale = damp(audioState.visual.scale, modifiers.scale ? targetScale : AUDIO_VISUAL_BASE.scale, 5, delta);
   audioState.visual.hue = damp(audioState.visual.hue, modifiers.hue ? targetHue : AUDIO_VISUAL_BASE.hue, 3, delta);
   audioState.visual.alpha = damp(audioState.visual.alpha, modifiers.alpha ? targetAlpha : AUDIO_VISUAL_BASE.alpha, 6, delta);
+  audioState.visual.saturation = damp(
+    audioState.visual.saturation,
+    modifiers.saturation ? targetSaturation : AUDIO_VISUAL_BASE.saturation,
+    5,
+    delta
+  );
+  audioState.visual.brightness = damp(
+    audioState.visual.brightness,
+    modifiers.brightness ? targetBrightness : AUDIO_VISUAL_BASE.brightness,
+    5,
+    delta
+  );
+
+  audioState.previousBass = bassTarget;
+  audioState.previousEnergy = energyTarget;
+  audioState.previousTreble = trebleTarget;
+  audioState.previousWave = waveTarget;
 }
 
-function applyAudioVisuals(delta) {
-  updateAudioReactive(delta);
+function applyAudioVisuals(delta, skipReactive = false) {
+  if (!skipReactive) {
+    updateAudioReactive(delta);
+  }
   const modifiers = audioState.modifiers || {};
   applyAudioVisualState(modifiers);
   applyAudioMotion(delta, modifiers);
@@ -2639,6 +2803,7 @@ audioUI.statusDot = $('audioStatusDot');
 audioUI.modifierButtons = Array.from(document.querySelectorAll('#audioModifierGrid [data-modifier]'));
 audioUI.intensityControls = new Map();
 audioUI.supportNotice = $('audioSupportNotice');
+audioUI.autoRandomBtn = $('audioRandomMode');
 
 if (audioUI.toggle && audioUI.body) {
   audioUI.toggle.addEventListener('click', () => {
@@ -2672,6 +2837,148 @@ document.querySelectorAll('[data-intensity-target]').forEach(input => {
 });
 syncAudioIntensityControls();
 
+function updateAutoRandomButton(forceDisabled = false) {
+  if (!audioUI.autoRandomBtn) return;
+  const disabled = Boolean(forceDisabled);
+  if (disabled) {
+    audioUI.autoRandomBtn.disabled = true;
+    audioUI.autoRandomBtn.setAttribute('aria-disabled', 'true');
+  } else {
+    audioUI.autoRandomBtn.disabled = false;
+    audioUI.autoRandomBtn.removeAttribute('aria-disabled');
+  }
+  audioUI.autoRandomBtn.setAttribute('aria-pressed', autoRandomState.enabled ? 'true' : 'false');
+  audioUI.autoRandomBtn.textContent = autoRandomState.enabled ? '🔀 Random-Modus an' : '🔀 Random-Modus aus';
+}
+
+function scheduleNextAutoRandom() {
+  const min = autoRandomState.minInterval;
+  const max = autoRandomState.maxInterval;
+  const playing = audioState.playing || audioState.usingMic;
+  const drive = playing ? Math.max(audioState.metrics.energy, audioState.metrics.bass, audioState.metrics.wave) : 0;
+  const baseInterval = min + Math.random() * Math.max(0, max - min);
+  const modulation = playing ? Math.max(0.45, 1 - Math.min(0.65, drive * 0.8)) : 1;
+  const interval = Math.max(6, baseInterval * modulation);
+  autoRandomState.nextTrigger = autoRandomState.elapsed + interval;
+}
+
+function setAutoRandomEnabled(enabled) {
+  const next = Boolean(enabled);
+  if (autoRandomState.enabled === next) {
+    updateAutoRandomButton(audioUI.autoRandomBtn ? audioUI.autoRandomBtn.disabled : false);
+    return;
+  }
+  autoRandomState.enabled = next;
+  autoRandomState.nudgeAccumulator = 0;
+  if (autoRandomState.enabled) {
+    autoRandomState.elapsed = 0;
+    scheduleNextAutoRandom();
+  } else {
+    autoRandomState.nextTrigger = Infinity;
+  }
+  updateAutoRandomButton(audioUI.autoRandomBtn ? audioUI.autoRandomBtn.disabled : false);
+}
+
+function isUserInteractingWithControls() {
+  const active = document.activeElement;
+  if (!active || active === document.body) return false;
+  if (panel && panel.contains(active)) return true;
+  if (audioUI.panel && audioUI.panel.contains(active)) return true;
+  return false;
+}
+
+function nudgeSliderValue(id, delta) {
+  const handler = sliderHandlers[id];
+  const getter = sliderValueGetters[id];
+  if (typeof handler !== 'function' || typeof getter !== 'function') {
+    return false;
+  }
+  const current = Number(getter());
+  const change = Number(delta);
+  if (!Number.isFinite(current) || !Number.isFinite(change) || Math.abs(change) < 1e-4) {
+    return false;
+  }
+  const next = clampToSliderBounds(id, current + change);
+  if (!Number.isFinite(next) || Math.abs(next - current) < 1e-4) {
+    return false;
+  }
+  handler(next);
+  return true;
+}
+
+function applyAudioDrivenTweaks(delta, playing) {
+  if (!playing) {
+    autoRandomState.nudgeAccumulator = 0;
+    return false;
+  }
+  if (isUserInteractingWithControls()) {
+    autoRandomState.nudgeAccumulator = 0;
+    return false;
+  }
+  autoRandomState.nudgeAccumulator += delta;
+  const dynamicInterval = Math.max(0.18, autoRandomState.nudgeInterval - audioState.metrics.wave * 0.2);
+  if (autoRandomState.nudgeAccumulator < dynamicInterval) {
+    return false;
+  }
+  autoRandomState.nudgeAccumulator = 0;
+
+  const bass = audioState.metrics.bass;
+  const energy = audioState.metrics.energy;
+  const wave = audioState.metrics.wave;
+  const treble = audioState.metrics.treble;
+  const drive = Math.max(bass * 1.15 + energy * 0.75, wave * 0.9 + treble * 0.7);
+  const gain = Math.max(0, Math.min(1.6, drive * (0.6 + getAudioIntensity('scale') * 0.4)));
+  if (gain < 0.18) {
+    return false;
+  }
+
+  const operations = [
+    () => nudgeSliderValue('pMotionSpeed', randomRange(-0.32, 0.52) * gain),
+    () => nudgeSliderValue('pMotionAmplitude', randomRange(-4.5, 5.5) * gain),
+    () => nudgeSliderValue('pMotionNoiseStrength', randomRange(-0.38, 0.6) * gain),
+    () => nudgeSliderValue('pMotionNoiseScale', randomRange(-0.38, 0.42) * gain),
+    () => nudgeSliderValue('pColorSpeed', randomRange(-0.45, 0.65) * gain),
+    () => nudgeSliderValue('pColorIntensity', randomRange(-0.35, 0.35) * gain),
+    () => nudgeSliderValue('pHueSpread', randomRange(-16, 18) * gain),
+    () => nudgeSliderValue('pHue', (treble * 35 - 17) * gain + randomRange(-8, 8) * gain),
+    () => nudgeSliderValue('pSaturation', randomRange(-0.18, 0.22) * gain),
+    () => nudgeSliderValue('pValue', randomRange(-0.15, 0.2) * gain),
+    () => nudgeSliderValue('pPointAlpha', randomRange(-0.12, 0.15) * gain),
+    () => nudgeSliderValue('pSizeVar', randomRange(-0.42, 0.5) * gain),
+    () => nudgeSliderValue('pSizeSmall', randomRange(-0.24, 0.28) * gain * 0.6),
+    () => nudgeSliderValue('pSizeMedium', randomRange(-0.24, 0.28) * gain * 0.6),
+    () => nudgeSliderValue('pSizeLarge', randomRange(-0.24, 0.28) * gain * 0.6)
+  ];
+  const attempts = Math.max(1, Math.min(operations.length, Math.round(2 + drive * 4)));
+  let changed = false;
+  for (let i = 0; i < attempts && operations.length; i++) {
+    const index = Math.floor(Math.random() * operations.length);
+    const op = operations.splice(index, 1)[0];
+    if (op && op()) {
+      changed = true;
+    }
+  }
+  return changed;
+}
+
+function updateAutoRandom(delta) {
+  autoRandomState.elapsed += delta;
+  if (!autoRandomState.enabled) {
+    return;
+  }
+  const playing = audioState.playing || audioState.usingMic;
+  if (autoRandomState.elapsed >= autoRandomState.nextTrigger) {
+    if (playing) {
+      randomizeParameters({ syncUI: true });
+    }
+    scheduleNextAutoRandom();
+  }
+  const nudged = applyAudioDrivenTweaks(delta, playing);
+  if (nudged) {
+    setSliders();
+  }
+}
+
 if (audioUI.modifierButtons.length) {
   audioUI.modifierButtons.forEach(button => {
     button.addEventListener('click', () => {
@@ -2681,6 +2988,13 @@ if (audioUI.modifierButtons.length) {
       }
     });
   });
+}
+
+if (audioUI.autoRandomBtn) {
+  audioUI.autoRandomBtn.addEventListener('click', () => {
+    setAutoRandomEnabled(!autoRandomState.enabled);
+  });
+  updateAutoRandomButton(false);
 }
 
 if (audioUI.fileInput) {
@@ -3767,8 +4081,7 @@ lockBtn.addEventListener('click', () => {
   setCameraLocked(!cameraLocked);
 });
 
-$('random').addEventListener('click', () => {
-  // randomize many parameters
+function randomizeParameters({ syncUI = true } = {}) {
   const totalCount = 500 + Math.floor(Math.random() * 7500);
   params.count = clampTotalCount(totalCount);
   params.radius = 60 + Math.random() * 180;
@@ -3812,8 +4125,7 @@ $('random').addEventListener('click', () => {
   params.edgeSoftness = Math.random();
   params.blending = (Math.random() < 0.5) ? 'Normal' : 'Additive';
   params.filled = Math.random() < 0.3;
-  const motionModes = MOTION_MODES;
-  params.motionMode = motionModes[Math.floor(Math.random() * motionModes.length)];
+  params.motionMode = MOTION_MODES[Math.floor(Math.random() * MOTION_MODES.length)];
   params.motionSpeed = Math.random() * 2.5;
   params.motionAmplitude = Math.random() * 30;
   params.motionNoiseStrength = Math.random() * 2.0;
@@ -3821,7 +4133,13 @@ $('random').addEventListener('click', () => {
   enforceBounds();
   updatePointColor();
   rebuildStars();
-  setSliders();
+  if (syncUI) {
+    setSliders();
+  }
+}
+
+$('random').addEventListener('click', () => {
+  randomizeParameters({ syncUI: true });
 });
 
 /* Update slider displays */
@@ -3961,7 +4279,9 @@ function animate(now) {
     }
   }
 
-  applyAudioVisuals(delta);
+  updateAudioReactive(delta);
+  updateAutoRandom(delta);
+  applyAudioVisuals(delta, true);
 
   if (cameraLocked) {
     controls.target.copy(clusterGroup.position);
