@@ -24,10 +24,10 @@
      fi
      ```
 
-     - Wenn keine URL gesetzt ist, bitte `GIT_REMOTE_URL` (z. B. `https://github.com/<owner>/<repo>.git`) bereitstellen.
+     - Wenn keine URL gesetzt ist, bitte `GIT_REMOTE_URL` (z. B. `https://github.com/<owner>/<repo>.git`) bereitstellen.
 
   3. **GitHub CLI installieren (falls nicht vorhanden):**
-     - Prüfe zuerst, ob bereits eine ausführbare Datei vorhanden ist (z. B. `/usr/local/bin/gh` oder in `/opt/gh/bin`). Falls ja, ergänze den Pfad:
+     - Prüfe zuerst, ob bereits eine ausführbare Datei vorhanden ist (z. B. `/usr/local/bin/gh` oder in `/opt/gh/bin`). Falls ja, ergänze den Pfad:
        ```bash
        if ! command -v gh &> /dev/null && [ -x "/opt/gh/bin/gh" ]; then
          export PATH="/opt/gh/bin:$PATH"
@@ -58,7 +58,7 @@
        echo "     git remote set-url origin https://github.com/<owner>/<repo>.git"
        echo "     git config user.name \"${GIT_USER_NAME:-Your Name}\""
        echo "     git config user.email \"${GIT_USER_EMAIL:-you@example.com}\""
-       echo "     GH_TOKEN/GITHUB_TOKEN beim Push als Passwort nutzen (z. B. git push https://x-access-token:${GH_TOKEN:-<PAT>}@github.com/<owner>/<repo>.git work)."
+       echo "     GH_TOKEN/GITHUB_TOKEN beim Push als Passwort nutzen (z. B. git push https://x-access-token:${GH_TOKEN:-<PAT>}@github.com/<owner>/<repo>.git work)."
        echo "   Alternativ: Personal Access Token manuell eingeben, wenn Git nach Credentials fragt."
      fi
      ```
@@ -115,44 +115,50 @@
   else
     ssh -T git@github.com || true
   fi
-  ```
+Push-Befehl:
 
-  7. **Push-Befehl:**
-  ```bash
-  git push -u origin work
-  ```
+bash
+Code kopieren
+git push -u origin work
+Workflow-Erinnerungen
+Arbeite ausschließlich auf dem Branch work. Falls er noch nicht existiert, von main aus erstellen.
 
-## Workflow-Erinnerungen
+Vor jeder Änderung synchronisieren:
 
-- Arbeite ausschließlich auf dem Branch `work`. Falls er noch nicht existiert, von `main` aus erstellen.
-- Vor jeder Änderung synchronisieren:
-  ```bash
-  git fetch origin
-  git pull --ff-only origin work || git pull --rebase origin work
-  ```
-- Nach Änderungen immer `git add -A` und konventionelle Commits nutzen (z. B. `feat:`, `fix:`, Doku mit `[skip ci]`).
-- Direkt nach jedem Commit pushen. Erster Push: `git push -u origin work`, danach `git push`.
+bash
+Code kopieren
+git fetch origin
+git pull --ff-only origin work || git pull --rebase origin work
+Nach Änderungen immer git add -A und konventionelle Commits nutzen (z. B. feat:, fix:, Doku mit [skip ci]).
 
-### Merge-Konflikte in bestehenden Pull-Requests beheben
+Direkt nach jedem Commit pushen. Erster Push: git push -u origin work, danach git push.
 
-- Hole den aktuellen Stand von `main` und dem betroffenen PR-Branch:
-  ```bash
-  git fetch origin
-  git switch <feature-branch>
-  git pull --rebase origin main
-  ```
-- Löse Konflikte lokal und committe die Auflösung.
-- Synchronisiere anschließend den Branch (z. B. `git push --force-with-lease origin <feature-branch>`), damit der PR aktualisiert wird.
-- Falls der PR einem Fork gehört, wähle den passenden Remote (z. B. `git remote add upstream …`) und ziehe die Änderungen entsprechend.
+Merge-Konflikte in bestehenden Pull-Requests beheben
+Hole den aktuellen Stand von main und dem betroffenen PR-Branch:
 
-## Qualitätssicherung
+bash
+Code kopieren
+git fetch origin
+git switch <feature-branch>
+git pull --rebase origin main
+Löse Konflikte lokal und committe die Auflösung.
 
-- Respektiere vorhandene Lockfiles und nutze die passenden Install-Befehle (`pnpm i --frozen-lockfile`, `npm ci`, `yarn install --frozen-lockfile`, `pip install -r requirements.txt`, …).
-- Führe bei Codeänderungen die relevanten Linter und Tests aus. Wenn nur Dokumentation angepasst wird, darf mit `[skip ci]` committet werden.
-- Keine Secrets in Dateien oder Logs ablegen; stattdessen Umgebungsvariablen verwenden.
+Synchronisiere anschließend den Branch (z. B. git push --force-with-lease origin <feature-branch>), damit der PR aktualisiert wird.
 
-## Transparenz & Kommunikation
+Falls der PR einem Fork gehört, wähle den passenden Remote (z. B. git remote add upstream …) und ziehe die Änderungen entsprechend.
 
-- Größere Änderungen vorher kurz planen (Scope, Deliverables, Tests, Annahmen).
-- Nach dem Push Commit-SHA und Link bereitstellen.
-- Blockaden früh melden und mögliche Lösungen skizzieren.
+Qualitätssicherung
+Respektiere vorhandene Lockfiles und nutze die passenden Install-Befehle (pnpm i --frozen-lockfile, npm ci, yarn install --frozen-lockfile, pip install -r requirements.txt, …).
+
+Führe bei Codeänderungen die relevanten Linter und Tests aus. Wenn nur Dokumentation angepasst wird, darf mit [skip ci] committet werden.
+
+Keine Secrets in Dateien oder Logs ablegen; stattdessen Umgebungsvariablen verwenden.
+
+Transparenz & Kommunikation
+Größere Änderungen vorher kurz planen (Scope, Deliverables, Tests, Annahmen).
+
+Nach dem Push Commit-SHA und Link bereitstellen.
+
+Blockaden früh melden und mögliche Lösungen skizzieren.
+
+Code kopieren
