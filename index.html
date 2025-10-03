@@ -294,6 +294,20 @@
         </div>
       </div>
       <div class="row">
+        <label for="pSaturation">Punktfarbe (Sättigung)</label>
+        <div class="wrap">
+          <input id="pSaturation" type="range" min="0" max="1" step="0.01" />
+          <div class="val" id="vSaturation"></div>
+        </div>
+      </div>
+      <div class="row">
+        <label for="pValue">Punktfarbe (Helligkeit)</label>
+        <div class="wrap">
+          <input id="pValue" type="range" min="0" max="1" step="0.01" />
+          <div class="val" id="vValue"></div>
+        </div>
+      </div>
+      <div class="row">
         <label for="pSeedStars">Seed Punkte</label>
         <div class="wrap">
           <input id="pSeedStars" type="range" min="1" max="9999" step="1" />
@@ -501,6 +515,8 @@ const params = {
   cluster: 0.65,
   pointAlpha: 0.95,
   pointHue: 210,
+  pointSaturation: 0.75,
+  pointValue: 1.0,
   seedStars: 1,
   catSmall: 45,
   catMedium: 35,
@@ -521,7 +537,6 @@ const params = {
   filled: false
 };
 
-const COLOR_SETTINGS = { saturation: 0.75, value: 1.0 };
 const colorState = { point: new THREE.Color() };
 
 /* Globals for stars and tiny connections */
@@ -530,7 +545,9 @@ let tinyPoints, tinyGeometry, tinyMaterial;
 
 function updatePointColor(applyUniforms = true) {
   const hue = ((params.pointHue % 360) + 360) % 360;
-  const next = hsv2rgb(hue, COLOR_SETTINGS.saturation, COLOR_SETTINGS.value);
+  const saturation = Math.max(0, Math.min(1, params.pointSaturation));
+  const value = Math.max(0, Math.min(1, params.pointValue));
+  const next = hsv2rgb(hue, saturation, value);
   colorState.point.copy(next);
   if (!applyUniforms) return;
   if (starMaterial && starMaterial.uniforms && starMaterial.uniforms.uColor) {
@@ -1339,6 +1356,8 @@ const sliders = {
   pCluster:     val => { params.cluster = parseFloat(val); rebuildStars(); },
   pPointAlpha:  val => { params.pointAlpha = parseFloat(val); updateStarUniforms(); },
   pHue:         val => { params.pointHue = parseFloat(val); updatePointColor(); updateStarUniforms(); updateTinyMaterial(); },
+  pSaturation:  val => { params.pointSaturation = parseFloat(val); updatePointColor(); updateStarUniforms(); updateTinyMaterial(); },
+  pValue:       val => { params.pointValue = parseFloat(val); updatePointColor(); updateStarUniforms(); updateTinyMaterial(); },
   pSeedStars:   val => { params.seedStars = parseInt(val, 10); rebuildStars(); },
   pCatSmall:    val => { setCategoryPercent('small', parseInt(val, 10)); rebuildStars(); },
   pCatMedium:   val => { setCategoryPercent('medium', parseInt(val, 10)); rebuildStars(); },
@@ -1443,6 +1462,8 @@ $('random').addEventListener('click', () => {
   params.cluster = Math.random() * 0.95;
   params.pointAlpha = 0.3 + Math.random() * 0.7;
   params.pointHue = Math.random() * 360;
+  params.pointSaturation = Math.random();
+  params.pointValue = 0.3 + Math.random() * 0.7;
   params.seedStars = 1 + Math.floor(Math.random() * 9999);
   const distributions = ['random', 'fibonacci', 'spiral'];
   params.distribution = distributions[Math.floor(Math.random() * distributions.length)];
@@ -1479,6 +1500,8 @@ function setSliders() {
   $('pCluster').value = params.cluster; $('vCluster').textContent = params.cluster.toFixed(2);
   $('pPointAlpha').value = params.pointAlpha; $('vPointAlpha').textContent = params.pointAlpha.toFixed(2);
   $('pHue').value = params.pointHue; $('vHue').textContent = Math.round(params.pointHue) + '°';
+  $('pSaturation').value = params.pointSaturation; $('vSaturation').textContent = (params.pointSaturation * 100).toFixed(0) + '%';
+  $('pValue').value = params.pointValue; $('vValue').textContent = (params.pointValue * 100).toFixed(0) + '%';
   $('pSeedStars').value = params.seedStars; $('vSeedStars').textContent = params.seedStars;
   $('pCatSmall').value = params.catSmall; $('vCatSmall').textContent = params.catSmall + '%';
   $('pCatMedium').value = params.catMedium; $('vCatMedium').textContent = params.catMedium + '%';
