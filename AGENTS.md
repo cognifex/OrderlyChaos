@@ -95,16 +95,18 @@
        chmod 600 ~/.ssh/config
        ```
 
-     - Setze Remote auf SSH **nur, wenn explizit HTTPS-Probleme bestehen und der Wechsel gewünscht ist** (ansonsten diesen Schritt überspringen). Überspringe diesen Schritt ebenfalls, wenn `$GIT_REMOTE_URL` bereits gesetzt wurde oder wenn du auf einem Fork arbeitest.
-       ```bash
-       # Nur ausführen, wenn origin wirklich auf SSH umgestellt werden soll
-       git remote set-url origin git@github.com:cognifex/OrderlyChaos.git
-       ```
+    - Setze Remote auf SSH **nur, wenn explizit HTTPS-Probleme bestehen und der Wechsel gewünscht ist** (ansonsten diesen Schritt überspringen). Überspringe diesen Schritt ebenfalls, wenn `$GIT_REMOTE_URL` bereits gesetzt wurde oder wenn du auf einem Fork arbeitest.
+      ```bash
+      # Nur ausführen, wenn origin wirklich auf SSH umgestellt werden soll
+      git remote set-url origin git@github.com:cognifex/OrderlyChaos.git
+      ```
 
-       > ℹ️ Alternativ kannst du einen separaten Remote hinzufügen, z. B. `ssh-origin`, um den bestehenden `origin` nicht zu überschreiben:
-       > ```bash
-       > git remote add ssh-origin git@github.com:cognifex/OrderlyChaos.git
-       > ```
+      > 💡 Empfohlen ist meist, den bestehenden HTTPS-Remote beizubehalten und stattdessen einen separaten SSH-Remote zu ergänzen. So bleiben beide Pfade parallel nutzbar:
+      > ```bash
+      > if ! git remote get-url ssh-origin >/dev/null 2>&1; then
+      >   git remote add ssh-origin git@github.com:cognifex/OrderlyChaos.git
+      > fi
+      > ```
 
   6. **Verbindung testen:**
   ```bash
