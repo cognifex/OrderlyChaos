@@ -801,6 +801,105 @@ const audioUI = {
 
 const audioBandVector = new THREE.Vector3();
 
+function applyAudioVisualState(modifiers = audioState.modifiers || {}) {
+  const sizeBoost = modifiers.size ? audioState.visual.size : AUDIO_VISUAL_BASE.size;
+  const hueOffset = modifiers.hue ? audioState.visual.hue : AUDIO_VISUAL_BASE.hue;
+  const saturationBoost = modifiers.saturation ? audioState.metrics.treble * 0.18 : 0;
+  const brightnessBoost = modifiers.brightness ? audioState.metrics.energy * 0.25 : 0;
+  const hue = (params.pointHue + hueOffset) % 360;
+  const saturation = Math.min(1, params.pointSaturation + saturationBoost);
+  const brightness = Math.min(1.1, params.pointValue + brightnessBoost);
+  const reactiveColor = hsv2rgb(hue, saturation, brightness);
+  audioState.color.copy(reactiveColor);
+
+  const targetScale = modifiers.scale ? audioState.visual.scale : AUDIO_VISUAL_BASE.scale;
+  const sphereScale = Math.max(0.35, Math.min(2.2, targetScale));
+  if (Number.isFinite(sphereScale)) {
+    if (Math.abs(clusterGroup.scale.x - sphereScale) > 1e-4 ||
+        Math.abs(clusterGroup.scale.y - sphereScale) > 1e-4 ||
+        Math.abs(clusterGroup.scale.z - sphereScale) > 1e-4) {
+      clusterGroup.scale.setScalar(sphereScale);
+    }
+  }
+
+  audioBandVector.set(audioState.metrics.bass, audioState.metrics.mid, audioState.metrics.treble);
+
+  if (starMaterial && starMaterial.uniforms) {
+    if (starMaterial.uniforms.uAudioBands && starMaterial.uniforms.uAudioBands.value) {
+      starMaterial.uniforms.uAudioBands.value.copy(audioBandVector);
+    }
+    if (starMaterial.uniforms.uAudioEnergy) {
+      starMaterial.uniforms.uAudioEnergy.value = audioState.metrics.energy;
+    }
+    if (starMaterial.uniforms.uAudioWave) {
+      starMaterial.uniforms.uAudioWave.value = audioState.metrics.wave;
+    }
+    if (starMaterial.uniforms.uSizeFactorSmall) {
+      starMaterial.uniforms.uSizeFactorSmall.value = params.sizeFactorSmall * sizeBoost;
+    }
+    if (starMaterial.uniforms.uSizeFactorMedium) {
+      starMaterial.uniforms.uSizeFactorMedium.value = params.sizeFactorMedium * sizeBoost;
+    }
+    if (starMaterial.uniforms.uSizeFactorLarge) {
+      starMaterial.uniforms.uSizeFactorLarge.value = params.sizeFactorLarge * sizeBoost;
+    }
+    if (starMaterial.uniforms.uAlpha) {
+      const baseAlpha = params.pointAlpha;
+      const alphaBoost = modifiers.alpha ? audioState.visual.alpha : AUDIO_VISUAL_BASE.alpha;
+      const boostedAlpha = Math.max(0.05, Math.min(1, baseAlpha + alphaBoost));
+      starMaterial.uniforms.uAlpha.value = boostedAlpha;
+    }
+    if (starMaterial.uniforms.uColor) {
+      starMaterial.uniforms.uColor.value.copy(audioState.color);
+    }
+  }
+
+  if (tinyMaterial && tinyMaterial.uniforms) {
+    if (tinyMaterial.uniforms.uAudioBands && tinyMaterial.uniforms.uAudioBands.value) {
+      tinyMaterial.uniforms.uAudioBands.value.copy(audioBandVector);
+    }
+    if (tinyMaterial.uniforms.uAudioEnergy) {
+      tinyMaterial.uniforms.uAudioEnergy.value = audioState.metrics.energy;
+    }
+    if (tinyMaterial.uniforms.uAudioWave) {
+      tinyMaterial.uniforms.uAudioWave.value = audioState.metrics.wave;
+    }
+    const waveContribution = modifiers.size ? audioState.metrics.wave : 0;
+    const tinySize = params.sizeFactorTiny * Math.max(0.05, 0.8 + sizeBoost * 0.2 + waveContribution * 0.35);
+    if (tinyMaterial.uniforms.uSize) {
+      tinyMaterial.uniforms.uSize.value = tinySize;
+    }
+    if (tinyMaterial.uniforms.uAlpha) {
+      const baseTinyAlpha = params.tinyAlpha;
+      const alphaBoost = modifiers.alpha ? audioState.visual.alpha : AUDIO_VISUAL_BASE.alpha;
+      const boostedTinyAlpha = Math.min(1, baseTinyAlpha + alphaBoost * 0.4);
+      tinyMaterial.uniforms.uAlpha.value = boostedTinyAlpha;
+    }
+    if (tinyMaterial.uniforms.uColor) {
+      tinyMaterial.uniforms.uColor.value.copy(audioState.color);
+    }
+  }
+}
+
+function applyAudioMotion(delta, modifiers = audioState.modifiers || {}) {
+  const extraRotation = modifiers.motion ? audioState.visual.motion : AUDIO_VISUAL_BASE.motion;
+  if (extraRotation > 1e-4) {
+    const yaw = extraRotation * delta * 0.85;
+    const pitch = (modifiers.motion ? audioState.metrics.wave : 0) * delta * 0.35;
+    if (Number.isFinite(yaw) && Math.abs(yaw) < Math.PI) {
+      clusterGroup.rotateY(yaw);
+    }
+    if (Number.isFinite(pitch) && Math.abs(pitch) < Math.PI) {
+      clusterGroup.rotateX(pitch);
+    }
+  }
+}
+
+function resetAudioReactivity() {
+  resetAudioMetrics();
+  applyAudioVisualState();
+}
+
 function isAudioSupported() {
   return !!AudioContextClass;
 }
@@ -874,6 +973,7 @@ function stopAudioPlayback({ suspendContext = false } = {}) {
   audioState.playing = false;
   audioState.usingMic = false;
   disconnectAnalyser();
+  resetAudioReactivity();
   if (audioState.context && suspendContext && typeof audioState.context.suspend === 'function') {
     audioState.context.suspend().catch(() => {});
   }
@@ -897,6 +997,7 @@ function setAudioModifier(key, enabled) {
     audioState.visual[key] = AUDIO_VISUAL_BASE[key];
   }
   refreshAudioUI();
+  applyAudioVisualState();
 }
 
 function toggleAudioModifier(key) {
@@ -985,9 +1086,7 @@ async function playSelectedFile() {
     source.buffer = buffer;
     source.onended = () => {
       if (audioState.source === source) {
-        audioState.source = null;
-        disconnectAnalyser();
-        audioState.playing = false;
+        stopAudioPlayback();
         setAudioStatus('Wiedergabe beendet', 'idle');
         refreshAudioUI();
       }
@@ -1138,95 +1237,8 @@ function updateAudioReactive(delta) {
 function applyAudioVisuals(delta) {
   updateAudioReactive(delta);
   const modifiers = audioState.modifiers || {};
-  const sizeBoost = modifiers.size ? audioState.visual.size : AUDIO_VISUAL_BASE.size;
-  const hueOffset = modifiers.hue ? audioState.visual.hue : AUDIO_VISUAL_BASE.hue;
-  const saturationBoost = modifiers.saturation ? audioState.metrics.treble * 0.18 : 0;
-  const brightnessBoost = modifiers.brightness ? audioState.metrics.energy * 0.25 : 0;
-  const hue = (params.pointHue + hueOffset) % 360;
-  const saturation = Math.min(1, params.pointSaturation + saturationBoost);
-  const brightness = Math.min(1.1, params.pointValue + brightnessBoost);
-  const reactiveColor = hsv2rgb(hue, saturation, brightness);
-  audioState.color.copy(reactiveColor);
-
-  const targetScale = modifiers.scale ? audioState.visual.scale : AUDIO_VISUAL_BASE.scale;
-  const sphereScale = Math.max(0.35, Math.min(2.2, targetScale));
-  if (Number.isFinite(sphereScale)) {
-    if (Math.abs(clusterGroup.scale.x - sphereScale) > 1e-4 ||
-        Math.abs(clusterGroup.scale.y - sphereScale) > 1e-4 ||
-        Math.abs(clusterGroup.scale.z - sphereScale) > 1e-4) {
-      clusterGroup.scale.setScalar(sphereScale);
-    }
-  }
-
-  audioBandVector.set(audioState.metrics.bass, audioState.metrics.mid, audioState.metrics.treble);
-
-  if (starMaterial && starMaterial.uniforms) {
-    if (starMaterial.uniforms.uAudioBands && starMaterial.uniforms.uAudioBands.value) {
-      starMaterial.uniforms.uAudioBands.value.copy(audioBandVector);
-    }
-    if (starMaterial.uniforms.uAudioEnergy) {
-      starMaterial.uniforms.uAudioEnergy.value = audioState.metrics.energy;
-    }
-    if (starMaterial.uniforms.uAudioWave) {
-      starMaterial.uniforms.uAudioWave.value = audioState.metrics.wave;
-    }
-    if (starMaterial.uniforms.uSizeFactorSmall) {
-      starMaterial.uniforms.uSizeFactorSmall.value = params.sizeFactorSmall * sizeBoost;
-    }
-    if (starMaterial.uniforms.uSizeFactorMedium) {
-      starMaterial.uniforms.uSizeFactorMedium.value = params.sizeFactorMedium * sizeBoost;
-    }
-    if (starMaterial.uniforms.uSizeFactorLarge) {
-      starMaterial.uniforms.uSizeFactorLarge.value = params.sizeFactorLarge * sizeBoost;
-    }
-    if (starMaterial.uniforms.uAlpha) {
-      const baseAlpha = params.pointAlpha;
-      const alphaBoost = modifiers.alpha ? audioState.visual.alpha : AUDIO_VISUAL_BASE.alpha;
-      const boostedAlpha = Math.max(0.05, Math.min(1, baseAlpha + alphaBoost));
-      starMaterial.uniforms.uAlpha.value = boostedAlpha;
-    }
-    if (starMaterial.uniforms.uColor) {
-      starMaterial.uniforms.uColor.value.copy(audioState.color);
-    }
-  }
-
-  if (tinyMaterial && tinyMaterial.uniforms) {
-    if (tinyMaterial.uniforms.uAudioBands && tinyMaterial.uniforms.uAudioBands.value) {
-      tinyMaterial.uniforms.uAudioBands.value.copy(audioBandVector);
-    }
-    if (tinyMaterial.uniforms.uAudioEnergy) {
-      tinyMaterial.uniforms.uAudioEnergy.value = audioState.metrics.energy;
-    }
-    if (tinyMaterial.uniforms.uAudioWave) {
-      tinyMaterial.uniforms.uAudioWave.value = audioState.metrics.wave;
-    }
-    const waveContribution = modifiers.size ? audioState.metrics.wave : 0;
-    const tinySize = params.sizeFactorTiny * Math.max(0.05, 0.8 + sizeBoost * 0.2 + waveContribution * 0.35);
-    if (tinyMaterial.uniforms.uSize) {
-      tinyMaterial.uniforms.uSize.value = tinySize;
-    }
-    if (tinyMaterial.uniforms.uAlpha) {
-      const baseTinyAlpha = params.tinyAlpha;
-      const alphaBoost = modifiers.alpha ? audioState.visual.alpha : AUDIO_VISUAL_BASE.alpha;
-      const boostedTinyAlpha = Math.min(1, baseTinyAlpha + alphaBoost * 0.4);
-      tinyMaterial.uniforms.uAlpha.value = boostedTinyAlpha;
-    }
-    if (tinyMaterial.uniforms.uColor) {
-      tinyMaterial.uniforms.uColor.value.copy(audioState.color);
-    }
-  }
-
-  const extraRotation = modifiers.motion ? audioState.visual.motion : AUDIO_VISUAL_BASE.motion;
-  if (extraRotation > 1e-4) {
-    const yaw = extraRotation * delta * 0.85;
-    const pitch = (modifiers.motion ? audioState.metrics.wave : 0) * delta * 0.35;
-    if (Number.isFinite(yaw) && Math.abs(yaw) < Math.PI) {
-      clusterGroup.rotateY(yaw);
-    }
-    if (Number.isFinite(pitch) && Math.abs(pitch) < Math.PI) {
-      clusterGroup.rotateX(pitch);
-    }
-  }
+  applyAudioVisualState(modifiers);
+  applyAudioMotion(delta, modifiers);
 }
 
 /* Globals for stars and tiny connections */
@@ -3074,6 +3086,7 @@ setCameraLocked(false);
 updatePointColor(false);
 setSliders();
 rebuildStars();
+applyAudioVisualState();
 requestAnimationFrame(animate);
 </script>
 </body>
