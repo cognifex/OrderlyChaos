@@ -1126,6 +1126,7 @@ function updateAudioReactive(delta) {
   const targetScale = Math.min(2.2, 1 + audioState.metrics.energy * 0.45 + audioState.metrics.wave * 0.35 + audioState.metrics.bass * 0.25);
   const targetHue = audioState.metrics.treble * 90;
   const targetAlpha = Math.min(0.5, audioState.metrics.energy * 0.35 + audioState.metrics.wave * 0.2);
+  const modifiers = audioState.modifiers || {};
 
   audioState.visual.motion = damp(audioState.visual.motion, modifiers.motion ? targetMotion : AUDIO_VISUAL_BASE.motion, 6, delta);
   audioState.visual.size = damp(audioState.visual.size, modifiers.size ? targetSize : AUDIO_VISUAL_BASE.size, 7, delta);
