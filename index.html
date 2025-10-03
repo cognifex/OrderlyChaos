@@ -1065,8 +1065,6 @@ function updateAudioReactive(delta) {
   let trebleTarget = 0;
   let waveTarget = 0;
 
-  const modifiers = audioState.modifiers || {};
-
   if (audioState.analyser && audioState.freqData) {
     audioState.analyser.getByteFrequencyData(audioState.freqData);
   }
