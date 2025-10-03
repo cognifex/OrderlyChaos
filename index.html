@@ -3666,10 +3666,13 @@ function updateColorSwatchState() {
   });
 }
 
-function applyBaseColorFromHSV(h, s, v) {
+function applyBaseColorFromHSV(h, s, v, forceUniform = false) {
   params.pointHue = normalizeHue(h);
   params.pointSaturation = clamp01(s);
   params.pointValue = clamp01(v);
+  if (forceUniform && params.colorMode !== 'uniform') {
+    params.colorMode = 'uniform';
+  }
   updatePointColor();
   updateStarUniforms();
   updateTinyMaterial();
@@ -3684,7 +3687,7 @@ if (colorPickerInput) {
   colorPickerInput.addEventListener('input', event => {
     const hsv = hexToHsv(event.target.value);
     if (!hsv) return;
-    applyBaseColorFromHSV(hsv.h, hsv.s, hsv.v);
+    applyBaseColorFromHSV(hsv.h, hsv.s, hsv.v, true);
   });
 }
 
@@ -3695,7 +3698,7 @@ if (colorSwatchButtons.length) {
       const s = parseFloat(button.dataset.s);
       const v = parseFloat(button.dataset.v);
       if ([h, s, v].some(val => Number.isNaN(val))) return;
-      applyBaseColorFromHSV(h, s, v);
+      applyBaseColorFromHSV(h, s, v, true);
     });
   });
 }
