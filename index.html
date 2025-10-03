@@ -1063,6 +1063,21 @@ function applyAudioVisuals(delta) {
 let starPoints, starGeometry, starMaterial;
 let tinyPoints, tinyGeometry, tinyMaterial;
 
+function disposeTinyResources() {
+  if (tinyPoints) {
+    clusterGroup.remove(tinyPoints);
+    tinyPoints = undefined;
+  }
+  if (tinyGeometry) {
+    tinyGeometry.dispose();
+    tinyGeometry = undefined;
+  }
+  if (tinyMaterial) {
+    tinyMaterial.dispose();
+    tinyMaterial = undefined;
+  }
+}
+
 function updatePointColor(applyUniforms = true) {
   const hue = ((params.pointHue % 360) + 360) % 360;
   const saturation = Math.max(0, Math.min(1, params.pointSaturation));
@@ -1378,17 +1393,13 @@ function makeStars() {
 
 /* Create tiny connection points */
 function makeTiny() {
-  if (tinyPoints) {
-    tinyGeometry.dispose();
-    tinyMaterial.dispose();
-    clusterGroup.remove(tinyPoints);
-  }
+  disposeTinyResources();
   // Determine number of tiny points based on connPercent
   const nTiny = Math.round(params.tinyCount * params.connPercent);
   // Access star positions for connections
   const starPos = (starGeometry && starGeometry.getAttribute) ? starGeometry.getAttribute('position') : null;
   const nStars = starPos ? starPos.count : 0;
-  if (!starPos || nStars === 0) {
+  if (!starPos || nStars === 0 || nTiny <= 0) {
     tinyPoints = undefined;
     return;
   }
