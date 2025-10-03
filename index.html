@@ -600,6 +600,9 @@
         </div>
       </div>
       <div class="row">
+        </select>
+      </div>
+      <div class="row">
         <label for="pSeedStars">Seed Punkte</label>
         <div class="wrap">
           <input class="bound-input" type="number" data-target="pSeedStars" data-bound="min" />
@@ -1108,6 +1111,7 @@ const colorState = {
   radius: params.radius
 };
 const COLOR_MODES = ['uniform', 'radialPulse', 'axisWave', 'phaseFlicker', 'randomHue'];
+const COLOR_MODES = ['uniform', 'radialPulse', 'axisWave', 'phaseFlicker'];
 const MOTION_MODES = ['static', 'sine', 'noise', 'orbit'];
 const motionState = { time: 0 };
 
@@ -1179,6 +1183,63 @@ const audioUI = {
   intensityControls: null,
   supportNotice: null
 };
+
+function clampIntensityPercent(value, fallback = 100) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return Math.max(0, Math.min(200, Math.round(fallback)));
+  }
+  const rounded = Math.round(numeric / 5) * 5;
+  return Math.max(0, Math.min(200, rounded));
+}
+
+function getAudioIntensity(key) {
+  if (!key || !audioState || !audioState.intensity) {
+    return 1;
+  }
+  if (!(key in audioState.intensity)) {
+    const fallback = (key in AUDIO_INTENSITY_DEFAULTS) ? AUDIO_INTENSITY_DEFAULTS[key] : 1;
+    audioState.intensity[key] = Number.isFinite(fallback) ? fallback : 1;
+  }
+  const current = audioState.intensity[key];
+  return Number.isFinite(current) ? Math.max(0, current) : 1;
+}
+
+function syncAudioIntensityControls() {
+  if (!audioUI.intensityControls || typeof audioUI.intensityControls.forEach !== 'function') {
+    return;
+  }
+  const modifiers = audioState.modifiers || {};
+  audioUI.intensityControls.forEach(({ input, valueEl, container }, key) => {
+    const percent = clampIntensityPercent(getAudioIntensity(key) * 100);
+    if (input) {
+      if (document.activeElement !== input) {
+        input.value = String(percent);
+      }
+      input.setAttribute('aria-valuenow', String(percent));
+    }
+    if (valueEl) {
+      valueEl.textContent = `${percent}%`;
+    }
+    if (container) {
+      const enabled = modifiers[key] !== false;
+      container.classList.toggle('is-disabled', !enabled);
+    }
+  });
+}
+
+function setAudioIntensity(key, percentValue) {
+  if (!key || !(key in AUDIO_INTENSITY_DEFAULTS)) {
+    return;
+  }
+  const clampedPercent = clampIntensityPercent(percentValue, AUDIO_INTENSITY_DEFAULTS[key] * 100);
+  if (!audioState.intensity) {
+    audioState.intensity = { ...AUDIO_INTENSITY_DEFAULTS };
+  }
+  audioState.intensity[key] = clampedPercent / 100;
+  syncAudioIntensityControls();
+  applyAudioVisualState();
+}
 
 const audioBandVector = new THREE.Vector3();
 
@@ -2092,6 +2153,21 @@ function makeStars() {
         rndHSV.z = clamp(rndHSV.z * (0.7 + 0.3 * (randC * 0.5 + 0.5)), 0.0, 1.2);
         vec3 randomColor = hsv2rgb(rndHSV);
         return mix(baseColor, randomColor, intensity);
+    vec3 computeColor() {
+      if (uColorMode < 0.5) {
+        return uColor;
+      } else if (uColorMode < 1.5) {
+        float norm = uColorRadius > 1e-4 ? clamp(vRadius / uColorRadius, 0.0, 1.0) : 0.0;
+        float pulse = 0.5 + 0.5 * sin(uTime * 2.2 + norm * 6.2831853 + vPhase * 3.1415926);
+        return mix(uColor, uColorAccent, pulse);
+      } else if (uColorMode < 2.5) {
+        float axis = clamp((vBase.y / max(uColorRadius, 1e-4)) * 0.5 + 0.5, 0.0, 1.0);
+        float sweep = 0.5 + 0.5 * sin(uTime * 1.4 + axis * 6.2831853);
+        return mix(uColorDim, uColorAccent, sweep);
+      } else {
+        float flicker = fract(sin(vPhase * 43758.5453 + uTime * 0.45) * 43758.5453);
+        float mixAmt = smoothstep(0.2, 0.8, flicker);
+        return mix(uColorDim, uColorAccent, mixAmt);
       }
     }
 
@@ -2137,6 +2213,7 @@ function makeStars() {
       uColorIntensity: { value: params.colorIntensity },
       uColorSpeed: { value: params.colorSpeed },
       uHueSpread: { value: params.hueSpread }
+      uColorRadius: { value: colorState.radius }
     }
   });
   starMaterial.blending = (params.blending === 'Additive') ? THREE.AdditiveBlending : THREE.NormalBlending;
@@ -2378,6 +2455,21 @@ function makeTiny() {
         rndHSV.z = clamp(rndHSV.z * (0.7 + 0.3 * (randC * 0.5 + 0.5)), 0.0, 1.2);
         vec3 randomColor = hsv2rgb(rndHSV);
         return mix(baseColor, randomColor, intensity);
+    vec3 computeColor() {
+      if (uColorMode < 0.5) {
+        return uColor;
+      } else if (uColorMode < 1.5) {
+        float norm = uColorRadius > 1e-4 ? clamp(vRadius / uColorRadius, 0.0, 1.0) : 0.0;
+        float pulse = 0.5 + 0.5 * sin(uTime * 2.8 + norm * 6.2831853 + vPhase * 4.7123889);
+        return mix(uColor, uColorAccent, pulse);
+      } else if (uColorMode < 2.5) {
+        float axis = clamp((vBase.y / max(uColorRadius, 1e-4)) * 0.5 + 0.5, 0.0, 1.0);
+        float sweep = 0.5 + 0.5 * sin(uTime * 1.8 + axis * 6.2831853);
+        return mix(uColorDim, uColorAccent, sweep);
+      } else {
+        float flicker = fract(sin(vPhase * 43758.5453 + uTime * 0.6) * 43758.5453);
+        float mixAmt = smoothstep(0.15, 0.85, flicker);
+        return mix(uColorDim, uColorAccent, mixAmt);
       }
     }
 
@@ -2416,6 +2508,7 @@ function makeTiny() {
       uColorIntensity: { value: params.colorIntensity },
       uColorSpeed: { value: params.colorSpeed },
       uHueSpread: { value: params.hueSpread }
+      uColorRadius: { value: colorState.radius }
     }
   });
   tinyMaterial.blending = (params.blending === 'Additive') ? THREE.AdditiveBlending : THREE.NormalBlending;
@@ -3794,6 +3887,7 @@ function setSliders() {
   $('vColorSpeed').textContent = colorSpeedValue.toFixed(2) + '×';
   const hueSpreadValue = applySliderValue('pHueSpread', params.hueSpread);
   $('vHueSpread').textContent = formatDisplayNumber(hueSpreadValue, 1) + '°';
+  $('pColorMode').value = params.colorMode;
   const seedStarsValue = applySliderValue('pSeedStars', params.seedStars);
   $('vSeedStars').textContent = formatDisplayNumber(seedStarsValue);
   $('pCatSmallCount').value = params.catSmallCount; $('vCatSmallCount').textContent = params.catSmallCount;
