@@ -112,6 +112,11 @@
     .file-meta { font-size: .75rem; opacity: .75; word-break: break-word; }
     .audio-controls { display: flex; flex-wrap: wrap; gap: .5rem; }
     .audio-controls button { flex: 1 1 140px; }
+    .modifier-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+      gap: .35rem;
+    }
     .status-row { display: flex; align-items: center; gap: .5rem; font-size: .78rem; min-height: 1.4em; }
     .status-indicator { width: 10px; height: 10px; border-radius: 50%; background: rgba(255, 255, 255, 0.35); box-shadow: 0 0 6px rgba(0, 0, 0, 0.45); flex-shrink: 0; transition: background .2s ease, box-shadow .2s ease; }
     .status-text { flex: 1; }
@@ -626,6 +631,18 @@
           <button type="button" id="audioMicStop" disabled>⏹️ Stop</button>
         </div>
       </div>
+      <div class="row">
+        <label>Audio-Reaktionsziele</label>
+        <div class="modifier-grid" id="audioModifierGrid">
+          <button type="button" class="modifier-toggle" data-modifier="motion" aria-pressed="true">Rotation</button>
+          <button type="button" class="modifier-toggle" data-modifier="scale" aria-pressed="true">Skalierung</button>
+          <button type="button" class="modifier-toggle" data-modifier="size" aria-pressed="true">Punktgröße</button>
+          <button type="button" class="modifier-toggle" data-modifier="hue" aria-pressed="true">Farbton</button>
+          <button type="button" class="modifier-toggle" data-modifier="saturation" aria-pressed="true">Sättigung</button>
+          <button type="button" class="modifier-toggle" data-modifier="brightness" aria-pressed="true">Helligkeit</button>
+          <button type="button" class="modifier-toggle" data-modifier="alpha" aria-pressed="true">Transparenz</button>
+        </div>
+      </div>
       <div class="row status-row" role="status" aria-live="polite">
         <span class="status-indicator" id="audioStatusDot" data-state="idle" aria-hidden="true"></span>
         <span class="status-text" id="audioStatus" data-state="idle">Audio-Reaktivität inaktiv</span>
@@ -755,9 +772,20 @@ const audioState = {
   status: 'idle',
   metrics: { energy: 0, bass: 0, mid: 0, treble: 0, wave: 0 },
   visual: { motion: 0, size: 1, hue: 0, alpha: 0, scale: 1 },
+  modifiers: {
+    motion: true,
+    scale: true,
+    size: true,
+    hue: true,
+    saturation: true,
+    brightness: true,
+    alpha: true
+  },
   color: new THREE.Color(),
   needsResume: false
 };
+
+const AUDIO_VISUAL_BASE = Object.freeze({ motion: 0, size: 1, hue: 0, alpha: 0, scale: 1 });
 
 const audioUI = {
   fileInput: null,
@@ -767,7 +795,8 @@ const audioUI = {
   micStartBtn: null,
   micStopBtn: null,
   statusText: null,
-  statusDot: null
+  statusDot: null,
+  modifierButtons: null
 };
 
 const audioBandVector = new THREE.Vector3();
@@ -861,6 +890,20 @@ function setAudioStatus(message, state = 'idle') {
   }
 }
 
+function setAudioModifier(key, enabled) {
+  if (!audioState.modifiers || !(key in audioState.modifiers)) return;
+  audioState.modifiers[key] = Boolean(enabled);
+  if (!audioState.modifiers[key] && AUDIO_VISUAL_BASE[key] !== undefined && audioState.visual && key in audioState.visual) {
+    audioState.visual[key] = AUDIO_VISUAL_BASE[key];
+  }
+  refreshAudioUI();
+}
+
+function toggleAudioModifier(key) {
+  if (!audioState.modifiers || !(key in audioState.modifiers)) return;
+  setAudioModifier(key, !audioState.modifiers[key]);
+}
+
 function refreshAudioUI() {
   if (!audioUI.playBtn) return;
   const supportedAudio = isAudioSupported();
@@ -887,6 +930,13 @@ function refreshAudioUI() {
     }
   } else if (audioUI.micStartBtn) {
     audioUI.micStartBtn.removeAttribute('title');
+  }
+  if (audioUI.modifierButtons && audioUI.modifierButtons.length) {
+    audioUI.modifierButtons.forEach(button => {
+      const key = button.dataset.modifier;
+      const active = key && audioState.modifiers ? Boolean(audioState.modifiers[key]) : false;
+      button.setAttribute('aria-pressed', active ? 'true' : 'false');
+    });
   }
 }
 
@@ -1077,23 +1127,28 @@ function updateAudioReactive(delta) {
   const targetHue = audioState.metrics.treble * 90;
   const targetAlpha = Math.min(0.5, audioState.metrics.energy * 0.35 + audioState.metrics.wave * 0.2);
 
-  audioState.visual.motion = damp(audioState.visual.motion, targetMotion, 6, delta);
-  audioState.visual.size = damp(audioState.visual.size, targetSize, 7, delta);
-  audioState.visual.scale = damp(audioState.visual.scale, targetScale, 5, delta);
-  audioState.visual.hue = damp(audioState.visual.hue, targetHue, 3, delta);
-  audioState.visual.alpha = damp(audioState.visual.alpha, targetAlpha, 6, delta);
+  audioState.visual.motion = damp(audioState.visual.motion, modifiers.motion ? targetMotion : AUDIO_VISUAL_BASE.motion, 6, delta);
+  audioState.visual.size = damp(audioState.visual.size, modifiers.size ? targetSize : AUDIO_VISUAL_BASE.size, 7, delta);
+  audioState.visual.scale = damp(audioState.visual.scale, modifiers.scale ? targetScale : AUDIO_VISUAL_BASE.scale, 5, delta);
+  audioState.visual.hue = damp(audioState.visual.hue, modifiers.hue ? targetHue : AUDIO_VISUAL_BASE.hue, 3, delta);
+  audioState.visual.alpha = damp(audioState.visual.alpha, modifiers.alpha ? targetAlpha : AUDIO_VISUAL_BASE.alpha, 6, delta);
 }
 
 function applyAudioVisuals(delta) {
   updateAudioReactive(delta);
-  const sizeBoost = audioState.visual.size;
-  const hue = (params.pointHue + audioState.visual.hue) % 360;
-  const saturation = Math.min(1, params.pointSaturation + audioState.metrics.treble * 0.18);
-  const brightness = Math.min(1.1, params.pointValue + audioState.metrics.energy * 0.25);
+  const modifiers = audioState.modifiers || {};
+  const sizeBoost = modifiers.size ? audioState.visual.size : AUDIO_VISUAL_BASE.size;
+  const hueOffset = modifiers.hue ? audioState.visual.hue : AUDIO_VISUAL_BASE.hue;
+  const saturationBoost = modifiers.saturation ? audioState.metrics.treble * 0.18 : 0;
+  const brightnessBoost = modifiers.brightness ? audioState.metrics.energy * 0.25 : 0;
+  const hue = (params.pointHue + hueOffset) % 360;
+  const saturation = Math.min(1, params.pointSaturation + saturationBoost);
+  const brightness = Math.min(1.1, params.pointValue + brightnessBoost);
   const reactiveColor = hsv2rgb(hue, saturation, brightness);
   audioState.color.copy(reactiveColor);
 
-  const sphereScale = Math.max(0.35, Math.min(2.2, audioState.visual.scale));
+  const targetScale = modifiers.scale ? audioState.visual.scale : AUDIO_VISUAL_BASE.scale;
+  const sphereScale = Math.max(0.35, Math.min(2.2, targetScale));
   if (Number.isFinite(sphereScale)) {
     if (Math.abs(clusterGroup.scale.x - sphereScale) > 1e-4 ||
         Math.abs(clusterGroup.scale.y - sphereScale) > 1e-4 ||
@@ -1125,7 +1180,8 @@ function applyAudioVisuals(delta) {
     }
     if (starMaterial.uniforms.uAlpha) {
       const baseAlpha = params.pointAlpha;
-      const boostedAlpha = Math.max(0.05, Math.min(1, baseAlpha + audioState.visual.alpha));
+      const alphaBoost = modifiers.alpha ? audioState.visual.alpha : AUDIO_VISUAL_BASE.alpha;
+      const boostedAlpha = Math.max(0.05, Math.min(1, baseAlpha + alphaBoost));
       starMaterial.uniforms.uAlpha.value = boostedAlpha;
     }
     if (starMaterial.uniforms.uColor) {
@@ -1143,13 +1199,15 @@ function applyAudioVisuals(delta) {
     if (tinyMaterial.uniforms.uAudioWave) {
       tinyMaterial.uniforms.uAudioWave.value = audioState.metrics.wave;
     }
-    const tinySize = params.sizeFactorTiny * Math.max(0.05, 0.8 + sizeBoost * 0.2 + audioState.metrics.wave * 0.35);
+    const waveContribution = modifiers.size ? audioState.metrics.wave : 0;
+    const tinySize = params.sizeFactorTiny * Math.max(0.05, 0.8 + sizeBoost * 0.2 + waveContribution * 0.35);
     if (tinyMaterial.uniforms.uSize) {
       tinyMaterial.uniforms.uSize.value = tinySize;
     }
     if (tinyMaterial.uniforms.uAlpha) {
       const baseTinyAlpha = params.tinyAlpha;
-      const boostedTinyAlpha = Math.min(1, baseTinyAlpha + audioState.visual.alpha * 0.4);
+      const alphaBoost = modifiers.alpha ? audioState.visual.alpha : AUDIO_VISUAL_BASE.alpha;
+      const boostedTinyAlpha = Math.min(1, baseTinyAlpha + alphaBoost * 0.4);
       tinyMaterial.uniforms.uAlpha.value = boostedTinyAlpha;
     }
     if (tinyMaterial.uniforms.uColor) {
@@ -1157,10 +1215,10 @@ function applyAudioVisuals(delta) {
     }
   }
 
-  const extraRotation = audioState.visual.motion;
+  const extraRotation = modifiers.motion ? audioState.visual.motion : AUDIO_VISUAL_BASE.motion;
   if (extraRotation > 1e-4) {
     const yaw = extraRotation * delta * 0.85;
-    const pitch = audioState.metrics.wave * delta * 0.35;
+    const pitch = (modifiers.motion ? audioState.metrics.wave : 0) * delta * 0.35;
     if (Number.isFinite(yaw) && Math.abs(yaw) < Math.PI) {
       clusterGroup.rotateY(yaw);
     }
@@ -1812,6 +1870,18 @@ audioUI.micStartBtn = $('audioMicStart');
 audioUI.micStopBtn = $('audioMicStop');
 audioUI.statusText = $('audioStatus');
 audioUI.statusDot = $('audioStatusDot');
+audioUI.modifierButtons = Array.from(document.querySelectorAll('#audioModifierGrid [data-modifier]'));
+
+if (audioUI.modifierButtons.length) {
+  audioUI.modifierButtons.forEach(button => {
+    button.addEventListener('click', () => {
+      const key = button.dataset.modifier;
+      if (key) {
+        toggleAudioModifier(key);
+      }
+    });
+  });
+}
 
 if (audioUI.fileInput) {
   audioUI.fileInput.addEventListener('change', event => {
