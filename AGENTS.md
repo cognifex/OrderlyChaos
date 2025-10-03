@@ -27,10 +27,39 @@
      - Wenn keine URL gesetzt ist, bitte `GIT_REMOTE_URL` (z. B. `https://github.com/<owner>/<repo>.git`) bereitstellen.
 
   3. **GitHub CLI installieren (falls nicht vorhanden):**
+     - Prüfe zuerst, ob bereits eine ausführbare Datei vorhanden ist (z. B. `/usr/local/bin/gh` oder in `/opt/gh/bin`). Falls ja, ergänze den Pfad:
+       ```bash
+       if ! command -v gh &> /dev/null && [ -x "/opt/gh/bin/gh" ]; then
+         export PATH="/opt/gh/bin:$PATH"
+       fi
+       ```
+     - Wenn kein Binary verfügbar ist, nutze den für die Umgebung passenden Paketmanager oder Download:
+       - **Homebrew:** `brew install gh`
+       - **npm:** `npm install -g github-cli`
+       - **apt (Fallback auf beschreibbaren Systemen):**
+         ```bash
+         if ! command -v gh &> /dev/null && [ -w /usr/bin ]; then
+           apt-get update
+           apt-get install -y gh
+         fi
+         ```
+       - Alternativ kannst du ein vorinstalliertes Archiv entpacken und den Pfad ergänzen (siehe offizielle Doku).
+     - In read-only- oder stark eingeschränkten Umgebungen ist das Installieren evtl. nicht möglich. Überspringe die Installation in diesem Fall und arbeite direkt mit Git über HTTPS (siehe Prüfblock unten).
+     - Erwartete Umgebungsvariablen für die nicht-interaktive Nutzung:
+       - `GH_TOKEN` oder `GITHUB_TOKEN`: Personal Access Token mit mindestens `repo`-Rechten.
+       - Optional `GH_HOST`: Enterprise-Hostname für `gh`.
+       - `GIT_USER_NAME` / `GIT_USER_EMAIL`: werden für `git config` verwendet.
+     - Weitere Installationsoptionen findest du in der [offiziellen GitHub-CLI-Dokumentation](https://cli.github.com/manual/installation).
+
      ```bash
      if ! command -v gh &> /dev/null; then
-       apt-get update
-       apt-get install -y gh
+       echo "⚠️ GitHub CLI konnte nicht installiert oder gefunden werden."
+       echo "   Du kannst dennoch via HTTPS mit Token arbeiten:"
+       echo "     git remote set-url origin https://github.com/<owner>/<repo>.git"
+       echo "     git config user.name ""${GIT_USER_NAME:-Your Name}"""
+       echo "     git config user.email ""${GIT_USER_EMAIL:-you@example.com}"""
+       echo "     GH_TOKEN/GITHUB_TOKEN beim Push als Passwort nutzen (z. B. git push https://x-access-token:${GH_TOKEN:-<PAT>}@github.com/<owner>/<repo>.git work)."
+       echo "   Alternativ: Personal Access Token manuell eingeben, wenn Git nach Credentials fragt."
      fi
      ```
 
@@ -66,10 +95,16 @@
        chmod 600 ~/.ssh/config
        ```
 
-     - Setze Remote auf SSH:
-       ```bash
-       git remote set-url origin git@github.com:cognifex/OrderlyChaos.git
-       ```
+    - Setze Remote auf SSH **nur, wenn explizit HTTPS-Probleme bestehen und der Wechsel gewünscht ist** (ansonsten diesen Schritt überspringen). Überspringe diesen Schritt ebenfalls, wenn `$GIT_REMOTE_URL` bereits gesetzt wurde oder wenn du auf einem Fork arbeitest.
+      ```bash
+      # Nur ausführen, wenn origin wirklich auf SSH umgestellt werden soll
+      git remote set-url origin git@github.com:cognifex/OrderlyChaos.git
+      ```
+
+      > ℹ️ Alternativ kannst du einen separaten Remote hinzufügen, z. B. `ssh-origin`, um den bestehenden `origin` nicht zu überschreiben:
+      > ```bash
+      > git remote add ssh-origin git@github.com:cognifex/OrderlyChaos.git
+      > ```
 
   6. **Verbindung testen:**
   ```bash
