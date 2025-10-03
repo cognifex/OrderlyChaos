@@ -1015,7 +1015,15 @@ function updateAudioReactive(delta) {
   let trebleTarget = 0;
   let waveTarget = 0;
 
-  if (audioState.analyser && audioState.freqData && audioState.timeData) {
+  if (audioState.analyser && audioState.freqData) {
+    audioState.analyser.getByteFrequencyData(audioState.freqData);
+  }
+
+  if (audioState.analyser && audioState.timeData) {
+    audioState.analyser.getByteTimeDomainData(audioState.timeData);
+  }
+
+  if (audioState.freqData) {
     const freqData = audioState.freqData;
     const len = freqData.length;
     if (len > 0) {
@@ -1041,6 +1049,9 @@ function updateAudioReactive(delta) {
       midTarget = avgRange(bassBins, midBins);
       trebleTarget = avgRange(bassBins + midBins, trebleBins);
     }
+  }
+
+  if (audioState.timeData) {
     const timeData = audioState.timeData;
     const tLen = timeData.length;
     if (tLen > 0) {
