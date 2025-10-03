@@ -1315,6 +1315,13 @@ function applyAudioVisualState(modifiers = audioState.modifiers || {}) {
   const hue = ((params.pointHue + hueOffset) % 360 + 360) % 360;
   const saturation = clampValue(params.pointSaturation + saturationDelta, 0.05, 1.4);
   const brightness = clampValue(params.pointValue + brightnessDelta, 0.05, 1.6);
+  const saturationIntensity = modifiers.saturation ? Math.max(0, getAudioIntensity('saturation')) : 0;
+  const brightnessIntensity = modifiers.brightness ? Math.max(0, getAudioIntensity('brightness')) : 0;
+  const hue = ((params.pointHue + hueOffset) % 360 + 360) % 360;
+  const saturationBoost = modifiers.saturation ? audioState.metrics.treble * 0.22 * Math.max(0.25, saturationIntensity) : 0;
+  const brightnessBoost = modifiers.brightness ? audioState.metrics.energy * 0.32 * Math.max(0.25, brightnessIntensity) : 0;
+  const saturation = Math.min(1.2, params.pointSaturation + saturationBoost);
+  const brightness = Math.min(1.25, params.pointValue + brightnessBoost);
   const reactiveColor = hsv2rgb(hue, saturation, brightness);
   audioState.color.copy(reactiveColor);
 
