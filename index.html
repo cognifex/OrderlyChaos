@@ -247,6 +247,90 @@
       background: rgba(40, 160, 220, 0.65);
       border-color: rgba(90, 190, 255, 0.9);
     }
+    #audioPanel {
+      position: absolute;
+      left: 12px;
+      bottom: 12px;
+      z-index: 11;
+      width: 300px;
+      max-width: calc(100vw - 24px);
+      background: var(--panel);
+      border-radius: 10px;
+      padding: 12px 14px 14px;
+      display: grid;
+      gap: .55rem;
+      backdrop-filter: blur(2px);
+      box-shadow: 0 12px 28px rgba(0, 0, 0, 0.45);
+      transition: transform .25s ease, opacity .25s ease;
+    }
+    #audioPanel.is-collapsed {
+      padding-bottom: 12px;
+    }
+    #audioPanel h3 {
+      margin: 0;
+      font-size: .95rem;
+      letter-spacing: .01em;
+    }
+    #audioPanel .panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: .5rem;
+    }
+    #audioPanelToggle {
+      border: none;
+      background: rgba(255, 255, 255, 0.08);
+      color: inherit;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      cursor: pointer;
+      transition: background .2s ease, transform .2s ease;
+    }
+    #audioPanelToggle:hover {
+      background: rgba(255, 255, 255, 0.18);
+    }
+    #audioPanelToggle:focus-visible {
+      outline: 2px solid rgba(90, 190, 255, 0.9);
+      outline-offset: 2px;
+    }
+    #audioPanelToggle[aria-expanded="false"] {
+      transform: rotate(-90deg);
+    }
+    #audioPanel .panel-body {
+      display: grid;
+      gap: .6rem;
+    }
+    #audioPanel .row {
+      margin: 0;
+    }
+    #audioPanel .row + .row {
+      margin-top: .45rem;
+    }
+    #audioPanel .status-row {
+      margin-top: .2rem;
+    }
+    #audioPanel .file-row {
+      gap: .45rem;
+    }
+    #audioPanel .file-row label {
+      margin-bottom: .1rem;
+    }
+    #audioPanel .panel-footnote {
+      font-size: .72rem;
+      opacity: .75;
+      line-height: 1.4;
+    }
+    #audioPanel .panel-footnote[data-state="warning"] {
+      color: #ffd166;
+      opacity: 1;
+    }
+    #audioPanel .panel-footnote[data-state="error"] {
+      color: #ffb0a8;
+      opacity: 1;
+    }
     @media (hover:hover) {
       #bar button:hover {
         background: rgba(80, 80, 80, 0.7);
@@ -281,6 +365,15 @@
         transform: translateY(var(--sheet-offset, 0px));
         transition: opacity .25s ease, transform .35s ease;
         box-shadow: 0 -12px 28px rgba(0, 0, 0, 0.4);
+      }
+      #audioPanel {
+        position: fixed;
+        top: 64px;
+        bottom: auto;
+        left: 12px;
+        right: 12px;
+        width: auto;
+        max-width: none;
       }
       #panel.is-hidden {
         transform: translateY(calc(var(--sheet-expanded-height, 80vh) + 40px));
@@ -442,12 +535,71 @@
         </div>
       </div>
       <div class="row">
+        <label for="pHueColor">Farben für einzelne Punkte</label>
+        <div class="swatch-grid" id="pColorSwatches">
+          <button type="button" class="color-swatch" data-color-swatch data-h="210" data-s="0.75" data-v="1" aria-pressed="false" style="--swatch:#5fa8ff;">
+            Polarblau
+          </button>
+          <button type="button" class="color-swatch" data-color-swatch data-h="280" data-s="0.55" data-v="1" aria-pressed="false" style="--swatch:#ba68ff;">
+            Kosmos
+          </button>
+          <button type="button" class="color-swatch" data-color-swatch data-h="35" data-s="0.82" data-v="1" aria-pressed="false" style="--swatch:#ffad46; --swatch-text:#1a1320;">
+            Sonnenaufg.
+          </button>
+          <button type="button" class="color-swatch" data-color-swatch data-h="150" data-s="0.9" data-v="0.9" aria-pressed="false" style="--swatch:#36f5a3; --swatch-text:#10251c;">
+            Neonwald
+          </button>
+          <button type="button" class="color-swatch" data-color-swatch data-h="8" data-s="0.88" data-v="1" aria-pressed="false" style="--swatch:#ff5a4e;">
+            Plasma
+          </button>
+          <button type="button" class="color-swatch" data-color-swatch data-h="0" data-s="0" data-v="0.94" aria-pressed="false" style="--swatch:#f0f0f0; --swatch-text:#111;">
+            Neutral
+          </button>
+          <label class="color-swatch color-swatch--picker" for="pHueColor">
+            <span class="color-swatch__label">Eigene Farbe</span>
+            <input id="pHueColor" type="color" aria-label="Eigene Punktfarbe wählen" />
+          </label>
+        </div>
+        <p class="hint">Tipp: Wähle oben einen Farbton oder nutze den Zufallsmodus bzw. erhöhe die Farbton-Streuung, damit alle Punkte eigene Farben annehmen.</p>
+      </div>
+      <div class="row">
         <label for="pColorMode">Farbmodus</label>
         <select id="pColorMode">
           <option value="uniform">Einzelfarbe</option>
           <option value="radialPulse">Radialer Puls</option>
           <option value="axisWave">Vertikale Welle</option>
           <option value="phaseFlicker">Zufälliges Flimmern</option>
+          <option value="randomHue">Zufallsmodus</option>
+        </select>
+      </div>
+      <div class="row">
+        <label for="pColorIntensity">Farbintensität</label>
+        <div class="wrap">
+          <input class="bound-input" type="number" data-target="pColorIntensity" data-bound="min" />
+          <input id="pColorIntensity" type="range" min="0" max="1" step="0.01" />
+          <input class="bound-input" type="number" data-target="pColorIntensity" data-bound="max" />
+          <div class="val" id="vColorIntensity"></div>
+        </div>
+      </div>
+      <div class="row">
+        <label for="pColorSpeed">Farbanimation (Tempo)</label>
+        <div class="wrap">
+          <input class="bound-input" type="number" data-target="pColorSpeed" data-bound="min" />
+          <input id="pColorSpeed" type="range" min="0" max="5" step="0.05" />
+          <input class="bound-input" type="number" data-target="pColorSpeed" data-bound="max" />
+          <div class="val" id="vColorSpeed"></div>
+        </div>
+      </div>
+      <div class="row">
+        <label for="pHueSpread">Farbton-Streuung</label>
+        <div class="wrap">
+          <input class="bound-input" type="number" data-target="pHueSpread" data-bound="min" />
+          <input id="pHueSpread" type="range" min="0" max="180" step="1" />
+          <input class="bound-input" type="number" data-target="pHueSpread" data-bound="max" />
+          <div class="val" id="vHueSpread"></div>
+        </div>
+      </div>
+      <div class="row">
         </select>
       </div>
       <div class="row">
@@ -703,87 +855,89 @@
       </div>
     </div>
   </section>
-  <section class="accordion" id="acc-audio">
-    <button type="button" class="accordion__trigger" id="acc-audio-trigger" aria-expanded="false" aria-controls="acc-audio-panel">
-      Audio
-    </button>
-    <div class="accordion__panel" id="acc-audio-panel" role="region" aria-labelledby="acc-audio-trigger" hidden>
-      <div class="row file-row">
-        <label for="audioFile">Audio-Datei</label>
-        <input id="audioFile" type="file" accept="audio/*" />
-        <div class="file-meta" id="audioFileMeta">Kein Upload ausgewählt</div>
-      </div>
-      <div class="row">
-        <div class="audio-controls">
-          <button type="button" id="audioPlay" disabled>▶️ Abspielen</button>
-          <button type="button" id="audioStop" disabled>⏹️ Stop</button>
-        </div>
-      </div>
-      <div class="row">
-        <label for="audioMicStart">Mikrofon</label>
-        <div class="audio-controls">
-          <button type="button" id="audioMicStart">🎙️ Start</button>
-          <button type="button" id="audioMicStop" disabled>⏹️ Stop</button>
-        </div>
-      </div>
-      <div class="row">
-        <label>Audio-Reaktionsziele</label>
-        <div class="modifier-grid" id="audioModifierGrid">
-          <button type="button" class="modifier-toggle" data-modifier="motion" aria-pressed="true">Rotation</button>
-          <button type="button" class="modifier-toggle" data-modifier="scale" aria-pressed="true">Skalierung</button>
-          <button type="button" class="modifier-toggle" data-modifier="size" aria-pressed="true">Punktgröße</button>
-          <button type="button" class="modifier-toggle" data-modifier="hue" aria-pressed="true">Farbton</button>
-          <button type="button" class="modifier-toggle" data-modifier="saturation" aria-pressed="true">Sättigung</button>
-          <button type="button" class="modifier-toggle" data-modifier="brightness" aria-pressed="true">Helligkeit</button>
-          <button type="button" class="modifier-toggle" data-modifier="alpha" aria-pressed="true">Transparenz</button>
-        </div>
-      </div>
-      <div class="row">
-        <label>Reaktionsstärke</label>
-        <div class="intensity-grid">
-          <div class="wrap" data-intensity-row="motion">
-            <span class="tag">Rotation</span>
-            <input type="range" min="0" max="200" step="5" value="100" data-intensity-target="motion" />
-            <div class="val" data-intensity-value="motion">100%</div>
-          </div>
-          <div class="wrap" data-intensity-row="scale">
-            <span class="tag">Skalierung</span>
-            <input type="range" min="0" max="200" step="5" value="100" data-intensity-target="scale" />
-            <div class="val" data-intensity-value="scale">100%</div>
-          </div>
-          <div class="wrap" data-intensity-row="size">
-            <span class="tag">Punktgröße</span>
-            <input type="range" min="0" max="200" step="5" value="100" data-intensity-target="size" />
-            <div class="val" data-intensity-value="size">100%</div>
-          </div>
-          <div class="wrap" data-intensity-row="hue">
-            <span class="tag">Farbton</span>
-            <input type="range" min="0" max="200" step="5" value="100" data-intensity-target="hue" />
-            <div class="val" data-intensity-value="hue">100%</div>
-          </div>
-          <div class="wrap" data-intensity-row="saturation">
-            <span class="tag">Sättigung</span>
-            <input type="range" min="0" max="200" step="5" value="100" data-intensity-target="saturation" />
-            <div class="val" data-intensity-value="saturation">100%</div>
-          </div>
-          <div class="wrap" data-intensity-row="brightness">
-            <span class="tag">Helligkeit</span>
-            <input type="range" min="0" max="200" step="5" value="100" data-intensity-target="brightness" />
-            <div class="val" data-intensity-value="brightness">100%</div>
-          </div>
-          <div class="wrap" data-intensity-row="alpha">
-            <span class="tag">Transparenz</span>
-            <input type="range" min="0" max="200" step="5" value="100" data-intensity-target="alpha" />
-            <div class="val" data-intensity-value="alpha">100%</div>
-          </div>
-        </div>
-      </div>
-      <div class="row status-row" role="status" aria-live="polite">
-        <span class="status-indicator" id="audioStatusDot" data-state="idle" aria-hidden="true"></span>
-        <span class="status-text" id="audioStatus" data-state="idle">Audio-Reaktivität inaktiv</span>
+</div>
+<div id="audioPanel" role="complementary" aria-label="Audio-Steuerung">
+  <div class="panel-header">
+    <h3>Audio-Reaktivität</h3>
+    <button type="button" id="audioPanelToggle" aria-expanded="true" aria-controls="audioPanelBody" aria-label="Audio-Bedienfeld ein- oder ausblenden" title="Audio-Bedienfeld ein- oder ausblenden">▾</button>
+  </div>
+  <div class="panel-body" id="audioPanelBody">
+    <div class="row file-row">
+      <label for="audioFile">Audio-Datei</label>
+      <input id="audioFile" type="file" accept="audio/*" />
+      <div class="file-meta" id="audioFileMeta">Kein Upload ausgewählt</div>
+    </div>
+    <div class="row">
+      <div class="audio-controls">
+        <button type="button" id="audioPlay" disabled>▶️ Abspielen</button>
+        <button type="button" id="audioStop" disabled>⏹️ Stop</button>
       </div>
     </div>
-  </section>
+    <div class="row">
+      <label for="audioMicStart">Mikrofon</label>
+      <div class="audio-controls">
+        <button type="button" id="audioMicStart">🎙️ Start</button>
+        <button type="button" id="audioMicStop" disabled>⏹️ Stop</button>
+      </div>
+    </div>
+    <div class="row">
+      <label>Audio-Reaktionsziele</label>
+      <div class="modifier-grid" id="audioModifierGrid">
+        <button type="button" class="modifier-toggle" data-modifier="motion" aria-pressed="true">Rotation</button>
+        <button type="button" class="modifier-toggle" data-modifier="scale" aria-pressed="true">Skalierung</button>
+        <button type="button" class="modifier-toggle" data-modifier="size" aria-pressed="true">Punktgröße</button>
+        <button type="button" class="modifier-toggle" data-modifier="hue" aria-pressed="true">Farbton</button>
+        <button type="button" class="modifier-toggle" data-modifier="saturation" aria-pressed="true">Sättigung</button>
+        <button type="button" class="modifier-toggle" data-modifier="brightness" aria-pressed="true">Helligkeit</button>
+        <button type="button" class="modifier-toggle" data-modifier="alpha" aria-pressed="true">Transparenz</button>
+      </div>
+    </div>
+    <div class="row">
+      <label>Reaktionsstärke</label>
+      <div class="intensity-grid">
+        <div class="wrap" data-intensity-row="motion">
+          <span class="tag">Rotation</span>
+          <input type="range" min="0" max="200" step="5" value="100" data-intensity-target="motion" />
+          <div class="val" data-intensity-value="motion">100%</div>
+        </div>
+        <div class="wrap" data-intensity-row="scale">
+          <span class="tag">Skalierung</span>
+          <input type="range" min="0" max="200" step="5" value="100" data-intensity-target="scale" />
+          <div class="val" data-intensity-value="scale">100%</div>
+        </div>
+        <div class="wrap" data-intensity-row="size">
+          <span class="tag">Punktgröße</span>
+          <input type="range" min="0" max="200" step="5" value="100" data-intensity-target="size" />
+          <div class="val" data-intensity-value="size">100%</div>
+        </div>
+        <div class="wrap" data-intensity-row="hue">
+          <span class="tag">Farbton</span>
+          <input type="range" min="0" max="200" step="5" value="100" data-intensity-target="hue" />
+          <div class="val" data-intensity-value="hue">100%</div>
+        </div>
+        <div class="wrap" data-intensity-row="saturation">
+          <span class="tag">Sättigung</span>
+          <input type="range" min="0" max="200" step="5" value="100" data-intensity-target="saturation" />
+          <div class="val" data-intensity-value="saturation">100%</div>
+        </div>
+        <div class="wrap" data-intensity-row="brightness">
+          <span class="tag">Helligkeit</span>
+          <input type="range" min="0" max="200" step="5" value="100" data-intensity-target="brightness" />
+          <div class="val" data-intensity-value="brightness">100%</div>
+        </div>
+        <div class="wrap" data-intensity-row="alpha">
+          <span class="tag">Transparenz</span>
+          <input type="range" min="0" max="200" step="5" value="100" data-intensity-target="alpha" />
+          <div class="val" data-intensity-value="alpha">100%</div>
+        </div>
+      </div>
+    </div>
+    <div class="row status-row" role="status" aria-live="polite">
+      <span class="status-indicator" id="audioStatusDot" data-state="idle" aria-hidden="true"></span>
+      <span class="status-text" id="audioStatus" data-state="idle">Audio-Reaktivität inaktiv</span>
+    </div>
+    <div class="panel-footnote" id="audioSupportNotice">Nutze eine Datei oder das Mikrofon, um die Punktfarben an Audio zu koppeln.</div>
+  </div>
 </div>
 <script>
 /* Utility: HSV→RGB (for potential future color variations) */
@@ -806,6 +960,63 @@ function clampColor(color) {
   color.g = Math.min(1, Math.max(0, color.g));
   color.b = Math.min(1, Math.max(0, color.b));
   return color;
+}
+
+function clamp01(value) {
+  if (!Number.isFinite(value)) return 0;
+  if (value < 0) return 0;
+  if (value > 1) return 1;
+  return value;
+}
+
+function normalizeHue(value) {
+  if (!Number.isFinite(value)) return 0;
+  let hue = value % 360;
+  if (hue < 0) hue += 360;
+  return hue;
+}
+
+function hsvToHex(h, s, v) {
+  const color = hsv2rgb(h, s, v);
+  const r = Math.round(clamp01(color.r) * 255);
+  const g = Math.round(clamp01(color.g) * 255);
+  const b = Math.round(clamp01(color.b) * 255);
+  const toHex = component => component.toString(16).padStart(2, '0');
+  return `#${toHex(r)}${toHex(g)}${toHex(b)}`.toLowerCase();
+}
+
+function hexToHsv(hex) {
+  if (typeof hex !== 'string') return null;
+  const normalized = hex.trim().toLowerCase();
+  const match = /^#?([\da-f]{6})$/.exec(normalized);
+  if (!match) return null;
+  const intVal = parseInt(match[1], 16);
+  const r = ((intVal >> 16) & 255) / 255;
+  const g = ((intVal >> 8) & 255) / 255;
+  const b = (intVal & 255) / 255;
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const delta = max - min;
+  let h = 0;
+  if (delta !== 0) {
+    if (max === r) {
+      h = ((g - b) / delta) % 6;
+    } else if (max === g) {
+      h = (b - r) / delta + 2;
+    } else {
+      h = (r - g) / delta + 4;
+    }
+    h *= 60;
+  }
+  if (h < 0) h += 360;
+  const s = max === 0 ? 0 : delta / max;
+  const v = max;
+  return { h: normalizeHue(h), s: clamp01(s), v: clamp01(v) };
+}
+
+function hueDifference(a, b) {
+  const diff = Math.abs(((a - b + 540) % 360) - 180);
+  return Math.abs(diff);
 }
 
 /* PRNG: Mulberry32 for reproducible random */
@@ -859,6 +1070,9 @@ const params = {
   pointSaturation: 0.75,
   pointValue: 1.0,
   colorMode: 'uniform',
+  colorIntensity: 0.8,
+  colorSpeed: 1.0,
+  hueSpread: 45,
   seedStars: 1,
   catSmallCount: 1125,
   catMediumCount: 875,
@@ -896,6 +1110,7 @@ const colorState = {
   dim: new THREE.Color(),
   radius: params.radius
 };
+const COLOR_MODES = ['uniform', 'radialPulse', 'axisWave', 'phaseFlicker', 'randomHue'];
 const COLOR_MODES = ['uniform', 'radialPulse', 'axisWave', 'phaseFlicker'];
 const MOTION_MODES = ['static', 'sine', 'noise', 'orbit'];
 const motionState = { time: 0 };
@@ -953,6 +1168,9 @@ const audioState = {
 const AUDIO_VISUAL_BASE = Object.freeze({ motion: 0, size: 1, hue: 0, alpha: 0, scale: 1 });
 
 const audioUI = {
+  panel: null,
+  body: null,
+  toggle: null,
   fileInput: null,
   fileMeta: null,
   playBtn: null,
@@ -962,7 +1180,8 @@ const audioUI = {
   statusText: null,
   statusDot: null,
   modifierButtons: null,
-  intensityControls: null
+  intensityControls: null,
+  supportNotice: null
 };
 
 function clampIntensityPercent(value, fallback = 100) {
@@ -1232,6 +1451,19 @@ function refreshAudioUI() {
   if (!audioUI.playBtn) return;
   const supportedAudio = isAudioSupported();
   const supportedMic = isMicSupported();
+  if (audioUI.supportNotice) {
+    let noticeText = 'Nutze eine Datei oder das Mikrofon, um die Punktfarben an Audio zu koppeln.';
+    let noticeState = 'info';
+    if (!supportedAudio) {
+      noticeText = 'Audio-Reaktivität wird in diesem Browser nicht unterstützt.';
+      noticeState = 'error';
+    } else if (!supportedMic) {
+      noticeText = 'Mikrofonzugriff nicht verfügbar – nutze eine Datei.';
+      noticeState = 'warning';
+    }
+    audioUI.supportNotice.textContent = noticeText;
+    audioUI.supportNotice.dataset.state = noticeState;
+  }
   if (audioUI.fileInput) {
     audioUI.fileInput.disabled = !supportedAudio;
   }
@@ -1849,11 +2081,78 @@ function makeStars() {
     uniform vec3 uColorDim;
     uniform float uColorMode;
     uniform float uColorRadius;
+    uniform float uColorIntensity;
+    uniform float uColorSpeed;
+    uniform float uHueSpread;
     uniform float uTime;
     varying vec3 vBase;
     varying float vPhase;
     varying float vRadius;
 
+    vec3 rgb2hsv(vec3 c) {
+      vec4 K = vec4(0.0, -1.0 / 3.0, 2.0 / 3.0, -1.0);
+      vec4 p = mix(vec4(c.bg, K.wz), vec4(c.gb, K.xy), step(c.b, c.g));
+      vec4 q = mix(vec4(p.xyw, c.r), vec4(c.r, p.yzx), step(p.x, c.r));
+      float d = q.x - min(q.w, q.y);
+      float e = 1.0e-10;
+      return vec3(abs(q.z + (q.w - q.y) / (6.0 * d + e)), d / (q.x + e), q.x);
+    }
+
+    vec3 hsv2rgb(vec3 c) {
+      vec3 rgb = clamp(abs(mod(c.x * 6.0 + vec3(0.0, 4.0, 2.0), 6.0) - 3.0) - 1.0, 0.0, 1.0);
+      return c.z * mix(vec3(1.0), rgb, c.y);
+    }
+
+    vec3 computeColor() {
+      float intensity = clamp(uColorIntensity, 0.0, 1.0);
+      float hueSpreadNorm = uHueSpread / 360.0;
+      float colorTime = uTime * max(uColorSpeed, 0.0);
+      vec3 baseHSVOriginal = rgb2hsv(uColor);
+      vec3 accentHSVOriginal = rgb2hsv(uColorAccent);
+      vec3 dimHSVOriginal = rgb2hsv(uColorDim);
+      float hueShift = 0.0;
+      if (hueSpreadNorm > 1e-6) {
+        hueShift = sin(colorTime + vPhase * 6.2831853) * hueSpreadNorm;
+      }
+      vec3 baseHSV = baseHSVOriginal;
+      baseHSV.x = fract(baseHSV.x + hueShift);
+      vec3 accentHSV = accentHSVOriginal;
+      accentHSV.x = fract(accentHSV.x + hueShift);
+      vec3 dimHSV = dimHSVOriginal;
+      dimHSV.x = fract(dimHSV.x + hueShift);
+      vec3 baseColor = hsv2rgb(baseHSV);
+      vec3 accentColor = hsv2rgb(accentHSV);
+      vec3 dimColor = hsv2rgb(dimHSV);
+
+      if (uColorMode < 0.5) {
+        return baseColor;
+      } else if (uColorMode < 1.5) {
+        float norm = uColorRadius > 1e-4 ? clamp(vRadius / uColorRadius, 0.0, 1.0) : 0.0;
+        float pulse = 0.5 + 0.5 * sin(colorTime * 2.2 + norm * 6.2831853 + vPhase * 3.1415926);
+        vec3 effect = mix(baseColor, accentColor, pulse);
+        return mix(baseColor, effect, intensity);
+      } else if (uColorMode < 2.5) {
+        float axis = clamp((vBase.y / max(uColorRadius, 1e-4)) * 0.5 + 0.5, 0.0, 1.0);
+        float sweep = 0.5 + 0.5 * sin(colorTime * 1.4 + axis * 6.2831853);
+        vec3 effect = mix(dimColor, accentColor, sweep);
+        return mix(baseColor, effect, intensity);
+      } else if (uColorMode < 3.5) {
+        float flicker = fract(sin(vPhase * 43758.5453 + colorTime * 0.45) * 43758.5453);
+        float mixAmt = smoothstep(0.2, 0.8, flicker);
+        vec3 effect = mix(dimColor, accentColor, mixAmt);
+        return mix(baseColor, effect, intensity);
+      } else {
+        float hueRange = hueSpreadNorm;
+        float randA = sin(vPhase * 213.135 + colorTime * 1.27);
+        float randB = sin(vPhase * 97.531 + colorTime * 0.93);
+        float randC = sin(vPhase * 47.853 + colorTime * 1.61);
+        float randomShift = (randA * 0.6 + randB * 0.4) * hueRange;
+        vec3 rndHSV = baseHSVOriginal;
+        rndHSV.x = fract(rndHSV.x + randomShift);
+        rndHSV.y = clamp(rndHSV.y * (0.7 + 0.3 * (randB * 0.5 + 0.5)), 0.0, 1.0);
+        rndHSV.z = clamp(rndHSV.z * (0.7 + 0.3 * (randC * 0.5 + 0.5)), 0.0, 1.2);
+        vec3 randomColor = hsv2rgb(rndHSV);
+        return mix(baseColor, randomColor, intensity);
     vec3 computeColor() {
       if (uColorMode < 0.5) {
         return uColor;
@@ -1910,6 +2209,10 @@ function makeStars() {
       uColorAccent: { value: colorState.accent.clone() },
       uColorDim: { value: colorState.dim.clone() },
       uColorMode: { value: getColorModeIndex() },
+      uColorRadius: { value: colorState.radius },
+      uColorIntensity: { value: params.colorIntensity },
+      uColorSpeed: { value: params.colorSpeed },
+      uHueSpread: { value: params.hueSpread }
       uColorRadius: { value: colorState.radius }
     }
   });
@@ -2080,11 +2383,78 @@ function makeTiny() {
     uniform vec3 uColorDim;
     uniform float uColorMode;
     uniform float uColorRadius;
+    uniform float uColorIntensity;
+    uniform float uColorSpeed;
+    uniform float uHueSpread;
     uniform float uTime;
     varying vec3 vBase;
     varying float vPhase;
     varying float vRadius;
 
+    vec3 rgb2hsv(vec3 c) {
+      vec4 K = vec4(0.0, -1.0 / 3.0, 2.0 / 3.0, -1.0);
+      vec4 p = mix(vec4(c.bg, K.wz), vec4(c.gb, K.xy), step(c.b, c.g));
+      vec4 q = mix(vec4(p.xyw, c.r), vec4(c.r, p.yzx), step(p.x, c.r));
+      float d = q.x - min(q.w, q.y);
+      float e = 1.0e-10;
+      return vec3(abs(q.z + (q.w - q.y) / (6.0 * d + e)), d / (q.x + e), q.x);
+    }
+
+    vec3 hsv2rgb(vec3 c) {
+      vec3 rgb = clamp(abs(mod(c.x * 6.0 + vec3(0.0, 4.0, 2.0), 6.0) - 3.0) - 1.0, 0.0, 1.0);
+      return c.z * mix(vec3(1.0), rgb, c.y);
+    }
+
+    vec3 computeColor() {
+      float intensity = clamp(uColorIntensity, 0.0, 1.0);
+      float hueSpreadNorm = uHueSpread / 360.0;
+      float colorTime = uTime * max(uColorSpeed, 0.0);
+      vec3 baseHSVOriginal = rgb2hsv(uColor);
+      vec3 accentHSVOriginal = rgb2hsv(uColorAccent);
+      vec3 dimHSVOriginal = rgb2hsv(uColorDim);
+      float hueShift = 0.0;
+      if (hueSpreadNorm > 1e-6) {
+        hueShift = sin(colorTime + vPhase * 6.2831853) * hueSpreadNorm;
+      }
+      vec3 baseHSV = baseHSVOriginal;
+      baseHSV.x = fract(baseHSV.x + hueShift);
+      vec3 accentHSV = accentHSVOriginal;
+      accentHSV.x = fract(accentHSV.x + hueShift);
+      vec3 dimHSV = dimHSVOriginal;
+      dimHSV.x = fract(dimHSV.x + hueShift);
+      vec3 baseColor = hsv2rgb(baseHSV);
+      vec3 accentColor = hsv2rgb(accentHSV);
+      vec3 dimColor = hsv2rgb(dimHSV);
+
+      if (uColorMode < 0.5) {
+        return baseColor;
+      } else if (uColorMode < 1.5) {
+        float norm = uColorRadius > 1e-4 ? clamp(vRadius / uColorRadius, 0.0, 1.0) : 0.0;
+        float pulse = 0.5 + 0.5 * sin(colorTime * 2.8 + norm * 6.2831853 + vPhase * 4.7123889);
+        vec3 effect = mix(baseColor, accentColor, pulse);
+        return mix(baseColor, effect, intensity);
+      } else if (uColorMode < 2.5) {
+        float axis = clamp((vBase.y / max(uColorRadius, 1e-4)) * 0.5 + 0.5, 0.0, 1.0);
+        float sweep = 0.5 + 0.5 * sin(colorTime * 1.8 + axis * 6.2831853);
+        vec3 effect = mix(dimColor, accentColor, sweep);
+        return mix(baseColor, effect, intensity);
+      } else if (uColorMode < 3.5) {
+        float flicker = fract(sin(vPhase * 43758.5453 + colorTime * 0.6) * 43758.5453);
+        float mixAmt = smoothstep(0.15, 0.85, flicker);
+        vec3 effect = mix(dimColor, accentColor, mixAmt);
+        return mix(baseColor, effect, intensity);
+      } else {
+        float hueRange = hueSpreadNorm;
+        float randA = sin(vPhase * 213.135 + colorTime * 1.47);
+        float randB = sin(vPhase * 97.531 + colorTime * 1.03);
+        float randC = sin(vPhase * 47.853 + colorTime * 1.71);
+        float randomShift = (randA * 0.6 + randB * 0.4) * hueRange;
+        vec3 rndHSV = baseHSVOriginal;
+        rndHSV.x = fract(rndHSV.x + randomShift);
+        rndHSV.y = clamp(rndHSV.y * (0.7 + 0.3 * (randB * 0.5 + 0.5)), 0.0, 1.0);
+        rndHSV.z = clamp(rndHSV.z * (0.7 + 0.3 * (randC * 0.5 + 0.5)), 0.0, 1.2);
+        vec3 randomColor = hsv2rgb(rndHSV);
+        return mix(baseColor, randomColor, intensity);
     vec3 computeColor() {
       if (uColorMode < 0.5) {
         return uColor;
@@ -2134,6 +2504,10 @@ function makeTiny() {
       uColorAccent: { value: colorState.accent.clone() },
       uColorDim: { value: colorState.dim.clone() },
       uColorMode: { value: getColorModeIndex() },
+      uColorRadius: { value: colorState.radius },
+      uColorIntensity: { value: params.colorIntensity },
+      uColorSpeed: { value: params.colorSpeed },
+      uHueSpread: { value: params.hueSpread }
       uColorRadius: { value: colorState.radius }
     }
   });
@@ -2183,6 +2557,18 @@ function updateStarUniforms() {
   if (starMaterial.uniforms.uColorRadius) {
     starMaterial.uniforms.uColorRadius.value = Math.max(1, colorState.radius);
   }
+  if (starMaterial.uniforms.uColorIntensity) {
+    const intensity = Math.max(0, Math.min(1, Number(params.colorIntensity) || 0));
+    starMaterial.uniforms.uColorIntensity.value = intensity;
+  }
+  if (starMaterial.uniforms.uColorSpeed) {
+    const speed = Math.max(0, Number(params.colorSpeed) || 0);
+    starMaterial.uniforms.uColorSpeed.value = speed;
+  }
+  if (starMaterial.uniforms.uHueSpread) {
+    const spread = Math.max(0, Math.min(360, Number(params.hueSpread) || 0));
+    starMaterial.uniforms.uHueSpread.value = spread;
+  }
   starMaterial.blending = (params.blending === 'Additive') ? THREE.AdditiveBlending : THREE.NormalBlending;
   starMaterial.needsUpdate = true;
 }
@@ -2224,6 +2610,18 @@ function updateTinyMaterial() {
   if (tinyMaterial.uniforms.uColorRadius) {
     tinyMaterial.uniforms.uColorRadius.value = Math.max(1, colorState.radius);
   }
+  if (tinyMaterial.uniforms.uColorIntensity) {
+    const intensity = Math.max(0, Math.min(1, Number(params.colorIntensity) || 0));
+    tinyMaterial.uniforms.uColorIntensity.value = intensity;
+  }
+  if (tinyMaterial.uniforms.uColorSpeed) {
+    const speed = Math.max(0, Number(params.colorSpeed) || 0);
+    tinyMaterial.uniforms.uColorSpeed.value = speed;
+  }
+  if (tinyMaterial.uniforms.uHueSpread) {
+    const spread = Math.max(0, Math.min(360, Number(params.hueSpread) || 0));
+    tinyMaterial.uniforms.uHueSpread.value = spread;
+  }
   tinyMaterial.blending = (params.blending === 'Additive') ? THREE.AdditiveBlending : THREE.NormalBlending;
   tinyMaterial.needsUpdate = true;
 }
@@ -2260,6 +2658,9 @@ const sheetState = {
   preventClick: false,
 };
 
+audioUI.panel = $('audioPanel');
+audioUI.body = $('audioPanelBody');
+audioUI.toggle = $('audioPanelToggle');
 audioUI.fileInput = $('audioFile');
 audioUI.fileMeta = $('audioFileMeta');
 audioUI.playBtn = $('audioPlay');
@@ -2270,6 +2671,22 @@ audioUI.statusText = $('audioStatus');
 audioUI.statusDot = $('audioStatusDot');
 audioUI.modifierButtons = Array.from(document.querySelectorAll('#audioModifierGrid [data-modifier]'));
 audioUI.intensityControls = new Map();
+audioUI.supportNotice = $('audioSupportNotice');
+
+if (audioUI.toggle && audioUI.body) {
+  audioUI.toggle.addEventListener('click', () => {
+    const expanded = audioUI.toggle.getAttribute('aria-expanded') === 'true';
+    const next = !expanded;
+    audioUI.toggle.setAttribute('aria-expanded', String(next));
+    if (next) {
+      audioUI.body.hidden = false;
+      if (audioUI.panel) audioUI.panel.classList.remove('is-collapsed');
+    } else {
+      audioUI.body.hidden = true;
+      if (audioUI.panel) audioUI.panel.classList.add('is-collapsed');
+    }
+  });
+}
 
 document.querySelectorAll('[data-intensity-target]').forEach(input => {
   const key = input.dataset.intensityTarget;
@@ -3395,6 +3812,9 @@ $('random').addEventListener('click', () => {
   const distributions = ['random', 'fibonacci', 'spiral', 'cube', 'cylinder', 'octahedron'];
   params.distribution = distributions[Math.floor(Math.random() * distributions.length)];
   params.colorMode = COLOR_MODES[Math.floor(Math.random() * COLOR_MODES.length)];
+  params.colorIntensity = Math.random();
+  params.colorSpeed = Math.random() * 4.5;
+  params.hueSpread = Math.random() * 180;
   const weights = [Math.random(), Math.random(), Math.random()];
   const weightSum = weights.reduce((sum, value) => sum + value, 0) || 1;
   const provisional = weights.map(value => Math.max(0, Math.floor((value / weightSum) * totalCount)));
@@ -3458,6 +3878,15 @@ function setSliders() {
   $('vSaturation').textContent = (saturationValue * 100).toFixed(0) + '%';
   const valueValue = applySliderValue('pValue', params.pointValue);
   $('vValue').textContent = (valueValue * 100).toFixed(0) + '%';
+  updateColorPickerInput();
+  updateColorSwatchState();
+  $('pColorMode').value = params.colorMode;
+  const colorIntensityValue = applySliderValue('pColorIntensity', params.colorIntensity);
+  $('vColorIntensity').textContent = (colorIntensityValue * 100).toFixed(0) + '%';
+  const colorSpeedValue = applySliderValue('pColorSpeed', params.colorSpeed);
+  $('vColorSpeed').textContent = colorSpeedValue.toFixed(2) + '×';
+  const hueSpreadValue = applySliderValue('pHueSpread', params.hueSpread);
+  $('vHueSpread').textContent = formatDisplayNumber(hueSpreadValue, 1) + '°';
   $('pColorMode').value = params.colorMode;
   const seedStarsValue = applySliderValue('pSeedStars', params.seedStars);
   $('vSeedStars').textContent = formatDisplayNumber(seedStarsValue);
