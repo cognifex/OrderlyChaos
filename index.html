@@ -5877,6 +5877,8 @@ function notifyPlaybackStarted() {
   if (shouldAutoEnableRandom) {
     setAutoRandomEnabled(true);
     randomizeParameters({ syncUI: true });
+  if (!wasStarted && !audioState.usingMic && !autoRandomState.enabled) {
+    setAutoRandomEnabled(true);
   }
   hideInterfaceForPlayback({ remember: true });
   experienceState.started = true;
