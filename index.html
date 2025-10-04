@@ -251,6 +251,20 @@
     .intensity-grid .wrap.is-disabled {
       opacity: 0.55;
     }
+    .intensity-limit {
+      width: 72px;
+      padding: .25rem .35rem;
+      font-size: .75rem;
+      color: var(--fg);
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      border-radius: 6px;
+      flex: 0 0 72px;
+    }
+    .intensity-limit:focus-visible {
+      outline: 2px solid rgba(90, 190, 255, 0.9);
+      outline-offset: 1px;
+    }
     .status-row { display: flex; align-items: center; gap: .5rem; font-size: .78rem; min-height: 1.4em; }
     .status-indicator { width: 10px; height: 10px; border-radius: 50%; background: rgba(255, 255, 255, 0.35); box-shadow: 0 0 6px rgba(0, 0, 0, 0.45); flex-shrink: 0; transition: background .2s ease, box-shadow .2s ease; }
     .status-text { flex: 1; }
@@ -988,39 +1002,52 @@
       <div class="intensity-grid">
         <div class="wrap" data-intensity-row="motion">
           <span class="tag">Rotation</span>
-          <input type="range" min="0" max="200" step="5" value="100" data-intensity-target="motion" />
-          <div class="val" data-intensity-value="motion">10%</div>
+          <input class="intensity-limit" type="number" min="5" max="200" step="5" value="20" data-intensity-limit="motion" aria-label="Maximale Reaktionsstärke für Rotation in Prozent" />
+          <input type="range" min="0" max="100" step="5" value="50" data-intensity-target="motion" />
+          <div class="val" data-intensity-value="motion">50%</div>
         </div>
         <div class="wrap" data-intensity-row="scale">
           <span class="tag">Skalierung</span>
-          <input type="range" min="0" max="200" step="5" value="100" data-intensity-target="scale" />
+          <input class="intensity-limit" type="number" min="5" max="200" step="5" value="100" data-intensity-limit="scale" aria-label="Maximale Reaktionsstärke für Skalierung in Prozent" />
+          <input type="range" min="0" max="100" step="5" value="100" data-intensity-target="scale" />
           <div class="val" data-intensity-value="scale">100%</div>
         </div>
         <div class="wrap" data-intensity-row="size">
           <span class="tag">Punktgröße</span>
-          <input type="range" min="0" max="200" step="5" value="100" data-intensity-target="size" />
+          <input class="intensity-limit" type="number" min="5" max="200" step="5" value="100" data-intensity-limit="size" aria-label="Maximale Reaktionsstärke für Punktgröße in Prozent" />
+          <input type="range" min="0" max="100" step="5" value="100" data-intensity-target="size" />
           <div class="val" data-intensity-value="size">100%</div>
         </div>
         <div class="wrap" data-intensity-row="hue">
           <span class="tag">Farbton</span>
-          <input type="range" min="0" max="200" step="5" value="100" data-intensity-target="hue" />
+          <input class="intensity-limit" type="number" min="5" max="200" step="5" value="100" data-intensity-limit="hue" aria-label="Maximale Reaktionsstärke für Farbton in Prozent" />
+          <input type="range" min="0" max="100" step="5" value="100" data-intensity-target="hue" />
           <div class="val" data-intensity-value="hue">100%</div>
         </div>
         <div class="wrap" data-intensity-row="saturation">
           <span class="tag">Sättigung</span>
-          <input type="range" min="0" max="200" step="5" value="100" data-intensity-target="saturation" />
+          <input class="intensity-limit" type="number" min="5" max="200" step="5" value="100" data-intensity-limit="saturation" aria-label="Maximale Reaktionsstärke für Sättigung in Prozent" />
+          <input type="range" min="0" max="100" step="5" value="100" data-intensity-target="saturation" />
           <div class="val" data-intensity-value="saturation">100%</div>
         </div>
         <div class="wrap" data-intensity-row="brightness">
           <span class="tag">Helligkeit</span>
-          <input type="range" min="0" max="200" step="5" value="100" data-intensity-target="brightness" />
+          <input class="intensity-limit" type="number" min="5" max="200" step="5" value="100" data-intensity-limit="brightness" aria-label="Maximale Reaktionsstärke für Helligkeit in Prozent" />
+          <input type="range" min="0" max="100" step="5" value="100" data-intensity-target="brightness" />
           <div class="val" data-intensity-value="brightness">100%</div>
         </div>
         <div class="wrap" data-intensity-row="alpha">
           <span class="tag">Transparenz</span>
-          <input type="range" min="0" max="200" step="5" value="100" data-intensity-target="alpha" />
+          <input class="intensity-limit" type="number" min="5" max="200" step="5" value="100" data-intensity-limit="alpha" aria-label="Maximale Reaktionsstärke für Transparenz in Prozent" />
+          <input type="range" min="0" max="100" step="5" value="100" data-intensity-target="alpha" />
           <div class="val" data-intensity-value="alpha">100%</div>
         </div>
+      </div>
+    </div>
+    <div class="row">
+      <label for="brightnessAdaptationToggle">Helligkeitsadaption</label>
+      <div class="wrap">
+        <button type="button" id="brightnessAdaptationToggle" aria-pressed="true">🌗 Adaption an</button>
       </div>
     </div>
     <div class="row">
@@ -1247,6 +1274,26 @@ const AUDIO_INTENSITY_DEFAULTS = Object.freeze({
   alpha: 1
 });
 
+const AUDIO_INTENSITY_BASE_DEFAULTS = Object.freeze({
+  motion: 0.1,
+  scale: 1,
+  size: 1,
+  hue: 1,
+  saturation: 1,
+  brightness: 1,
+  alpha: 1
+});
+
+const AUDIO_INTENSITY_LIMIT_DEFAULTS = Object.freeze({
+  motion: 0.2,
+  scale: 1,
+  size: 1,
+  hue: 1,
+  saturation: 1,
+  brightness: 1,
+  alpha: 1
+});
+
 const AUDIO_DYNAMIC_INTENSITY_CONFIG = Object.freeze({
   motion: {
     min: 0.45,
@@ -1359,12 +1406,14 @@ const audioState = {
     brightness: true,
     alpha: true
   },
-  intensity: { ...AUDIO_INTENSITY_DEFAULTS },
+  intensity: { ...AUDIO_INTENSITY_BASE_DEFAULTS },
+  intensityLimits: { ...AUDIO_INTENSITY_LIMIT_DEFAULTS },
   dynamicIntensity: { ...AUDIO_INTENSITY_DEFAULTS },
   dynamicTargets: { ...AUDIO_INTENSITY_DEFAULTS },
   dynamicTimers: {},
   color: new THREE.Color(),
   silenceLevel: 1,
+  brightnessAdaptationEnabled: true,
   needsResume: false,
   motionDirection: 1,
   pitchDirection: 1,
@@ -1404,7 +1453,8 @@ const audioUI = {
   supportNotice: null,
   autoRandomBtn: null,
   overlay: null,
-  overlayButton: null
+  overlayButton: null,
+  brightnessAdaptationBtn: null
 };
 
 const autoRandomState = {
@@ -1417,13 +1467,15 @@ const autoRandomState = {
   nudgeInterval: 0.45
 };
 
-function clampIntensityPercent(value, fallback = 100) {
+function clampIntensityPercent(value, fallback = 100, max = 200) {
   const numeric = Number(value);
+  const limit = Number.isFinite(max) ? Math.max(0, max) : 200;
+  const fallbackValue = Math.max(0, Math.min(limit, Math.round(Number(fallback))));
   if (!Number.isFinite(numeric)) {
-    return Math.max(0, Math.min(200, Math.round(fallback)));
+    return fallbackValue;
   }
   const rounded = Math.round(numeric / 5) * 5;
-  return Math.max(0, Math.min(200, rounded));
+  return Math.max(0, Math.min(limit, rounded));
 }
 
 function getAudioIntensity(key) {
@@ -1431,7 +1483,9 @@ function getAudioIntensity(key) {
     return 1;
   }
   if (!(key in audioState.intensity)) {
-    const fallback = (key in AUDIO_INTENSITY_DEFAULTS) ? AUDIO_INTENSITY_DEFAULTS[key] : 1;
+    const fallback = (key in AUDIO_INTENSITY_BASE_DEFAULTS)
+      ? AUDIO_INTENSITY_BASE_DEFAULTS[key]
+      : ((key in AUDIO_INTENSITY_DEFAULTS) ? AUDIO_INTENSITY_DEFAULTS[key] : 1);
     audioState.intensity[key] = Number.isFinite(fallback) ? fallback : 1;
   }
   const base = audioState.intensity[key];
@@ -1443,16 +1497,35 @@ function getAudioIntensity(key) {
   return baseValue * (dynamicValue || 1);
 }
 
+function getAudioIntensityLimit(key) {
+  if (!key || !audioState) {
+    return 1;
+  }
+  if (!audioState.intensityLimits) {
+    audioState.intensityLimits = { ...AUDIO_INTENSITY_LIMIT_DEFAULTS };
+  }
+  if (!(key in audioState.intensityLimits)) {
+    const fallback = (key in AUDIO_INTENSITY_LIMIT_DEFAULTS) ? AUDIO_INTENSITY_LIMIT_DEFAULTS[key] : 1;
+    audioState.intensityLimits[key] = Number.isFinite(fallback) ? fallback : 1;
+  }
+  const limit = audioState.intensityLimits[key];
+  return Number.isFinite(limit) && limit >= 0 ? limit : 1;
+}
+
 function syncAudioIntensityControls() {
   if (!audioUI.intensityControls || typeof audioUI.intensityControls.forEach !== 'function') {
     return;
   }
   const modifiers = audioState.modifiers || {};
-  audioUI.intensityControls.forEach(({ input, valueEl, container }, key) => {
+  audioUI.intensityControls.forEach(({ input, valueEl, container, limitInput }, key) => {
+    const limit = getAudioIntensityLimit(key);
     const base = audioState.intensity && key in audioState.intensity
       ? audioState.intensity[key]
-      : (AUDIO_INTENSITY_DEFAULTS[key] || 1);
-    const percent = clampIntensityPercent((Number.isFinite(base) ? base : 1) * 100);
+      : (AUDIO_INTENSITY_BASE_DEFAULTS[key] || 1);
+    const limitPercent = clampIntensityPercent(limit * 100, (AUDIO_INTENSITY_LIMIT_DEFAULTS[key] || 1) * 100, 200);
+    const percent = limit > 0
+      ? clampIntensityPercent((Number.isFinite(base) ? base : limit) / limit * 100, 0, 100)
+      : 0;
     const enabled = modifiers[key] !== false;
     if (input) {
       if (document.activeElement !== input) {
@@ -1461,9 +1534,15 @@ function syncAudioIntensityControls() {
       input.setAttribute('aria-valuenow', String(percent));
       input.toggleAttribute('disabled', !enabled);
       input.setAttribute('aria-disabled', String(!enabled));
+      input.setAttribute('aria-valuemax', '100');
+      input.setAttribute('aria-valuemin', '0');
+    }
+    if (limitInput && document.activeElement !== limitInput) {
+      limitInput.value = String(limitPercent);
     }
     if (valueEl) {
-      valueEl.textContent = `${percent}%`;
+      valueEl.textContent = `${percent}% (Max ${limitPercent}%)`;
+      valueEl.setAttribute('title', `Aktuell ${percent}% von ${limitPercent}%`);
     }
     if (container) {
       container.classList.toggle('is-disabled', !enabled);
@@ -1475,12 +1554,63 @@ function setAudioIntensity(key, percentValue) {
   if (!key || !(key in AUDIO_INTENSITY_DEFAULTS)) {
     return;
   }
-  const clampedPercent = clampIntensityPercent(percentValue, AUDIO_INTENSITY_DEFAULTS[key] * 100);
+  const limit = getAudioIntensityLimit(key);
+  const clampedPercent = clampIntensityPercent(percentValue, 100, 100);
   if (!audioState.intensity) {
-    audioState.intensity = { ...AUDIO_INTENSITY_DEFAULTS };
+    audioState.intensity = { ...AUDIO_INTENSITY_BASE_DEFAULTS };
   }
-  audioState.intensity[key] = clampedPercent / 100;
+  const nextValue = limit > 0 ? (clampedPercent / 100) * limit : 0;
+  audioState.intensity[key] = clampValue(nextValue, 0, Math.max(limit, 0));
   syncAudioIntensityControls();
+  applyAudioVisualState();
+}
+
+function setAudioIntensityLimit(key, percentValue, { preserveRatio = true } = {}) {
+  if (!key || !(key in AUDIO_INTENSITY_DEFAULTS)) {
+    return;
+  }
+  const defaultPercent = (AUDIO_INTENSITY_LIMIT_DEFAULTS[key] || 1) * 100;
+  const clampedPercent = clampIntensityPercent(percentValue, defaultPercent, 200);
+  if (!audioState.intensityLimits) {
+    audioState.intensityLimits = { ...AUDIO_INTENSITY_LIMIT_DEFAULTS };
+  }
+  const previousLimit = getAudioIntensityLimit(key);
+  const nextLimit = clampedPercent / 100;
+  audioState.intensityLimits[key] = nextLimit;
+  if (!audioState.intensity) {
+    audioState.intensity = { ...AUDIO_INTENSITY_BASE_DEFAULTS };
+  }
+  const currentBase = audioState.intensity[key] ?? (AUDIO_INTENSITY_BASE_DEFAULTS[key] || nextLimit || 1);
+  let nextBase = currentBase;
+  if (preserveRatio && previousLimit > 0) {
+    const ratio = Number.isFinite(currentBase) ? currentBase / previousLimit : 0;
+    nextBase = nextLimit > 0 ? ratio * nextLimit : 0;
+  }
+  nextBase = clampValue(Number.isFinite(nextBase) ? nextBase : 0, 0, Math.max(nextLimit, 0));
+  audioState.intensity[key] = nextBase;
+  syncAudioIntensityControls();
+  applyAudioVisualState();
+}
+
+function isBrightnessAdaptationEnabled() {
+  return audioState && audioState.brightnessAdaptationEnabled !== false;
+}
+
+function updateBrightnessAdaptationButton() {
+  if (!audioUI.brightnessAdaptationBtn) {
+    return;
+  }
+  const enabled = isBrightnessAdaptationEnabled();
+  audioUI.brightnessAdaptationBtn.setAttribute('aria-pressed', enabled ? 'true' : 'false');
+  audioUI.brightnessAdaptationBtn.textContent = enabled ? '🌗 Adaption an' : '🌗 Adaption aus';
+}
+
+function setBrightnessAdaptationEnabled(enabled) {
+  if (!audioState) {
+    return;
+  }
+  audioState.brightnessAdaptationEnabled = Boolean(enabled);
+  updateBrightnessAdaptationButton();
   applyAudioVisualState();
 }
 
@@ -1607,9 +1737,12 @@ function applyAudioVisualState(modifiers = audioState.modifiers || {}) {
   const brightnessBoost = modifiers.brightness
     ? audioState.metrics.energy * 0.32 * effectiveBrightnessIntensity
     : 0;
+  const brightnessAdaptationEnabled = isBrightnessAdaptationEnabled();
   const silenceLevel = clampValue(Number.isFinite(audioState.silenceLevel) ? audioState.silenceLevel : 0, 0, 1);
   const minVisibility = 0.08;
-  const visibilityFactor = minVisibility + (1 - silenceLevel) * (1 - minVisibility);
+  const visibilityFactor = brightnessAdaptationEnabled
+    ? minVisibility + (1 - silenceLevel) * (1 - minVisibility)
+    : 1;
   const saturation = clampValue(baseSaturation + saturationBoost * visibilityFactor, 0.05, 1.4);
   const brightness = clampValue((baseBrightness + brightnessBoost) * visibilityFactor, 0.05, 1.6);
   const reactiveColor = hsv2rgb(hue, saturation, brightness);
@@ -3660,6 +3793,7 @@ audioUI.supportNotice = $('audioSupportNotice');
 audioUI.autoRandomBtn = $('audioRandomMode');
 audioUI.overlay = $('audioOverlay');
 audioUI.overlayButton = $('audioOverlayButton');
+audioUI.brightnessAdaptationBtn = $('brightnessAdaptationToggle');
 
 if (audioUI.toggle && audioUI.body) {
   audioUI.toggle.addEventListener('click', () => {
@@ -3681,14 +3815,31 @@ document.querySelectorAll('[data-intensity-target]').forEach(input => {
   if (!key || !(key in AUDIO_INTENSITY_DEFAULTS)) return;
   const container = input.closest('[data-intensity-row]') || input.parentElement;
   const valueEl = document.querySelector(`[data-intensity-value="${key}"]`);
-  audioUI.intensityControls.set(key, { input, valueEl, container });
+  const limitInput = container ? container.querySelector(`[data-intensity-limit="${key}"]`) : null;
+  audioUI.intensityControls.set(key, { input, valueEl, container, limitInput });
+  const limit = getAudioIntensityLimit(key);
   const baseValue = audioState.intensity && key in audioState.intensity
     ? audioState.intensity[key]
-    : (AUDIO_INTENSITY_DEFAULTS[key] || 1);
-  const initialPercent = clampIntensityPercent((Number.isFinite(baseValue) ? baseValue : 1) * 100);
+    : (AUDIO_INTENSITY_BASE_DEFAULTS[key] || limit || 1);
+  const limitPercent = clampIntensityPercent(limit * 100, (AUDIO_INTENSITY_LIMIT_DEFAULTS[key] || 1) * 100, 200);
+  const initialPercent = limit > 0
+    ? clampIntensityPercent((Number.isFinite(baseValue) ? baseValue : limit) / limit * 100, 0, 100)
+    : 0;
   input.value = String(initialPercent);
+  input.setAttribute('aria-valuemin', '0');
+  input.setAttribute('aria-valuemax', '100');
   if (valueEl) {
-    valueEl.textContent = `${initialPercent}%`;
+    valueEl.textContent = `${initialPercent}% (Max ${limitPercent}%)`;
+    valueEl.setAttribute('title', `Aktuell ${initialPercent}% von ${limitPercent}%`);
+  }
+  if (limitInput) {
+    limitInput.value = String(limitPercent);
+    limitInput.addEventListener('input', event => {
+      setAudioIntensityLimit(key, event.target.value);
+    });
+    limitInput.addEventListener('change', event => {
+      setAudioIntensityLimit(key, event.target.value);
+    });
   }
   input.addEventListener('input', event => {
     setAudioIntensity(key, event.target.value);
@@ -3872,6 +4023,13 @@ if (audioUI.overlayButton) {
 
 setAutoRandomEnabled(false);
 updateAudioOverlayVisibility();
+
+if (audioUI.brightnessAdaptationBtn) {
+  audioUI.brightnessAdaptationBtn.addEventListener('click', () => {
+    setBrightnessAdaptationEnabled(!isBrightnessAdaptationEnabled());
+  });
+  updateBrightnessAdaptationButton();
+}
 
 if (audioUI.fileInput) {
   audioUI.fileInput.addEventListener('change', event => {
