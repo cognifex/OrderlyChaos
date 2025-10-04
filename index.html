@@ -1233,6 +1233,11 @@ scene.add(clusterGroup);
 
 const FELDAPPEN_CENTER = new THREE.Vector3(0, 0, 0);
 
+const stlGroup = new THREE.Group();
+stlGroup.name = 'feldappenVolume';
+stlGroup.visible = false;
+clusterGroup.add(stlGroup);
+
 const ambientLight = new THREE.AmbientLight(0xffffff, 0.45);
 scene.add(ambientLight);
 
@@ -1242,6 +1247,9 @@ directionalLight.target.position.copy(FELDAPPEN_CENTER);
 scene.add(directionalLight);
 scene.add(directionalLight.target);
 
+clusterGroup.position.copy(FELDAPPEN_CENTER);
+controls.target.copy(FELDAPPEN_CENTER);
+controls.update();
 const stlGroup = new THREE.Group();
 stlGroup.name = 'feldappenVolume';
 stlGroup.visible = false;
@@ -1251,6 +1259,7 @@ const stlLoader = new THREE.STLLoader();
 let stlMaterial = null;
 const stlState = {
   files: [],
+  points: null,
   combinedPoints: null,
 const stlMaterial = new THREE.MeshPhongMaterial({
   color: 0x5fa8ff,
@@ -1379,6 +1388,7 @@ function updateStlMeta(files = [], { loading = false, error = '' } = {}) {
     stlUI.meta.dataset.state = state;
   }
   if (stlUI.clearBtn) {
+    stlUI.clearBtn.disabled = loading || !stlState.points;
     stlUI.clearBtn.disabled = loading || !stlState.combinedPoints;
     stlUI.clearBtn.disabled = loading || !stlState.combinedMesh;
   }
@@ -1388,6 +1398,13 @@ function updateStlMeta(files = [], { loading = false, error = '' } = {}) {
 }
 
 function clearStlModels({ keepCamera = false, skipInputReset = false, preserveMeta = false } = {}) {
+  const hadPoints = Boolean(stlState.points);
+  if (stlState.points) {
+    if (stlState.points.geometry) {
+      stlState.points.geometry.dispose();
+    }
+    stlGroup.remove(stlState.points);
+    stlState.points = null;
   const hadPoints = Boolean(stlState.combinedPoints);
   if (stlState.combinedPoints) {
     if (stlState.combinedPoints.geometry) {
@@ -1493,10 +1510,31 @@ function mergeStlGeometries(geometries) {
   return merged;
 }
 
+function ensureStlMaterial() {
+  if (stlMaterial) {
+    return stlMaterial;
+  }
+  if (!starMaterial) {
+    return null;
+  }
+  const uniforms = THREE.UniformsUtils.clone(starMaterial.uniforms);
+  stlMaterial = new THREE.ShaderMaterial({
+    vertexShader: starMaterial.vertexShader,
+    fragmentShader: starMaterial.fragmentShader,
+    transparent: starMaterial.transparent,
+    depthTest: starMaterial.depthTest,
+    depthWrite: starMaterial.depthWrite,
+    blending: starMaterial.blending,
+    uniforms
+  });
+  return stlMaterial;
+}
+
 function applyStlGeometry(geometry, fileNames = []) {
   if (!(geometry instanceof THREE.BufferGeometry)) {
     return;
   }
+  if (stlState.points) {
   if (stlState.combinedPoints) {
   if (stlState.combinedMesh) {
     clearStlModels({ keepCamera: true, skipInputReset: true, preserveMeta: true });
@@ -1510,6 +1548,7 @@ function applyStlGeometry(geometry, fileNames = []) {
   geometry.computeBoundingSphere();
   const radius = geometry.boundingSphere ? geometry.boundingSphere.radius : 0;
   stlState.boundingRadius = Number.isFinite(radius) ? Math.max(0, radius) : 0;
+  const names = Array.isArray(fileNames) ? fileNames : [];
   const fileList = Array.isArray(fileNames) ? fileNames : [];
   stlState.files = fileList;
   const positionAttr = geometry.getAttribute ? geometry.getAttribute('position') : null;
@@ -1520,6 +1559,16 @@ function applyStlGeometry(geometry, fileNames = []) {
   const count = positionAttr.count;
   const positions = new Float32Array(positionAttr.array.length);
   positions.set(positionAttr.array);
+  const basePositions = new Float32Array(positionAttr.array.length);
+  basePositions.set(positionAttr.array);
+  const phases = new Float32Array(count);
+  const sizes = new Float32Array(count);
+  const categories = new Float32Array(count);
+  const seed = hashStringList(names);
+  const rand = mulberry32(seed);
+  const phaseRand = mulberry32((seed ^ 0x51f32a95) >>> 0);
+  for (let i = 0; i < count; i++) {
+    phases[i] = phaseRand();
   const basePositions = new Float32Array(positions);
   const phases = new Float32Array(count);
   const sizes = new Float32Array(count);
@@ -1542,6 +1591,22 @@ function applyStlGeometry(geometry, fileNames = []) {
   if (pointGeometry.boundingSphere) {
     pointGeometry.boundingSphere.center.set(0, 0, 0);
   }
+  const material = ensureStlMaterial();
+  if (!material) {
+    pointGeometry.dispose();
+    return;
+  }
+  const points = new THREE.Points(pointGeometry, material);
+  points.name = 'feldappenVolumePoints';
+  stlGroup.add(points);
+  stlGroup.visible = true;
+  stlGroup.position.copy(FELDAPPEN_CENTER);
+  stlState.points = points;
+  stlState.files = names;
+  updateStlMeta(names);
+  updateStarUniforms();
+  focusOnFeldappenCenter({ repositionCamera: true });
+  geometry.dispose();
   const points = new THREE.Points(pointGeometry, stlMaterial);
   points.name = 'feldappenVolumePoints';
   stlGroup.add(points);
@@ -2177,6 +2242,36 @@ function applyAudioVisualState(modifiers = audioState.modifiers || {}) {
   };
   applyAudioToPointMaterial(starMaterial);
   applyAudioToPointMaterial(stlMaterial);
+
+  if (stlMaterial && stlMaterial.uniforms) {
+    if (stlMaterial.uniforms.uAudioBands && stlMaterial.uniforms.uAudioBands.value) {
+      stlMaterial.uniforms.uAudioBands.value.copy(audioBandVector);
+    }
+    if (stlMaterial.uniforms.uAudioEnergy) {
+      stlMaterial.uniforms.uAudioEnergy.value = energyUniform;
+    }
+    if (stlMaterial.uniforms.uAudioWave) {
+      stlMaterial.uniforms.uAudioWave.value = waveUniform;
+    }
+    if (stlMaterial.uniforms.uSizeFactorSmall) {
+      stlMaterial.uniforms.uSizeFactorSmall.value = params.sizeFactorSmall * sizeBoost;
+    }
+    if (stlMaterial.uniforms.uSizeFactorMedium) {
+      stlMaterial.uniforms.uSizeFactorMedium.value = params.sizeFactorMedium * sizeBoost;
+    }
+    if (stlMaterial.uniforms.uSizeFactorLarge) {
+      stlMaterial.uniforms.uSizeFactorLarge.value = params.sizeFactorLarge * sizeBoost;
+    }
+    if (stlMaterial.uniforms.uAlpha) {
+      const baseAlpha = params.pointAlpha;
+      const alphaVisual = modifiers.alpha ? clampValue(audioState.visual.alpha, 0, 1.2) : AUDIO_VISUAL_BASE.alpha;
+      const boostedAlpha = Math.max(0.05, Math.min(1, (baseAlpha + alphaVisual) * visibilityFactor));
+      stlMaterial.uniforms.uAlpha.value = boostedAlpha;
+    }
+    if (stlMaterial.uniforms.uColor) {
+      stlMaterial.uniforms.uColor.value.copy(audioState.color);
+    }
+  }
 
   if (tinyMaterial && tinyMaterial.uniforms) {
     if (tinyMaterial.uniforms.uAudioBands && tinyMaterial.uniforms.uAudioBands.value) {
@@ -3775,6 +3870,15 @@ function makeStars() {
   updatePointMaterialUniforms(starMaterial);
   starPoints = new THREE.Points(starGeometry, starMaterial);
   clusterGroup.add(starPoints);
+  const existingStlPoints = stlState.points;
+  if (stlMaterial) {
+    stlMaterial.dispose();
+    stlMaterial = null;
+  }
+  ensureStlMaterial();
+  if (existingStlPoints && stlMaterial) {
+    existingStlPoints.material = stlMaterial;
+  }
 }
 
 /* Create tiny connection points */
@@ -4077,6 +4181,149 @@ function makeTiny() {
 
 /* Update uniforms and materials when parameters change */
 function updateStarUniforms() {
+  if (!starMaterial) return;
+  starMaterial.uniforms.uAlpha.value = params.pointAlpha;
+  starMaterial.uniforms.uEdgeSoftness.value = params.filled ? 0.0 : params.edgeSoftness;
+  starMaterial.uniforms.uSizeFactorSmall.value = params.sizeFactorSmall;
+  starMaterial.uniforms.uSizeFactorMedium.value = params.sizeFactorMedium;
+  starMaterial.uniforms.uSizeFactorLarge.value = params.sizeFactorLarge;
+  if (starMaterial.uniforms.uTime) {
+    starMaterial.uniforms.uTime.value = motionState.time;
+  }
+  if (starMaterial.uniforms.uMotionMode) {
+    starMaterial.uniforms.uMotionMode.value = getMotionModeIndex();
+  }
+  if (starMaterial.uniforms.uMotionSpeed) {
+    starMaterial.uniforms.uMotionSpeed.value = params.motionSpeed;
+  }
+  if (starMaterial.uniforms.uMotionAmplitude) {
+    starMaterial.uniforms.uMotionAmplitude.value = params.motionAmplitude;
+  }
+  if (starMaterial.uniforms.uNoiseStrength) {
+    starMaterial.uniforms.uNoiseStrength.value = params.motionNoiseStrength;
+  }
+  if (starMaterial.uniforms.uNoiseScale) {
+    starMaterial.uniforms.uNoiseScale.value = params.motionNoiseScale;
+  }
+  if (starMaterial.uniforms.uColor) {
+    starMaterial.uniforms.uColor.value.copy(colorState.point);
+  }
+  if (starMaterial.uniforms.uColorAccent) {
+    starMaterial.uniforms.uColorAccent.value.copy(colorState.accent);
+  }
+  if (starMaterial.uniforms.uColorDim) {
+    starMaterial.uniforms.uColorDim.value.copy(colorState.dim);
+  }
+  if (starMaterial.uniforms.uColorMode) {
+    starMaterial.uniforms.uColorMode.value = getColorModeIndex();
+  }
+  if (starMaterial.uniforms.uColorRadius) {
+    starMaterial.uniforms.uColorRadius.value = Math.max(1, colorState.radius);
+  }
+  if (starMaterial.uniforms.uColorIntensity) {
+    const intensity = Math.max(0, Math.min(1, Number(params.colorIntensity) || 0));
+    starMaterial.uniforms.uColorIntensity.value = intensity;
+  }
+  if (starMaterial.uniforms.uColorSpeed) {
+    const speed = Math.max(0, Number(params.colorSpeed) || 0);
+    starMaterial.uniforms.uColorSpeed.value = speed;
+  }
+  if (starMaterial.uniforms.uColorPropagationDistance) {
+    const distance = Math.max(0, Number(params.colorPropagationDistance) || 0);
+    starMaterial.uniforms.uColorPropagationDistance.value = distance;
+  }
+  if (starMaterial.uniforms.uColorPropagationDuration) {
+    const duration = Math.max(0, Number(params.colorPropagationDuration) || 0);
+    starMaterial.uniforms.uColorPropagationDuration.value = duration;
+  }
+  if (starMaterial.uniforms.uColorToneCount) {
+    const tones = Math.max(1, Math.round(Number(params.colorToneCount) || 1));
+    params.colorToneCount = tones;
+    starMaterial.uniforms.uColorToneCount.value = tones;
+  }
+  if (starMaterial.uniforms.uHueSpread) {
+    const spread = Math.max(0, Math.min(360, Number(params.hueSpread) || 0));
+    starMaterial.uniforms.uHueSpread.value = spread;
+  }
+  starMaterial.blending = (params.blending === 'Additive') ? THREE.AdditiveBlending : THREE.NormalBlending;
+  starMaterial.needsUpdate = true;
+  if (stlMaterial && stlMaterial.uniforms) {
+    if (stlMaterial.uniforms.uAlpha) {
+      stlMaterial.uniforms.uAlpha.value = params.pointAlpha;
+    }
+    if (stlMaterial.uniforms.uEdgeSoftness) {
+      stlMaterial.uniforms.uEdgeSoftness.value = params.filled ? 0.0 : params.edgeSoftness;
+    }
+    if (stlMaterial.uniforms.uSizeFactorSmall) {
+      stlMaterial.uniforms.uSizeFactorSmall.value = params.sizeFactorSmall;
+    }
+    if (stlMaterial.uniforms.uSizeFactorMedium) {
+      stlMaterial.uniforms.uSizeFactorMedium.value = params.sizeFactorMedium;
+    }
+    if (stlMaterial.uniforms.uSizeFactorLarge) {
+      stlMaterial.uniforms.uSizeFactorLarge.value = params.sizeFactorLarge;
+    }
+    if (stlMaterial.uniforms.uTime) {
+      stlMaterial.uniforms.uTime.value = motionState.time;
+    }
+    if (stlMaterial.uniforms.uMotionMode) {
+      stlMaterial.uniforms.uMotionMode.value = getMotionModeIndex();
+    }
+    if (stlMaterial.uniforms.uMotionSpeed) {
+      stlMaterial.uniforms.uMotionSpeed.value = params.motionSpeed;
+    }
+    if (stlMaterial.uniforms.uMotionAmplitude) {
+      stlMaterial.uniforms.uMotionAmplitude.value = params.motionAmplitude;
+    }
+    if (stlMaterial.uniforms.uNoiseStrength) {
+      stlMaterial.uniforms.uNoiseStrength.value = params.motionNoiseStrength;
+    }
+    if (stlMaterial.uniforms.uNoiseScale) {
+      stlMaterial.uniforms.uNoiseScale.value = params.motionNoiseScale;
+    }
+    if (stlMaterial.uniforms.uColor) {
+      stlMaterial.uniforms.uColor.value.copy(colorState.point);
+    }
+    if (stlMaterial.uniforms.uColorAccent) {
+      stlMaterial.uniforms.uColorAccent.value.copy(colorState.accent);
+    }
+    if (stlMaterial.uniforms.uColorDim) {
+      stlMaterial.uniforms.uColorDim.value.copy(colorState.dim);
+    }
+    if (stlMaterial.uniforms.uColorMode) {
+      stlMaterial.uniforms.uColorMode.value = getColorModeIndex();
+    }
+    if (stlMaterial.uniforms.uColorRadius) {
+      const radius = Math.max(1, Math.max(colorState.radius, stlState.boundingRadius || 0));
+      stlMaterial.uniforms.uColorRadius.value = radius;
+    }
+    if (stlMaterial.uniforms.uColorIntensity) {
+      const intensity = Math.max(0, Math.min(1, Number(params.colorIntensity) || 0));
+      stlMaterial.uniforms.uColorIntensity.value = intensity;
+    }
+    if (stlMaterial.uniforms.uColorSpeed) {
+      const speed = Math.max(0, Number(params.colorSpeed) || 0);
+      stlMaterial.uniforms.uColorSpeed.value = speed;
+    }
+    if (stlMaterial.uniforms.uColorPropagationDistance) {
+      const distance = Math.max(0, Number(params.colorPropagationDistance) || 0);
+      stlMaterial.uniforms.uColorPropagationDistance.value = distance;
+    }
+    if (stlMaterial.uniforms.uColorPropagationDuration) {
+      const duration = Math.max(0, Number(params.colorPropagationDuration) || 0);
+      stlMaterial.uniforms.uColorPropagationDuration.value = duration;
+    }
+    if (stlMaterial.uniforms.uColorToneCount) {
+      const tones = Math.max(1, Math.round(Number(params.colorToneCount) || 1));
+      stlMaterial.uniforms.uColorToneCount.value = tones;
+    }
+    if (stlMaterial.uniforms.uHueSpread) {
+      const spread = Math.max(0, Math.min(360, Number(params.hueSpread) || 0));
+      stlMaterial.uniforms.uHueSpread.value = spread;
+    }
+    stlMaterial.blending = (params.blending === 'Additive') ? THREE.AdditiveBlending : THREE.NormalBlending;
+    stlMaterial.needsUpdate = true;
+  }
   updatePointMaterialUniforms(starMaterial);
   const radius = Math.max(colorState.radius, stlState.boundingRadius || 0);
   updatePointMaterialUniforms(stlMaterial, { radiusOverride: radius });
@@ -4221,6 +4468,7 @@ if (stlUI.clearBtn) {
     clearStlModels();
   });
 }
+
 updateStlMeta([]);
 
 if (audioUI.toggle && audioUI.body) {
