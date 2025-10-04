@@ -1974,6 +1974,11 @@ function applyStlGeometry(geometry, fileNames = []) {
   if (!(geometry instanceof THREE.BufferGeometry)) {
     return;
   }
+  if (geometry.index) {
+    const nonIndexed = geometry.toNonIndexed();
+    geometry.dispose();
+    geometry = nonIndexed;
+  }
   if (stlState.points) {
     clearStlModels({ keepCamera: true, skipInputReset: true, preserveMeta: true, preserveUsage: true });
   }
@@ -1997,32 +2002,97 @@ function applyStlGeometry(geometry, fileNames = []) {
   const targetCount = Math.min(sourceCount, MAX_STL_POINTS);
   const seed = hashStringList(names);
   const sampleRand = mulberry32((seed ^ 0x27d4eb2f) >>> 0);
-  const indices = new Uint32Array(targetCount);
-  if (sourceCount <= targetCount) {
-    for (let i = 0; i < targetCount; i++) {
-      indices[i] = i;
-    }
-  } else {
-    const step = sourceCount / targetCount;
-    for (let i = 0; i < targetCount; i++) {
-      const base = i * step;
-      let idx = Math.floor(base + sampleRand() * step);
-      if (idx >= sourceCount) {
-        idx = sourceCount - 1;
-      }
-      indices[i] = idx;
-    }
-  }
   const positions = new Float32Array(targetCount * 3);
   const basePositions = new Float32Array(targetCount * 3);
-  for (let i = 0; i < targetCount; i++) {
-    const srcIndex = indices[i] * 3;
-    positions[i * 3] = sourceArray[srcIndex];
-    positions[i * 3 + 1] = sourceArray[srcIndex + 1];
-    positions[i * 3 + 2] = sourceArray[srcIndex + 2];
-    basePositions[i * 3] = sourceArray[srcIndex];
-    basePositions[i * 3 + 1] = sourceArray[srcIndex + 1];
-    basePositions[i * 3 + 2] = sourceArray[srcIndex + 2];
+  const triangleCount = Math.floor(sourceCount / 3);
+  let usedSurfaceSampling = false;
+  if (triangleCount > 0 && targetCount > 0) {
+    const cumulativeAreas = new Float32Array(triangleCount);
+    const vA = new THREE.Vector3();
+    const vB = new THREE.Vector3();
+    const vC = new THREE.Vector3();
+    const edgeAB = new THREE.Vector3();
+    const edgeAC = new THREE.Vector3();
+    let totalArea = 0;
+    for (let i = 0; i < triangleCount; i++) {
+      const base = i * 9;
+      vA.fromArray(sourceArray, base);
+      vB.fromArray(sourceArray, base + 3);
+      vC.fromArray(sourceArray, base + 6);
+      edgeAB.subVectors(vB, vA);
+      edgeAC.subVectors(vC, vA);
+      const area = edgeAB.cross(edgeAC).length() * 0.5;
+      totalArea += area;
+      cumulativeAreas[i] = totalArea;
+    }
+    if (totalArea > 0) {
+      usedSurfaceSampling = true;
+      for (let i = 0; i < targetCount; i++) {
+        const targetArea = sampleRand() * totalArea;
+        let low = 0;
+        let high = triangleCount - 1;
+        while (low < high) {
+          const mid = (low + high) >> 1;
+          if (targetArea <= cumulativeAreas[mid]) {
+            high = mid;
+          } else {
+            low = mid + 1;
+          }
+        }
+        const triBase = low * 9;
+        const ax = sourceArray[triBase];
+        const ay = sourceArray[triBase + 1];
+        const az = sourceArray[triBase + 2];
+        const bx = sourceArray[triBase + 3];
+        const by = sourceArray[triBase + 4];
+        const bz = sourceArray[triBase + 5];
+        const cx = sourceArray[triBase + 6];
+        const cy = sourceArray[triBase + 7];
+        const cz = sourceArray[triBase + 8];
+        const r1 = sampleRand();
+        const r2 = sampleRand();
+        const sqrtR1 = Math.sqrt(r1);
+        const weightA = 1 - sqrtR1;
+        const weightB = sqrtR1 * (1 - r2);
+        const weightC = sqrtR1 * r2;
+        const px = ax * weightA + bx * weightB + cx * weightC;
+        const py = ay * weightA + by * weightB + cy * weightC;
+        const pz = az * weightA + bz * weightB + cz * weightC;
+        positions[i * 3] = px;
+        positions[i * 3 + 1] = py;
+        positions[i * 3 + 2] = pz;
+        basePositions[i * 3] = px;
+        basePositions[i * 3 + 1] = py;
+        basePositions[i * 3 + 2] = pz;
+      }
+    }
+  }
+  if (!usedSurfaceSampling) {
+    const indices = new Uint32Array(targetCount);
+    if (sourceCount <= targetCount) {
+      for (let i = 0; i < targetCount; i++) {
+        indices[i] = i;
+      }
+    } else {
+      const step = sourceCount / targetCount;
+      for (let i = 0; i < targetCount; i++) {
+        const base = i * step;
+        let idx = Math.floor(base + sampleRand() * step);
+        if (idx >= sourceCount) {
+          idx = sourceCount - 1;
+        }
+        indices[i] = idx;
+      }
+    }
+    for (let i = 0; i < targetCount; i++) {
+      const srcIndex = indices[i] * 3;
+      positions[i * 3] = sourceArray[srcIndex];
+      positions[i * 3 + 1] = sourceArray[srcIndex + 1];
+      positions[i * 3 + 2] = sourceArray[srcIndex + 2];
+      basePositions[i * 3] = sourceArray[srcIndex];
+      basePositions[i * 3 + 1] = sourceArray[srcIndex + 1];
+      basePositions[i * 3 + 2] = sourceArray[srcIndex + 2];
+    }
   }
   const phases = new Float32Array(targetCount);
   const sizes = new Float32Array(targetCount);
