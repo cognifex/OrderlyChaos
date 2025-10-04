@@ -296,7 +296,37 @@
     input[type=number] { flex: 1; width: 100%; }
     .val { min-width: 66px; text-align: right; font-variant-numeric: tabular-nums; }
     select { flex: 1; }
-    #bar { position: absolute; top: 10px; left: 10px; z-index: 12; display: flex; gap: 8px; }
+    #barHotspot {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: clamp(56px, 12vw, 120px);
+      height: clamp(72px, 18vh, 160px);
+      z-index: 14;
+      pointer-events: auto;
+      background: transparent;
+      touch-action: manipulation;
+    }
+    #bar {
+      position: fixed;
+      top: 12px;
+      left: 12px;
+      z-index: 16;
+      display: flex;
+      gap: 8px;
+      opacity: 0;
+      pointer-events: none;
+      --bar-hidden-transform: translate3d(calc(-100% - 24px), 0, 0);
+      transform: var(--bar-hidden-transform);
+      transition: transform .35s ease, opacity .35s ease;
+      will-change: transform, opacity;
+    }
+    #bar.is-visible {
+      opacity: 1;
+      pointer-events: auto;
+      transform: translate3d(0, 0, 0);
+      transition-timing-function: cubic-bezier(.25, .1, .25, 1);
+    }
     #bar button {
       padding: .45rem .65rem;
       font-size: .85rem;
@@ -483,12 +513,19 @@
         outline: 2px solid rgba(90, 190, 255, 0.95);
         outline-offset: 4px;
       }
+      #barHotspot {
+        width: clamp(88px, 28vw, 180px);
+        height: clamp(96px, 24vh, 200px);
+      }
       #bar {
         left: 50%;
-        transform: translateX(-50%);
+        width: calc(100% - 24px);
         flex-wrap: wrap;
         justify-content: center;
-        width: calc(100% - 20px);
+        --bar-hidden-transform: translate3d(-50%, -120%, 0);
+      }
+      #bar.is-visible {
+        transform: translate3d(-50%, 0, 0);
       }
       #bar button {
         flex: 1 1 140px;
@@ -506,7 +543,8 @@
   <script src="./STLLoader.js"></script>
 </head>
 <body>
-<div id="bar">
+<div id="barHotspot" aria-hidden="true"></div>
+<div id="bar" class="is-visible" role="toolbar" aria-hidden="false">
   <button id="toggle" aria-expanded="true">↕ Panels ausblenden</button>
   <button id="lock" aria-pressed="false">🔓 Kamera frei</button>
   <button id="random">🎲 Random</button>
@@ -4414,6 +4452,9 @@ const panel = $('panel');
 const toggleBtn = $('toggle');
 const lockBtn = $('lock');
 const sheetHandleBtn = $('sheetHandle');
+const bar = $('bar');
+const barHotspot = $('barHotspot');
+const barButtons = bar ? Array.from(bar.querySelectorAll('button')) : [];
 const mobileSheetQuery = window.matchMedia('(max-width: 768px)');
 const sheetState = {
   mode: 'compact',
@@ -4443,6 +4484,123 @@ audioUI.micStopBtn = $('audioMicStop');
 audioUI.statusText = $('audioStatus');
 audioUI.statusDot = $('audioStatusDot');
 audioUI.modifierButtons = Array.from(document.querySelectorAll('#audioModifierGrid [data-modifier]'));
+
+const barState = {
+  visible: bar ? bar.classList.contains('is-visible') : false,
+  hideTimeout: null,
+};
+
+if (barButtons.length) {
+  barButtons.forEach(button => {
+    const existing = button.getAttribute('tabindex');
+    button.dataset.barDefaultTabindex = existing === null ? '' : existing;
+  });
+  if (!barState.visible) {
+    barButtons.forEach(button => {
+      button.setAttribute('tabindex', '-1');
+    });
+  }
+}
+
+function setBarFocusability(hidden) {
+  if (!barButtons.length) return;
+  barButtons.forEach(button => {
+    if (hidden) {
+      button.setAttribute('tabindex', '-1');
+    } else {
+      const stored = button.dataset.barDefaultTabindex;
+      if (typeof stored === 'string') {
+        if (stored.length) {
+          button.setAttribute('tabindex', stored);
+        } else {
+          button.removeAttribute('tabindex');
+        }
+      }
+    }
+  });
+}
+
+function setBarVisible(show) {
+  if (!bar) return;
+  const next = !!show;
+  if (barState.visible === next) return;
+  barState.visible = next;
+  bar.classList.toggle('is-visible', next);
+  bar.setAttribute('aria-hidden', next ? 'false' : 'true');
+  setBarFocusability(!next);
+}
+
+function scheduleBarHide(delay) {
+  if (!bar) return;
+  if (barState.hideTimeout !== null) {
+    clearTimeout(barState.hideTimeout);
+    barState.hideTimeout = null;
+  }
+  if (delay == null) return;
+  const timeout = Math.max(0, Number(delay) || 0);
+  barState.hideTimeout = window.setTimeout(() => {
+    barState.hideTimeout = null;
+    if (bar && bar.contains(document.activeElement)) {
+      scheduleBarHide(timeout);
+      return;
+    }
+    setBarVisible(false);
+  }, timeout);
+}
+
+function showBar(options = {}) {
+  if (!bar) return;
+  const { autoHideDelay = null } = options;
+  setBarVisible(true);
+  if (autoHideDelay !== undefined) {
+    scheduleBarHide(autoHideDelay);
+  }
+}
+
+function hideBar(options = {}) {
+  if (!bar) return;
+  const { immediate = false, delay = 900 } = options;
+  if (immediate) {
+    scheduleBarHide(null);
+    setBarVisible(false);
+    return;
+  }
+  scheduleBarHide(delay);
+}
+
+function initializeBarReveal() {
+  if (!bar) return;
+  showBar({ autoHideDelay: 2800 });
+  const reveal = () => showBar({ autoHideDelay: 4200 });
+  const deferHide = () => hideBar({ delay: 1000 });
+  if (barHotspot) {
+    const pointerEvents = ['pointerenter', 'pointerdown', 'pointermove'];
+    pointerEvents.forEach(eventName => {
+      barHotspot.addEventListener(eventName, reveal, { passive: true });
+    });
+    barHotspot.addEventListener('touchstart', reveal, { passive: true });
+    barHotspot.addEventListener('pointerleave', deferHide);
+    barHotspot.addEventListener('touchend', deferHide);
+    barHotspot.addEventListener('touchcancel', deferHide);
+  }
+  bar.addEventListener('pointerenter', () => showBar({ autoHideDelay: null }));
+  bar.addEventListener('pointerleave', () => hideBar({ delay: 1000 }));
+  bar.addEventListener('focusin', () => showBar({ autoHideDelay: null }));
+  bar.addEventListener('focusout', () => {
+    window.requestAnimationFrame(() => {
+      if (!bar.contains(document.activeElement)) {
+        hideBar({ delay: 800 });
+      }
+    });
+  });
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape') {
+      hideBar({ immediate: true });
+    }
+  });
+}
+
+initializeBarReveal();
 audioUI.intensityControls = new Map();
 audioUI.supportNotice = $('audioSupportNotice');
 audioUI.autoRandomBtn = $('audioRandomMode');
