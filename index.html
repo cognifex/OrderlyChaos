@@ -656,6 +656,33 @@
         </div>
       </div>
       <div class="row">
+        <label for="pColorPropagationDistance">Farb-Ausbreitung (Distanz)</label>
+        <div class="wrap">
+          <input class="bound-input" type="number" data-target="pColorPropagationDistance" data-bound="min" />
+          <input id="pColorPropagationDistance" type="range" min="10" max="600" step="1" />
+          <input class="bound-input" type="number" data-target="pColorPropagationDistance" data-bound="max" />
+          <div class="val" id="vColorPropagationDistance"></div>
+        </div>
+      </div>
+      <div class="row">
+        <label for="pColorPropagationDuration">Farb-Ausbreitung (Dauer)</label>
+        <div class="wrap">
+          <input class="bound-input" type="number" data-target="pColorPropagationDuration" data-bound="min" />
+          <input id="pColorPropagationDuration" type="range" min="0" max="20" step="0.1" />
+          <input class="bound-input" type="number" data-target="pColorPropagationDuration" data-bound="max" />
+          <div class="val" id="vColorPropagationDuration"></div>
+        </div>
+      </div>
+      <div class="row">
+        <label for="pColorToneCount">Farbtöne (Anzahl)</label>
+        <div class="wrap">
+          <input class="bound-input" type="number" data-target="pColorToneCount" data-bound="min" />
+          <input id="pColorToneCount" type="range" min="1" max="12" step="1" />
+          <input class="bound-input" type="number" data-target="pColorToneCount" data-bound="max" />
+          <div class="val" id="vColorToneCount"></div>
+        </div>
+      </div>
+      <div class="row">
         </select>
       </div>
       <div class="row">
@@ -888,7 +915,7 @@
         <label for="spinSpeed">Geschwindigkeitsfaktor</label>
         <div class="wrap">
           <input class="bound-input" type="number" data-target="spinSpeed" data-bound="min" />
-          <input id="spinSpeed" type="range" min="0" max="3" step="0.01" />
+          <input id="spinSpeed" type="range" min="0" max="20" step="0.01" />
           <input class="bound-input" type="number" data-target="spinSpeed" data-bound="max" />
           <div class="val" id="vSpinSpeed"></div>
         </div>
@@ -1010,8 +1037,8 @@
   </div>
 </div>
 <div id="audioOverlay" data-visible="false" aria-hidden="true">
-  <button type="button" id="audioOverlayButton" aria-label="Zufällige Musik aus der Playlist starten">
-    ▶️ Zufalls-Track starten
+  <button type="button" id="audioOverlayButton" aria-label="Musik und Visualisierung starten">
+    ▶️ Play – Musik & Visualisierung starten
   </button>
 </div>
 <script>
@@ -1154,6 +1181,9 @@ const params = {
   colorIntensity: 0.8,
   colorSpeed: 1.0,
   hueSpread: 45,
+  colorPropagationDistance: 140,
+  colorPropagationDuration: 6,
+  colorToneCount: 3,
   seedStars: 1,
   catSmallCount: 1125,
   catMediumCount: 875,
@@ -1334,6 +1364,7 @@ const audioState = {
   dynamicTargets: { ...AUDIO_INTENSITY_DEFAULTS },
   dynamicTimers: {},
   color: new THREE.Color(),
+  silenceLevel: 1,
   needsResume: false,
   motionDirection: 1,
   pitchDirection: 1,
@@ -1576,8 +1607,11 @@ function applyAudioVisualState(modifiers = audioState.modifiers || {}) {
   const brightnessBoost = modifiers.brightness
     ? audioState.metrics.energy * 0.32 * effectiveBrightnessIntensity
     : 0;
-  const saturation = clampValue(baseSaturation + saturationBoost, 0.05, 1.4);
-  const brightness = clampValue(baseBrightness + brightnessBoost, 0.05, 1.6);
+  const silenceLevel = clampValue(Number.isFinite(audioState.silenceLevel) ? audioState.silenceLevel : 0, 0, 1);
+  const minVisibility = 0.08;
+  const visibilityFactor = minVisibility + (1 - silenceLevel) * (1 - minVisibility);
+  const saturation = clampValue(baseSaturation + saturationBoost * visibilityFactor, 0.05, 1.4);
+  const brightness = clampValue((baseBrightness + brightnessBoost) * visibilityFactor, 0.05, 1.6);
   const reactiveColor = hsv2rgb(hue, saturation, brightness);
   audioState.color.copy(reactiveColor);
 
@@ -1625,7 +1659,7 @@ function applyAudioVisualState(modifiers = audioState.modifiers || {}) {
     if (starMaterial.uniforms.uAlpha) {
       const baseAlpha = params.pointAlpha;
       const alphaVisual = modifiers.alpha ? clampValue(audioState.visual.alpha, 0, 1.2) : AUDIO_VISUAL_BASE.alpha;
-      const boostedAlpha = Math.max(0.05, Math.min(1, baseAlpha + alphaVisual));
+      const boostedAlpha = Math.max(0.05, Math.min(1, (baseAlpha + alphaVisual) * visibilityFactor));
       starMaterial.uniforms.uAlpha.value = boostedAlpha;
     }
     if (starMaterial.uniforms.uColor) {
@@ -1651,7 +1685,7 @@ function applyAudioVisualState(modifiers = audioState.modifiers || {}) {
     if (tinyMaterial.uniforms.uAlpha) {
       const baseTinyAlpha = params.tinyAlpha;
       const alphaVisual = modifiers.alpha ? clampValue(audioState.visual.alpha, 0, 1.2) : AUDIO_VISUAL_BASE.alpha;
-      const boostedTinyAlpha = Math.min(1, baseTinyAlpha + alphaVisual * 0.4);
+      const boostedTinyAlpha = Math.min(1, (baseTinyAlpha + alphaVisual * 0.4) * visibilityFactor);
       tinyMaterial.uniforms.uAlpha.value = boostedTinyAlpha;
     }
     if (tinyMaterial.uniforms.uColor) {
@@ -1753,6 +1787,7 @@ function resetAudioMetrics() {
   audioState.previousEnergy = 0;
   audioState.previousWave = 0;
   audioState.previousMid = 0;
+  audioState.silenceLevel = 1;
   if (!audioState.dynamicIntensity) {
     audioState.dynamicIntensity = { ...AUDIO_INTENSITY_DEFAULTS };
   } else {
@@ -2500,6 +2535,20 @@ function updateAudioReactive(delta) {
 
   const modifiers = audioState.modifiers || {};
   const playing = audioState.playing || audioState.usingMic;
+  const activityMix = (
+    (audioState.metrics.energy * 0.9) +
+    ((audioState.metrics.bass + audioState.metrics.mid + audioState.metrics.treble) / 3) * 0.6 +
+    audioState.metrics.wave * 0.7
+  ) / 2.2;
+  const clampedActivity = clampValue(Number.isFinite(activityMix) ? activityMix : 0, 0, 1);
+  const silenceTarget = playing ? 1 - clampedActivity : 1;
+  const silenceRate = playing ? 2.8 : 1.6;
+  audioState.silenceLevel = damp(
+    Number.isFinite(audioState.silenceLevel) ? audioState.silenceLevel : 1,
+    clampValue(silenceTarget, 0, 1),
+    silenceRate,
+    delta
+  );
   const bassPulse = Math.max(0, bassTarget - audioState.previousBass);
   const energyPulse = Math.max(0, energyTarget - audioState.previousEnergy);
   const wavePulse = Math.max(0, waveTarget - audioState.previousWave);
@@ -2983,6 +3032,9 @@ function makeStars() {
     uniform float uColorRadius;
     uniform float uColorIntensity;
     uniform float uColorSpeed;
+    uniform float uColorPropagationDistance;
+    uniform float uColorPropagationDuration;
+    uniform float uColorToneCount;
     uniform float uHueSpread;
     uniform float uTime;
     varying vec3 vBase;
@@ -3006,7 +3058,14 @@ function makeStars() {
     vec3 computeColor() {
       float intensity = clamp(uColorIntensity, 0.0, 1.0);
       float hueSpreadNorm = uHueSpread / 360.0;
-      float colorTime = uTime * max(uColorSpeed, 0.0);
+      float baseSpeed = max(uColorSpeed, 0.0);
+      float colorTime = uTime * baseSpeed;
+      float propagationOffset = 0.0;
+      if (uColorPropagationDistance > 1e-4 && uColorPropagationDuration > 1e-4) {
+        float normRadius = clamp(vRadius / uColorPropagationDistance, 0.0, 1.0);
+        propagationOffset = normRadius * uColorPropagationDuration;
+      }
+      colorTime -= propagationOffset;
       vec3 baseHSVOriginal = rgb2hsv(uColor);
       vec3 accentHSVOriginal = rgb2hsv(uColorAccent);
       vec3 dimHSVOriginal = rgb2hsv(uColorDim);
@@ -3065,6 +3124,12 @@ function makeStars() {
       // fade alpha near the outer edge: inside 'inner' radius alpha=1, outside alpha decreases to 0 at the rim
       float edge = 1.0 - smoothstep(inner, 1.0, d);
       vec3 color = computeColor();
+      float toneCount = max(uColorToneCount, 1.0);
+      if (toneCount > 1.01) {
+        vec3 quantized = rgb2hsv(color);
+        quantized.x = floor(quantized.x * toneCount + 1e-4) / toneCount;
+        color = hsv2rgb(quantized);
+      }
       gl_FragColor = vec4(color, edge * uAlpha);
     }
   `;
@@ -3097,6 +3162,9 @@ function makeStars() {
       uColorRadius: { value: colorState.radius },
       uColorIntensity: { value: params.colorIntensity },
       uColorSpeed: { value: params.colorSpeed },
+      uColorPropagationDistance: { value: params.colorPropagationDistance },
+      uColorPropagationDuration: { value: params.colorPropagationDuration },
+      uColorToneCount: { value: params.colorToneCount },
       uHueSpread: { value: params.hueSpread },
     }
   });
@@ -3269,6 +3337,9 @@ function makeTiny() {
     uniform float uColorRadius;
     uniform float uColorIntensity;
     uniform float uColorSpeed;
+    uniform float uColorPropagationDistance;
+    uniform float uColorPropagationDuration;
+    uniform float uColorToneCount;
     uniform float uHueSpread;
     uniform float uTime;
     varying vec3 vBase;
@@ -3292,7 +3363,14 @@ function makeTiny() {
     vec3 computeColor() {
       float intensity = clamp(uColorIntensity, 0.0, 1.0);
       float hueSpreadNorm = uHueSpread / 360.0;
-      float colorTime = uTime * max(uColorSpeed, 0.0);
+      float baseSpeed = max(uColorSpeed, 0.0);
+      float colorTime = uTime * baseSpeed;
+      float propagationOffset = 0.0;
+      if (uColorPropagationDistance > 1e-4 && uColorPropagationDuration > 1e-4) {
+        float normRadius = clamp(vRadius / uColorPropagationDistance, 0.0, 1.0);
+        propagationOffset = normRadius * uColorPropagationDuration;
+      }
+      colorTime -= propagationOffset;
       vec3 baseHSVOriginal = rgb2hsv(uColor);
       vec3 accentHSVOriginal = rgb2hsv(uColorAccent);
       vec3 dimHSVOriginal = rgb2hsv(uColorDim);
@@ -3348,6 +3426,12 @@ function makeTiny() {
       if (d > 1.0) discard;
       float fade = 1.0 - smoothstep(0.6, 1.0, d);
       vec3 color = computeColor();
+      float toneCount = max(uColorToneCount, 1.0);
+      if (toneCount > 1.01) {
+        vec3 quantized = rgb2hsv(color);
+        quantized.x = floor(quantized.x * toneCount + 1e-4) / toneCount;
+        color = hsv2rgb(quantized);
+      }
       gl_FragColor = vec4(color, fade * uAlpha);
     }
   `;
@@ -3376,6 +3460,9 @@ function makeTiny() {
       uColorRadius: { value: colorState.radius },
       uColorIntensity: { value: params.colorIntensity },
       uColorSpeed: { value: params.colorSpeed },
+      uColorPropagationDistance: { value: params.colorPropagationDistance },
+      uColorPropagationDuration: { value: params.colorPropagationDuration },
+      uColorToneCount: { value: params.colorToneCount },
       uHueSpread: { value: params.hueSpread },
     }
   });
@@ -3433,6 +3520,19 @@ function updateStarUniforms() {
     const speed = Math.max(0, Number(params.colorSpeed) || 0);
     starMaterial.uniforms.uColorSpeed.value = speed;
   }
+  if (starMaterial.uniforms.uColorPropagationDistance) {
+    const distance = Math.max(0, Number(params.colorPropagationDistance) || 0);
+    starMaterial.uniforms.uColorPropagationDistance.value = distance;
+  }
+  if (starMaterial.uniforms.uColorPropagationDuration) {
+    const duration = Math.max(0, Number(params.colorPropagationDuration) || 0);
+    starMaterial.uniforms.uColorPropagationDuration.value = duration;
+  }
+  if (starMaterial.uniforms.uColorToneCount) {
+    const tones = Math.max(1, Math.round(Number(params.colorToneCount) || 1));
+    params.colorToneCount = tones;
+    starMaterial.uniforms.uColorToneCount.value = tones;
+  }
   if (starMaterial.uniforms.uHueSpread) {
     const spread = Math.max(0, Math.min(360, Number(params.hueSpread) || 0));
     starMaterial.uniforms.uHueSpread.value = spread;
@@ -3485,6 +3585,19 @@ function updateTinyMaterial() {
   if (tinyMaterial.uniforms.uColorSpeed) {
     const speed = Math.max(0, Number(params.colorSpeed) || 0);
     tinyMaterial.uniforms.uColorSpeed.value = speed;
+  }
+  if (tinyMaterial.uniforms.uColorPropagationDistance) {
+    const distance = Math.max(0, Number(params.colorPropagationDistance) || 0);
+    tinyMaterial.uniforms.uColorPropagationDistance.value = distance;
+  }
+  if (tinyMaterial.uniforms.uColorPropagationDuration) {
+    const duration = Math.max(0, Number(params.colorPropagationDuration) || 0);
+    tinyMaterial.uniforms.uColorPropagationDuration.value = duration;
+  }
+  if (tinyMaterial.uniforms.uColorToneCount) {
+    const tones = Math.max(1, Math.round(Number(params.colorToneCount) || 1));
+    params.colorToneCount = tones;
+    tinyMaterial.uniforms.uColorToneCount.value = tones;
   }
   if (tinyMaterial.uniforms.uHueSpread) {
     const spread = Math.max(0, Math.min(360, Number(params.hueSpread) || 0));
@@ -3757,7 +3870,7 @@ if (audioUI.overlayButton) {
   });
 }
 
-setAutoRandomEnabled(true);
+setAutoRandomEnabled(false);
 updateAudioOverlayVisibility();
 
 if (audioUI.fileInput) {
@@ -4082,9 +4195,35 @@ const spinVectors = {
   axis: new THREE.Vector3(),
 };
 
-const defaultSpinSpeed = 0.35;
+const MAX_AUTO_SPIN_SPEED = 20;
+const defaultSpinSpeed = 0.2;
 const defaultSpinAxis = new THREE.Vector3(0, 1, 0);
 const spinApplyAxis = new THREE.Vector3();
+
+function enforceMaxSpinSpeed(updateComponents = true) {
+  const speed = spinState.velocity.length();
+  if (speed <= MAX_AUTO_SPIN_SPEED) {
+    return false;
+  }
+  spinState.velocity.setLength(MAX_AUTO_SPIN_SPEED);
+  if (updateComponents) {
+    if (Math.abs(spinState.speedMultiplier) <= 1e-6) {
+      spinState.velocityComponents.copy(spinState.velocity);
+    } else {
+      spinState.velocityComponents.copy(spinState.velocity).divideScalar(spinState.speedMultiplier);
+    }
+    spinAxisKeys.forEach(axis => {
+      const id = axis === 'x' ? 'spinVelX' : axis === 'y' ? 'spinVelY' : 'spinVelZ';
+      spinState.velocityComponents[axis] = clampToSliderBounds(id, spinState.velocityComponents[axis]);
+    });
+    spinState.velocity.set(
+      spinState.velocityComponents.x * spinState.speedMultiplier,
+      spinState.velocityComponents.y * spinState.speedMultiplier,
+      spinState.velocityComponents.z * spinState.speedMultiplier,
+    );
+  }
+  return true;
+}
 
 function syncSpinSliderUI() {
   spinAxisKeys.forEach(axis => {
@@ -4113,6 +4252,7 @@ function updateVelocityFromComponents() {
     spinState.velocityComponents.y * spinState.speedMultiplier,
     spinState.velocityComponents.z * spinState.speedMultiplier,
   );
+  enforceMaxSpinSpeed(true);
 }
 
 function updateComponentsFromVelocity(syncUI = true) {
@@ -4303,6 +4443,7 @@ function onSpinPointerMove(e) {
       const dt = Math.max((now - spinState.prevPointerTime) / 1000, 1e-3);
       spinState.prevPointerTime = now;
       spinState.velocity.copy(spinVectors.axis).multiplyScalar(angle / dt);
+      enforceMaxSpinSpeed(true);
       updateComponentsFromVelocity();
     }
   }
@@ -4628,6 +4769,30 @@ const sliderHandlers = {
       updateTinyMaterial();
     }
   },
+  pColorPropagationDistance: val => {
+    const next = parseFloat(val);
+    if (!Number.isNaN(next)) {
+      params.colorPropagationDistance = next;
+      updateStarUniforms();
+      updateTinyMaterial();
+    }
+  },
+  pColorPropagationDuration: val => {
+    const next = parseFloat(val);
+    if (!Number.isNaN(next)) {
+      params.colorPropagationDuration = next;
+      updateStarUniforms();
+      updateTinyMaterial();
+    }
+  },
+  pColorToneCount: val => {
+    const numeric = parseFloat(val);
+    if (!Number.isNaN(numeric)) {
+      params.colorToneCount = Math.max(1, Math.round(numeric));
+      updateStarUniforms();
+      updateTinyMaterial();
+    }
+  },
   pSeedStars:   val => { params.seedStars = parseInt(val, 10); rebuildStars(); },
   pCatSmallCount:  val => { setCategoryCount('small', val); },
   pCatMediumCount: val => { setCategoryCount('medium', val); },
@@ -4696,6 +4861,9 @@ const sliderValueGetters = {
   pColorIntensity: () => params.colorIntensity,
   pColorSpeed: () => params.colorSpeed,
   pHueSpread: () => params.hueSpread,
+  pColorPropagationDistance: () => params.colorPropagationDistance,
+  pColorPropagationDuration: () => params.colorPropagationDuration,
+  pColorToneCount: () => params.colorToneCount,
   pSeedStars: () => params.seedStars,
   pSizeTiny: () => params.sizeFactorTiny,
   pSizeSmall: () => params.sizeFactorSmall,
@@ -4895,6 +5063,9 @@ function randomizeParameters({ syncUI = true } = {}) {
   params.colorIntensity = Math.random();
   params.colorSpeed = Math.random() * 4.5;
   params.hueSpread = Math.random() * 180;
+  params.colorPropagationDistance = 40 + Math.random() * 260;
+  params.colorPropagationDuration = 0.5 + Math.random() * 9.5;
+  params.colorToneCount = 1 + Math.floor(Math.random() * 6);
   const weights = [Math.random(), Math.random(), Math.random()];
   const weightSum = weights.reduce((sum, value) => sum + value, 0) || 1;
   const provisional = weights.map(value => Math.max(0, Math.floor((value / weightSum) * totalCount)));
@@ -4943,6 +5114,7 @@ $('random').addEventListener('click', () => {
 function setSliders() {
   // star params
   params.count = clampTotalCount(params.count);
+  params.colorToneCount = Math.max(1, Math.round(Number(params.colorToneCount) || 1));
   if ($('pCount')) {
     $('pCount').value = params.count;
   }
@@ -4972,6 +5144,12 @@ function setSliders() {
   $('vColorSpeed').textContent = colorSpeedValue.toFixed(2) + '×';
   const hueSpreadValue = applySliderValue('pHueSpread', params.hueSpread);
   $('vHueSpread').textContent = formatDisplayNumber(hueSpreadValue, 1) + '°';
+  const colorPropagationDistanceValue = applySliderValue('pColorPropagationDistance', params.colorPropagationDistance);
+  $('vColorPropagationDistance').textContent = formatDisplayNumber(colorPropagationDistanceValue, 1) + ' Einheiten';
+  const colorPropagationDurationValue = applySliderValue('pColorPropagationDuration', params.colorPropagationDuration);
+  $('vColorPropagationDuration').textContent = colorPropagationDurationValue.toFixed(1) + ' s';
+  const colorToneCountValue = applySliderValue('pColorToneCount', params.colorToneCount);
+  $('vColorToneCount').textContent = formatDisplayNumber(colorToneCountValue, 0) + ' Töne';
   $('pColorMode').value = params.colorMode;
   const seedStarsValue = applySliderValue('pSeedStars', params.seedStars);
   $('vSeedStars').textContent = formatDisplayNumber(seedStarsValue);
