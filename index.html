@@ -1288,29 +1288,11 @@ scene.add(directionalLight.target);
 clusterGroup.position.copy(FELDAPPEN_CENTER);
 controls.target.copy(FELDAPPEN_CENTER);
 controls.update();
-const stlGroup = new THREE.Group();
-stlGroup.name = 'feldappenVolume';
-stlGroup.visible = false;
-clusterGroup.add(stlGroup);
-
 const stlLoader = new THREE.STLLoader();
 let stlMaterial = null;
 const stlState = {
   files: [],
   points: null,
-  combinedPoints: null,
-const stlMaterial = new THREE.MeshPhongMaterial({
-  color: 0x5fa8ff,
-  specular: 0x1a1a1a,
-  shininess: 60,
-  transparent: true,
-  opacity: 0.85,
-  side: THREE.DoubleSide,
-  vertexColors: false
-});
-const stlState = {
-  files: [],
-  combinedMesh: null,
   boundingRadius: 0
 };
 const stlUI = {
@@ -1318,10 +1300,6 @@ const stlUI = {
   meta: null,
   clearBtn: null
 };
-
-clusterGroup.position.copy(FELDAPPEN_CENTER);
-controls.target.copy(FELDAPPEN_CENTER);
-controls.update();
 
 /* Parameters */
 const params = {
@@ -1427,8 +1405,6 @@ function updateStlMeta(files = [], { loading = false, error = '' } = {}) {
   }
   if (stlUI.clearBtn) {
     stlUI.clearBtn.disabled = loading || !stlState.points;
-    stlUI.clearBtn.disabled = loading || !stlState.combinedPoints;
-    stlUI.clearBtn.disabled = loading || !stlState.combinedMesh;
   }
   if (stlUI.input) {
     stlUI.input.disabled = loading;
@@ -1443,20 +1419,6 @@ function clearStlModels({ keepCamera = false, skipInputReset = false, preserveMe
     }
     stlGroup.remove(stlState.points);
     stlState.points = null;
-  const hadPoints = Boolean(stlState.combinedPoints);
-  if (stlState.combinedPoints) {
-    if (stlState.combinedPoints.geometry) {
-      stlState.combinedPoints.geometry.dispose();
-    }
-    stlGroup.remove(stlState.combinedPoints);
-    stlState.combinedPoints = null;
-  const hadMesh = Boolean(stlState.combinedMesh);
-  if (stlState.combinedMesh) {
-    if (stlState.combinedMesh.geometry) {
-      stlState.combinedMesh.geometry.dispose();
-    }
-    stlGroup.remove(stlState.combinedMesh);
-    stlState.combinedMesh = null;
   }
   stlGroup.visible = false;
   stlState.files = [];
@@ -1471,7 +1433,6 @@ function clearStlModels({ keepCamera = false, skipInputReset = false, preserveMe
   }
   updateStarUniforms();
   if (hadPoints && !keepCamera) {
-  if (hadMesh && !keepCamera) {
     focusOnFeldappenCenter({ repositionCamera: true });
   }
 }
@@ -1573,8 +1534,6 @@ function applyStlGeometry(geometry, fileNames = []) {
     return;
   }
   if (stlState.points) {
-  if (stlState.combinedPoints) {
-  if (stlState.combinedMesh) {
     clearStlModels({ keepCamera: true, skipInputReset: true, preserveMeta: true });
   }
   geometry.computeBoundingBox();
@@ -1587,8 +1546,6 @@ function applyStlGeometry(geometry, fileNames = []) {
   const radius = geometry.boundingSphere ? geometry.boundingSphere.radius : 0;
   stlState.boundingRadius = Number.isFinite(radius) ? Math.max(0, radius) : 0;
   const names = Array.isArray(fileNames) ? fileNames : [];
-  const fileList = Array.isArray(fileNames) ? fileNames : [];
-  stlState.files = fileList;
   const positionAttr = geometry.getAttribute ? geometry.getAttribute('position') : null;
   if (!positionAttr || !positionAttr.array || positionAttr.count <= 0) {
     geometry.dispose();
@@ -1607,14 +1564,6 @@ function applyStlGeometry(geometry, fileNames = []) {
   const phaseRand = mulberry32((seed ^ 0x51f32a95) >>> 0);
   for (let i = 0; i < count; i++) {
     phases[i] = phaseRand();
-  const basePositions = new Float32Array(positions);
-  const phases = new Float32Array(count);
-  const sizes = new Float32Array(count);
-  const categories = new Float32Array(count);
-  const seed = hashStringList(fileList);
-  const rand = mulberry32(seed);
-  for (let i = 0; i < count; i++) {
-    phases[i] = rand();
     const catRoll = rand();
     categories[i] = catRoll < 0.25 ? 0 : (catRoll < 0.7 ? 1 : 2);
     sizes[i] = 0.85 + rand() * 0.4;
@@ -1645,36 +1594,6 @@ function applyStlGeometry(geometry, fileNames = []) {
   updateStarUniforms();
   focusOnFeldappenCenter({ repositionCamera: true });
   geometry.dispose();
-  const points = new THREE.Points(pointGeometry, stlMaterial);
-  points.name = 'feldappenVolumePoints';
-  stlGroup.add(points);
-  stlGroup.position.copy(FELDAPPEN_CENTER);
-  stlGroup.visible = true;
-  stlState.combinedPoints = points;
-  if (stlUI.clearBtn) {
-    stlUI.clearBtn.disabled = false;
-  }
-  updateStarUniforms();
-  focusOnFeldappenCenter({ repositionCamera: true });
-  geometry.dispose();
-  stlState.files = Array.isArray(fileNames) ? fileNames : [];
-  const hasColors = geometry.hasColors === true && geometry.getAttribute && geometry.getAttribute('color');
-  stlMaterial.vertexColors = Boolean(hasColors);
-  const alpha = hasColors && typeof geometry.alpha === 'number' ? geometry.alpha : stlMaterial.opacity;
-  const clampedAlpha = Math.max(0.2, Math.min(1, Number(alpha) || stlMaterial.opacity));
-  stlMaterial.opacity = clampedAlpha;
-  stlMaterial.transparent = clampedAlpha < 1;
-  stlMaterial.needsUpdate = true;
-  const mesh = new THREE.Mesh(geometry, stlMaterial);
-  mesh.name = 'feldappenVolumeMesh';
-  stlGroup.add(mesh);
-  stlGroup.position.copy(FELDAPPEN_CENTER);
-  stlGroup.visible = true;
-  stlState.combinedMesh = mesh;
-  if (stlUI.clearBtn) {
-    stlUI.clearBtn.disabled = false;
-  }
-  focusOnFeldappenCenter({ repositionCamera: true });
 }
 
 async function loadStlFilesFromInput(files) {
@@ -1713,7 +1632,6 @@ async function loadStlFilesFromInput(files) {
     merged.computeBoundingSphere();
     const names = selection.map(file => (file && file.name) ? file.name : 'STL-Datei');
     applyStlGeometry(merged, names);
-    updateStlMeta(names);
   } catch (error) {
     console.error('STL-Dateien konnten nicht geladen werden:', error);
     updateStlMeta([], { error: 'Fehler beim Laden der STL-Dateien.' });
