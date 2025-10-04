@@ -5872,6 +5872,10 @@ function notifyPlaybackStarted() {
   if (experienceState.editingMode) {
     setEditingMode(false, { skipStop: true, skipPanelRestore: true });
   }
+  const wasStarted = experienceState.started;
+  if (!wasStarted && !audioState.usingMic && !autoRandomState.enabled) {
+    setAutoRandomEnabled(true);
+  }
   hideInterfaceForPlayback({ remember: true });
   experienceState.started = true;
   experienceState.pendingOverlayStart = false;
