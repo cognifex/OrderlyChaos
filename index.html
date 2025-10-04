@@ -1177,6 +1177,25 @@ function mulberry32(seed) {
   };
 }
 
+function hashStringList(strings) {
+  if (!Array.isArray(strings) || !strings.length) {
+    return 0x9e3779b9;
+  }
+  let hash = 0x811c9dc5;
+  for (const entry of strings) {
+    const value = typeof entry === 'string' ? entry : '';
+    for (let i = 0; i < value.length; i++) {
+      hash ^= value.charCodeAt(i);
+      hash = Math.imul(hash, 0x01000193);
+      hash >>>= 0;
+    }
+  }
+  if (hash === 0) {
+    return 0x6d2b79f5;
+  }
+  return hash >>> 0;
+}
+
 function randomRange(min, max) {
   const a = Number.isFinite(min) ? min : 0;
   const b = Number.isFinite(max) ? max : 0;
@@ -1229,6 +1248,10 @@ stlGroup.visible = false;
 clusterGroup.add(stlGroup);
 
 const stlLoader = new THREE.STLLoader();
+let stlMaterial = null;
+const stlState = {
+  files: [],
+  combinedPoints: null,
 const stlMaterial = new THREE.MeshPhongMaterial({
   color: 0x5fa8ff,
   specular: 0x1a1a1a,
@@ -1356,6 +1379,7 @@ function updateStlMeta(files = [], { loading = false, error = '' } = {}) {
     stlUI.meta.dataset.state = state;
   }
   if (stlUI.clearBtn) {
+    stlUI.clearBtn.disabled = loading || !stlState.combinedPoints;
     stlUI.clearBtn.disabled = loading || !stlState.combinedMesh;
   }
   if (stlUI.input) {
@@ -1364,6 +1388,13 @@ function updateStlMeta(files = [], { loading = false, error = '' } = {}) {
 }
 
 function clearStlModels({ keepCamera = false, skipInputReset = false, preserveMeta = false } = {}) {
+  const hadPoints = Boolean(stlState.combinedPoints);
+  if (stlState.combinedPoints) {
+    if (stlState.combinedPoints.geometry) {
+      stlState.combinedPoints.geometry.dispose();
+    }
+    stlGroup.remove(stlState.combinedPoints);
+    stlState.combinedPoints = null;
   const hadMesh = Boolean(stlState.combinedMesh);
   if (stlState.combinedMesh) {
     if (stlState.combinedMesh.geometry) {
@@ -1383,6 +1414,8 @@ function clearStlModels({ keepCamera = false, skipInputReset = false, preserveMe
   } else if (stlUI.clearBtn) {
     stlUI.clearBtn.disabled = true;
   }
+  updateStarUniforms();
+  if (hadPoints && !keepCamera) {
   if (hadMesh && !keepCamera) {
     focusOnFeldappenCenter({ repositionCamera: true });
   }
@@ -1464,6 +1497,7 @@ function applyStlGeometry(geometry, fileNames = []) {
   if (!(geometry instanceof THREE.BufferGeometry)) {
     return;
   }
+  if (stlState.combinedPoints) {
   if (stlState.combinedMesh) {
     clearStlModels({ keepCamera: true, skipInputReset: true, preserveMeta: true });
   }
@@ -1476,6 +1510,50 @@ function applyStlGeometry(geometry, fileNames = []) {
   geometry.computeBoundingSphere();
   const radius = geometry.boundingSphere ? geometry.boundingSphere.radius : 0;
   stlState.boundingRadius = Number.isFinite(radius) ? Math.max(0, radius) : 0;
+  const fileList = Array.isArray(fileNames) ? fileNames : [];
+  stlState.files = fileList;
+  const positionAttr = geometry.getAttribute ? geometry.getAttribute('position') : null;
+  if (!positionAttr || !positionAttr.array || positionAttr.count <= 0) {
+    geometry.dispose();
+    return;
+  }
+  const count = positionAttr.count;
+  const positions = new Float32Array(positionAttr.array.length);
+  positions.set(positionAttr.array);
+  const basePositions = new Float32Array(positions);
+  const phases = new Float32Array(count);
+  const sizes = new Float32Array(count);
+  const categories = new Float32Array(count);
+  const seed = hashStringList(fileList);
+  const rand = mulberry32(seed);
+  for (let i = 0; i < count; i++) {
+    phases[i] = rand();
+    const catRoll = rand();
+    categories[i] = catRoll < 0.25 ? 0 : (catRoll < 0.7 ? 1 : 2);
+    sizes[i] = 0.85 + rand() * 0.4;
+  }
+  const pointGeometry = new THREE.BufferGeometry();
+  pointGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  pointGeometry.setAttribute('aBase', new THREE.BufferAttribute(basePositions, 3));
+  pointGeometry.setAttribute('aPhase', new THREE.BufferAttribute(phases, 1));
+  pointGeometry.setAttribute('aSize', new THREE.BufferAttribute(sizes, 1));
+  pointGeometry.setAttribute('aCat', new THREE.BufferAttribute(categories, 1));
+  pointGeometry.computeBoundingSphere();
+  if (pointGeometry.boundingSphere) {
+    pointGeometry.boundingSphere.center.set(0, 0, 0);
+  }
+  const points = new THREE.Points(pointGeometry, stlMaterial);
+  points.name = 'feldappenVolumePoints';
+  stlGroup.add(points);
+  stlGroup.position.copy(FELDAPPEN_CENTER);
+  stlGroup.visible = true;
+  stlState.combinedPoints = points;
+  if (stlUI.clearBtn) {
+    stlUI.clearBtn.disabled = false;
+  }
+  updateStarUniforms();
+  focusOnFeldappenCenter({ repositionCamera: true });
+  geometry.dispose();
   stlState.files = Array.isArray(fileNames) ? fileNames : [];
   const hasColors = geometry.hasColors === true && geometry.getAttribute && geometry.getAttribute('color');
   stlMaterial.vertexColors = Boolean(hasColors);
@@ -2063,35 +2141,42 @@ function applyAudioVisualState(modifiers = audioState.modifiers || {}) {
   const energyUniform = Math.min(3, audioState.metrics.energy * (0.8 + Math.max(0, getAudioIntensity('motion')) * 0.7));
   const waveUniform = Math.min(3, audioState.metrics.wave * (0.8 + Math.max(0, getAudioIntensity('size')) * 0.7));
 
-  if (starMaterial && starMaterial.uniforms) {
-    if (starMaterial.uniforms.uAudioBands && starMaterial.uniforms.uAudioBands.value) {
-      starMaterial.uniforms.uAudioBands.value.copy(audioBandVector);
+  const baseAlpha = params.pointAlpha;
+  const alphaVisual = modifiers.alpha ? clampValue(audioState.visual.alpha, 0, 1.2) : AUDIO_VISUAL_BASE.alpha;
+  const boostedAlpha = Math.max(0.05, Math.min(1, (baseAlpha + alphaVisual) * visibilityFactor));
+  const applyAudioToPointMaterial = material => {
+    if (!material || !material.uniforms) {
+      return;
     }
-    if (starMaterial.uniforms.uAudioEnergy) {
-      starMaterial.uniforms.uAudioEnergy.value = energyUniform;
+    const uniforms = material.uniforms;
+    if (uniforms.uAudioBands && uniforms.uAudioBands.value) {
+      uniforms.uAudioBands.value.copy(audioBandVector);
     }
-    if (starMaterial.uniforms.uAudioWave) {
-      starMaterial.uniforms.uAudioWave.value = waveUniform;
+    if (uniforms.uAudioEnergy) {
+      uniforms.uAudioEnergy.value = energyUniform;
     }
-    if (starMaterial.uniforms.uSizeFactorSmall) {
-      starMaterial.uniforms.uSizeFactorSmall.value = params.sizeFactorSmall * sizeBoost;
+    if (uniforms.uAudioWave) {
+      uniforms.uAudioWave.value = waveUniform;
     }
-    if (starMaterial.uniforms.uSizeFactorMedium) {
-      starMaterial.uniforms.uSizeFactorMedium.value = params.sizeFactorMedium * sizeBoost;
+    if (uniforms.uSizeFactorSmall) {
+      uniforms.uSizeFactorSmall.value = params.sizeFactorSmall * sizeBoost;
     }
-    if (starMaterial.uniforms.uSizeFactorLarge) {
-      starMaterial.uniforms.uSizeFactorLarge.value = params.sizeFactorLarge * sizeBoost;
+    if (uniforms.uSizeFactorMedium) {
+      uniforms.uSizeFactorMedium.value = params.sizeFactorMedium * sizeBoost;
     }
-    if (starMaterial.uniforms.uAlpha) {
-      const baseAlpha = params.pointAlpha;
-      const alphaVisual = modifiers.alpha ? clampValue(audioState.visual.alpha, 0, 1.2) : AUDIO_VISUAL_BASE.alpha;
-      const boostedAlpha = Math.max(0.05, Math.min(1, (baseAlpha + alphaVisual) * visibilityFactor));
-      starMaterial.uniforms.uAlpha.value = boostedAlpha;
+    if (uniforms.uSizeFactorLarge) {
+      uniforms.uSizeFactorLarge.value = params.sizeFactorLarge * sizeBoost;
     }
-    if (starMaterial.uniforms.uColor) {
-      starMaterial.uniforms.uColor.value.copy(audioState.color);
+    if (uniforms.uAlpha) {
+      uniforms.uAlpha.value = boostedAlpha;
     }
-  }
+    if (uniforms.uColor) {
+      uniforms.uColor.value.copy(audioState.color);
+    }
+    material.needsUpdate = true;
+  };
+  applyAudioToPointMaterial(starMaterial);
+  applyAudioToPointMaterial(stlMaterial);
 
   if (tinyMaterial && tinyMaterial.uniforms) {
     if (tinyMaterial.uniforms.uAudioBands && tinyMaterial.uniforms.uAudioBands.value) {
@@ -3114,6 +3199,16 @@ function updatePointColor(applyUniforms = true) {
     }
     starMaterial.needsUpdate = true;
   }
+  if (stlMaterial && stlMaterial.uniforms && stlMaterial.uniforms.uColor) {
+    stlMaterial.uniforms.uColor.value.copy(colorState.point);
+    if (stlMaterial.uniforms.uColorAccent) {
+      stlMaterial.uniforms.uColorAccent.value.copy(colorState.accent);
+    }
+    if (stlMaterial.uniforms.uColorDim) {
+      stlMaterial.uniforms.uColorDim.value.copy(colorState.dim);
+    }
+    stlMaterial.needsUpdate = true;
+  }
   if (tinyMaterial && tinyMaterial.uniforms && tinyMaterial.uniforms.uColor) {
     tinyMaterial.uniforms.uColor.value.copy(colorState.point);
     if (tinyMaterial.uniforms.uColorAccent) {
@@ -3124,6 +3219,364 @@ function updatePointColor(applyUniforms = true) {
     }
     tinyMaterial.needsUpdate = true;
   }
+}
+
+const POINT_VERTEX_SHADER = `
+  attribute float aSize;
+  attribute float aCat;
+  attribute vec3 aBase;
+  attribute float aPhase;
+  varying float vDepth;
+  varying vec3 vBase;
+  varying float vPhase;
+  varying float vRadius;
+  uniform float uSizeFactorSmall;
+  uniform float uSizeFactorMedium;
+  uniform float uSizeFactorLarge;
+  uniform float uTime;
+  uniform float uMotionMode;
+  uniform float uMotionSpeed;
+  uniform float uMotionAmplitude;
+  uniform float uNoiseStrength;
+  uniform float uNoiseScale;
+  uniform vec3 uAudioBands;
+  uniform float uAudioEnergy;
+  uniform float uAudioWave;
+
+  float hash3(vec3 p) {
+    return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453123);
+  }
+
+  float valueNoise(vec3 p) {
+    vec3 i = floor(p);
+    vec3 f = fract(p);
+    float n000 = hash3(i + vec3(0.0, 0.0, 0.0));
+    float n100 = hash3(i + vec3(1.0, 0.0, 0.0));
+    float n010 = hash3(i + vec3(0.0, 1.0, 0.0));
+    float n110 = hash3(i + vec3(1.0, 1.0, 0.0));
+    float n001 = hash3(i + vec3(0.0, 0.0, 1.0));
+    float n101 = hash3(i + vec3(1.0, 0.0, 1.0));
+    float n011 = hash3(i + vec3(0.0, 1.0, 1.0));
+    float n111 = hash3(i + vec3(1.0, 1.0, 1.0));
+    vec3 u = f * f * (3.0 - 2.0 * f);
+    float nx00 = mix(n000, n100, u.x);
+    float nx10 = mix(n010, n110, u.x);
+    float nx01 = mix(n001, n101, u.x);
+    float nx11 = mix(n011, n111, u.x);
+    float nxy0 = mix(nx00, nx10, u.y);
+    float nxy1 = mix(nx01, nx11, u.y);
+    return mix(nxy0, nxy1, u.z);
+  }
+
+  vec3 applyAudioReactive(vec3 pos) {
+    float radius = length(pos);
+    if (radius < 1e-4) {
+      return pos;
+    }
+    float bandMix = dot(uAudioBands, vec3(0.65, 0.28, 0.12));
+    float wavePulse = uAudioWave * 0.7;
+    float energyPulse = uAudioEnergy * 0.45;
+    float ripple = sin(uTime * 4.0 + aPhase * 12.5663706) * (0.2 + wavePulse * 0.6);
+    float scale = 1.0 + bandMix * 0.3 + energyPulse * 0.25 + wavePulse * 0.25;
+    float newRadius = max(0.05, radius * scale + ripple * 10.0);
+    vec3 radial = normalize(pos);
+    return radial * newRadius;
+  }
+
+  vec3 applyMotion(vec3 base) {
+    float mode = uMotionMode;
+    float time = uTime * uMotionSpeed;
+    if (mode < 0.5) {
+      return base;
+    } else if (mode < 1.5) {
+      float phase = aPhase * 6.2831853;
+      vec3 offset = vec3(
+        sin(time + phase + base.x * 0.015),
+        sin(time * 0.8 + phase * 1.3 + base.y * 0.02),
+        sin(time * 1.2 + phase * 0.7 + base.z * 0.017)
+      );
+      return base + offset * uMotionAmplitude;
+    } else if (mode < 2.5) {
+      float scale = max(0.0001, uNoiseScale);
+      vec3 samplePos = base * (0.01 * scale);
+      float tx = valueNoise(vec3(samplePos.xy, time * 0.35 + aPhase));
+      float ty = valueNoise(vec3(samplePos.yz, time * 0.35 + aPhase * 1.7));
+      float tz = valueNoise(vec3(samplePos.zx, time * 0.35 + aPhase * 2.3));
+      vec3 offset = vec3(tx, ty, tz) * 2.0 - 1.0;
+      offset *= uMotionAmplitude * uNoiseStrength;
+      return base + offset;
+    } else {
+      float phase = aPhase * 6.2831853;
+      float angle = time * 0.6 + phase * 0.25;
+      vec2 xz = base.xz;
+      float radius = length(xz);
+      float radial = max(0.0, radius + sin(time * 0.4 + phase) * uMotionAmplitude * 0.25);
+      float c = cos(angle);
+      float s = sin(angle);
+      vec2 rotated = vec2(
+        xz.x * c - xz.y * s,
+        xz.x * s + xz.y * c
+      );
+      if (radial > 1e-4 && length(rotated) > 1e-5) {
+        rotated = normalize(rotated) * radial;
+      } else {
+        rotated = vec2(radial * cos(angle), radial * sin(angle));
+      }
+      float yOffset = sin(time * 0.5 + phase * 0.5) * uMotionAmplitude * 0.3;
+      return vec3(rotated.x, base.y + yOffset, rotated.y);
+    }
+  }
+
+  void main() {
+    vec3 animated = applyMotion(aBase);
+    vec3 audioDriven = applyAudioReactive(animated);
+    vBase = aBase;
+    vPhase = aPhase;
+    vRadius = length(aBase);
+    vec4 mv = modelViewMatrix * vec4(audioDriven, 1.0);
+    vDepth = -mv.z;
+    float cat = clamp(aCat, 0.0, 2.0);
+    float sizeFactor = cat < 0.5 ? uSizeFactorSmall : (cat < 1.5 ? uSizeFactorMedium : uSizeFactorLarge);
+    float size = max(0.01, aSize * sizeFactor);
+    float px = max(1.0, size * 12.0);
+    gl_PointSize = px * (300.0 / max(1.0, vDepth));
+    gl_Position = projectionMatrix * mv;
+  }
+`;
+
+const POINT_FRAGMENT_SHADER = `
+  precision highp float;
+  uniform float uAlpha;
+  uniform float uEdgeSoftness;
+  uniform vec3 uColor;
+  uniform vec3 uColorAccent;
+  uniform vec3 uColorDim;
+  uniform float uColorMode;
+  uniform float uColorRadius;
+  uniform float uColorIntensity;
+  uniform float uColorSpeed;
+  uniform float uColorPropagationDistance;
+  uniform float uColorPropagationDuration;
+  uniform float uColorToneCount;
+  uniform float uHueSpread;
+  uniform float uTime;
+  varying vec3 vBase;
+  varying float vPhase;
+  varying float vRadius;
+
+  vec3 rgb2hsv(vec3 c) {
+    vec4 K = vec4(0.0, -1.0 / 3.0, 2.0 / 3.0, -1.0);
+    vec4 p = mix(vec4(c.bg, K.wz), vec4(c.gb, K.xy), step(c.b, c.g));
+    vec4 q = mix(vec4(p.xyw, c.r), vec4(c.r, p.yzx), step(p.x, c.r));
+    float d = q.x - min(q.w, q.y);
+    float e = 1.0e-10;
+    return vec3(abs(q.z + (q.w - q.y) / (6.0 * d + e)), d / (q.x + e), q.x);
+  }
+
+  vec3 hsv2rgb(vec3 c) {
+    vec3 rgb = clamp(abs(mod(c.x * 6.0 + vec3(0.0, 4.0, 2.0), 6.0) - 3.0) - 1.0, 0.0, 1.0);
+    return c.z * mix(vec3(1.0), rgb, c.y);
+  }
+
+  vec3 computeColor() {
+    float intensity = clamp(uColorIntensity, 0.0, 1.0);
+    float hueSpreadNorm = uHueSpread / 360.0;
+    float baseSpeed = max(uColorSpeed, 0.0);
+    float colorTime = uTime * baseSpeed;
+    float propagationOffset = 0.0;
+    if (uColorPropagationDistance > 1e-4 && uColorPropagationDuration > 1e-4) {
+      float normRadius = clamp(vRadius / uColorPropagationDistance, 0.0, 1.0);
+      propagationOffset = normRadius * uColorPropagationDuration;
+    }
+    colorTime -= propagationOffset;
+    vec3 baseHSVOriginal = rgb2hsv(uColor);
+    vec3 accentHSVOriginal = rgb2hsv(uColorAccent);
+    vec3 dimHSVOriginal = rgb2hsv(uColorDim);
+    float hueShift = 0.0;
+    if (hueSpreadNorm > 1e-6) {
+      hueShift = sin(colorTime + vPhase * 6.2831853) * hueSpreadNorm;
+    }
+    vec3 baseHSV = baseHSVOriginal;
+    baseHSV.x = fract(baseHSV.x + hueShift);
+    vec3 accentHSV = accentHSVOriginal;
+    accentHSV.x = fract(accentHSV.x + hueShift);
+    vec3 dimHSV = dimHSVOriginal;
+    dimHSV.x = fract(dimHSV.x + hueShift);
+    vec3 baseColor = hsv2rgb(baseHSV);
+    vec3 accentColor = hsv2rgb(accentHSV);
+    vec3 dimColor = hsv2rgb(dimHSV);
+
+    if (uColorMode < 0.5) {
+      return baseColor;
+    } else if (uColorMode < 1.5) {
+      float norm = uColorRadius > 1e-4 ? clamp(vRadius / uColorRadius, 0.0, 1.0) : 0.0;
+      float pulse = 0.5 + 0.5 * sin(colorTime * 2.2 + norm * 6.2831853 + vPhase * 3.1415926);
+      vec3 effect = mix(baseColor, accentColor, pulse);
+      return mix(baseColor, effect, intensity);
+    } else if (uColorMode < 2.5) {
+      float axis = clamp((vBase.y / max(uColorRadius, 1e-4)) * 0.5 + 0.5, 0.0, 1.0);
+      float sweep = 0.5 + 0.5 * sin(colorTime * 1.4 + axis * 6.2831853);
+      vec3 effect = mix(dimColor, accentColor, sweep);
+      return mix(baseColor, effect, intensity);
+    } else if (uColorMode < 3.5) {
+      float flicker = fract(sin(vPhase * 43758.5453 + colorTime * 0.45) * 43758.5453);
+      float mixAmt = smoothstep(0.2, 0.8, flicker);
+      vec3 effect = mix(dimColor, accentColor, mixAmt);
+      return mix(baseColor, effect, intensity);
+    } else {
+      float hueRange = hueSpreadNorm;
+      float randA = sin(vPhase * 213.135 + colorTime * 1.27);
+      float randB = sin(vPhase * 97.531 + colorTime * 0.93);
+      float randC = sin(vPhase * 47.853 + colorTime * 1.61);
+      float randomShift = (randA * 0.6 + randB * 0.4) * hueRange;
+      vec3 rndHSV = baseHSVOriginal;
+      rndHSV.x = fract(rndHSV.x + randomShift);
+      rndHSV.y = clamp(rndHSV.y * (0.7 + 0.3 * (randB * 0.5 + 0.5)), 0.0, 1.0);
+      rndHSV.z = clamp(rndHSV.z * (0.7 + 0.3 * (randC * 0.5 + 0.5)), 0.0, 1.2);
+      vec3 randomColor = hsv2rgb(rndHSV);
+      return mix(baseColor, randomColor, intensity);
+    }
+  }
+
+  void main() {
+    vec2 uv = gl_PointCoord * 2.0 - 1.0;
+    float d = dot(uv, uv);
+    if (d > 1.0) discard;
+    float inner = 1.0 - uEdgeSoftness;
+    float edge = 1.0 - smoothstep(inner, 1.0, d);
+    vec3 color = computeColor();
+    float toneCount = max(uColorToneCount, 1.0);
+    if (toneCount > 1.01) {
+      vec3 quantized = rgb2hsv(color);
+      quantized.x = floor(quantized.x * toneCount + 1e-4) / toneCount;
+      color = hsv2rgb(quantized);
+    }
+    gl_FragColor = vec4(color, edge * uAlpha);
+  }
+`;
+
+function createPointShaderMaterial() {
+  const material = new THREE.ShaderMaterial({
+    vertexShader: POINT_VERTEX_SHADER,
+    fragmentShader: POINT_FRAGMENT_SHADER,
+    transparent: true,
+    depthTest: true,
+    depthWrite: false,
+    uniforms: {
+      uAlpha: { value: params.pointAlpha },
+      uEdgeSoftness: { value: params.filled ? 0.0 : params.edgeSoftness },
+      uSizeFactorSmall: { value: params.sizeFactorSmall },
+      uSizeFactorMedium: { value: params.sizeFactorMedium },
+      uSizeFactorLarge: { value: params.sizeFactorLarge },
+      uTime: { value: motionState.time },
+      uMotionMode: { value: getMotionModeIndex() },
+      uMotionSpeed: { value: params.motionSpeed },
+      uMotionAmplitude: { value: params.motionAmplitude },
+      uNoiseStrength: { value: params.motionNoiseStrength },
+      uNoiseScale: { value: params.motionNoiseScale },
+      uAudioBands: { value: new THREE.Vector3() },
+      uAudioEnergy: { value: 0 },
+      uAudioWave: { value: 0 },
+      uColor: { value: colorState.point.clone() },
+      uColorAccent: { value: colorState.accent.clone() },
+      uColorDim: { value: colorState.dim.clone() },
+      uColorMode: { value: getColorModeIndex() },
+      uColorRadius: { value: Math.max(1, colorState.radius) },
+      uColorIntensity: { value: params.colorIntensity },
+      uColorSpeed: { value: params.colorSpeed },
+      uColorPropagationDistance: { value: params.colorPropagationDistance },
+      uColorPropagationDuration: { value: params.colorPropagationDuration },
+      uColorToneCount: { value: params.colorToneCount },
+      uHueSpread: { value: params.hueSpread },
+    }
+  });
+  material.blending = (params.blending === 'Additive') ? THREE.AdditiveBlending : THREE.NormalBlending;
+  return material;
+}
+
+function updatePointMaterialUniforms(material, { radiusOverride } = {}) {
+  if (!material || !material.uniforms) return;
+  if (material.uniforms.uAlpha) {
+    material.uniforms.uAlpha.value = params.pointAlpha;
+  }
+  if (material.uniforms.uEdgeSoftness) {
+    material.uniforms.uEdgeSoftness.value = params.filled ? 0.0 : params.edgeSoftness;
+  }
+  if (material.uniforms.uSizeFactorSmall) {
+    material.uniforms.uSizeFactorSmall.value = params.sizeFactorSmall;
+  }
+  if (material.uniforms.uSizeFactorMedium) {
+    material.uniforms.uSizeFactorMedium.value = params.sizeFactorMedium;
+  }
+  if (material.uniforms.uSizeFactorLarge) {
+    material.uniforms.uSizeFactorLarge.value = params.sizeFactorLarge;
+  }
+  if (material.uniforms.uTime) {
+    material.uniforms.uTime.value = motionState.time;
+  }
+  if (material.uniforms.uMotionMode) {
+    material.uniforms.uMotionMode.value = getMotionModeIndex();
+  }
+  if (material.uniforms.uMotionSpeed) {
+    material.uniforms.uMotionSpeed.value = params.motionSpeed;
+  }
+  if (material.uniforms.uMotionAmplitude) {
+    material.uniforms.uMotionAmplitude.value = params.motionAmplitude;
+  }
+  if (material.uniforms.uNoiseStrength) {
+    material.uniforms.uNoiseStrength.value = params.motionNoiseStrength;
+  }
+  if (material.uniforms.uNoiseScale) {
+    material.uniforms.uNoiseScale.value = params.motionNoiseScale;
+  }
+  if (material.uniforms.uColor) {
+    material.uniforms.uColor.value.copy(colorState.point);
+  }
+  if (material.uniforms.uColorAccent) {
+    material.uniforms.uColorAccent.value.copy(colorState.accent);
+  }
+  if (material.uniforms.uColorDim) {
+    material.uniforms.uColorDim.value.copy(colorState.dim);
+  }
+  if (material.uniforms.uColorMode) {
+    material.uniforms.uColorMode.value = getColorModeIndex();
+  }
+  if (material.uniforms.uColorRadius) {
+    const baseRadius = Math.max(1, colorState.radius);
+    const override = Number.isFinite(radiusOverride) ? Math.max(1, radiusOverride) : baseRadius;
+    material.uniforms.uColorRadius.value = override;
+  }
+  if (material.uniforms.uColorIntensity) {
+    const intensity = Math.max(0, Math.min(1, Number(params.colorIntensity) || 0));
+    material.uniforms.uColorIntensity.value = intensity;
+  }
+  if (material.uniforms.uColorSpeed) {
+    const speed = Math.max(0, Number(params.colorSpeed) || 0);
+    material.uniforms.uColorSpeed.value = speed;
+  }
+  if (material.uniforms.uColorPropagationDistance) {
+    const distance = Math.max(0, Number(params.colorPropagationDistance) || 0);
+    material.uniforms.uColorPropagationDistance.value = distance;
+  }
+  if (material.uniforms.uColorPropagationDuration) {
+    const duration = Math.max(0, Number(params.colorPropagationDuration) || 0);
+    material.uniforms.uColorPropagationDuration.value = duration;
+  }
+  if (material.uniforms.uColorToneCount) {
+    const tones = Math.max(1, Math.round(Number(params.colorToneCount) || 1));
+    params.colorToneCount = tones;
+    material.uniforms.uColorToneCount.value = tones;
+  }
+  if (material.uniforms.uHueSpread) {
+    const spread = Math.max(0, Math.min(360, Number(params.hueSpread) || 0));
+    material.uniforms.uHueSpread.value = spread;
+  }
+  material.blending = (params.blending === 'Additive') ? THREE.AdditiveBlending : THREE.NormalBlending;
+  material.needsUpdate = true;
+}
+
+if (!stlMaterial) {
+  stlMaterial = createPointShaderMaterial();
 }
 
 /* Create stars geometry and material */
@@ -3318,282 +3771,8 @@ function makeStars() {
   }
   const sphere = starGeometry.boundingSphere;
   colorState.radius = sphere ? Math.max(1, sphere.radius) : Math.max(1, params.radius);
-  // Vertex shader for stars
-  const starVert = `
-    attribute float aSize;
-    attribute float aCat;
-    attribute vec3 aBase;
-    attribute float aPhase;
-    varying float vDepth;
-    varying vec3 vBase;
-    varying float vPhase;
-    varying float vRadius;
-    uniform float uSizeFactorSmall;
-    uniform float uSizeFactorMedium;
-    uniform float uSizeFactorLarge;
-    uniform float uTime;
-    uniform float uMotionMode;
-    uniform float uMotionSpeed;
-    uniform float uMotionAmplitude;
-    uniform float uNoiseStrength;
-    uniform float uNoiseScale;
-    uniform vec3 uAudioBands;
-    uniform float uAudioEnergy;
-    uniform float uAudioWave;
-
-    float hash3(vec3 p) {
-      return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453123);
-    }
-
-    float valueNoise(vec3 p) {
-      vec3 i = floor(p);
-      vec3 f = fract(p);
-      float n000 = hash3(i + vec3(0.0, 0.0, 0.0));
-      float n100 = hash3(i + vec3(1.0, 0.0, 0.0));
-      float n010 = hash3(i + vec3(0.0, 1.0, 0.0));
-      float n110 = hash3(i + vec3(1.0, 1.0, 0.0));
-      float n001 = hash3(i + vec3(0.0, 0.0, 1.0));
-      float n101 = hash3(i + vec3(1.0, 0.0, 1.0));
-      float n011 = hash3(i + vec3(0.0, 1.0, 1.0));
-      float n111 = hash3(i + vec3(1.0, 1.0, 1.0));
-      vec3 u = f * f * (3.0 - 2.0 * f);
-      float nx00 = mix(n000, n100, u.x);
-      float nx10 = mix(n010, n110, u.x);
-      float nx01 = mix(n001, n101, u.x);
-      float nx11 = mix(n011, n111, u.x);
-      float nxy0 = mix(nx00, nx10, u.y);
-      float nxy1 = mix(nx01, nx11, u.y);
-      return mix(nxy0, nxy1, u.z);
-    }
-
-    vec3 applyAudioReactive(vec3 pos) {
-      float radius = length(pos);
-      if (radius < 1e-4) {
-        return pos;
-      }
-      float bandMix = dot(uAudioBands, vec3(0.65, 0.28, 0.12));
-      float wavePulse = uAudioWave * 0.7;
-      float energyPulse = uAudioEnergy * 0.45;
-      float ripple = sin(uTime * 4.0 + aPhase * 12.5663706) * (0.2 + wavePulse * 0.6);
-      float scale = 1.0 + bandMix * 0.3 + energyPulse * 0.25 + wavePulse * 0.25;
-      float newRadius = max(0.05, radius * scale + ripple * 10.0);
-      vec3 radial = normalize(pos);
-      return radial * newRadius;
-    }
-
-    vec3 applyMotion(vec3 base) {
-      float mode = uMotionMode;
-      float time = uTime * uMotionSpeed;
-      if (mode < 0.5) {
-        return base;
-      } else if (mode < 1.5) {
-        float phase = aPhase * 6.2831853;
-        vec3 offset = vec3(
-          sin(time + phase + base.x * 0.015),
-          sin(time * 0.8 + phase * 1.3 + base.y * 0.02),
-          sin(time * 1.2 + phase * 0.7 + base.z * 0.017)
-        );
-        return base + offset * uMotionAmplitude;
-      } else if (mode < 2.5) {
-        float scale = max(0.0001, uNoiseScale);
-        vec3 samplePos = base * (0.01 * scale);
-        float tx = valueNoise(vec3(samplePos.xy, time * 0.35 + aPhase));
-        float ty = valueNoise(vec3(samplePos.yz, time * 0.35 + aPhase * 1.7));
-        float tz = valueNoise(vec3(samplePos.zx, time * 0.35 + aPhase * 2.3));
-        vec3 offset = vec3(tx, ty, tz) * 2.0 - 1.0;
-        offset *= uMotionAmplitude * uNoiseStrength;
-        return base + offset;
-      } else {
-        float phase = aPhase * 6.2831853;
-        float angle = time * 0.6 + phase * 0.25;
-        vec2 xz = base.xz;
-        float radius = length(xz);
-        float radial = max(0.0, radius + sin(time * 0.4 + phase) * uMotionAmplitude * 0.25);
-        float c = cos(angle);
-        float s = sin(angle);
-        vec2 rotated = vec2(
-          xz.x * c - xz.y * s,
-          xz.x * s + xz.y * c
-        );
-        if (radial > 1e-4 && length(rotated) > 1e-5) {
-          rotated = normalize(rotated) * radial;
-        } else {
-          rotated = vec2(radial * cos(angle), radial * sin(angle));
-        }
-        float yOffset = sin(time * 0.5 + phase * 0.5) * uMotionAmplitude * 0.3;
-        return vec3(rotated.x, base.y + yOffset, rotated.y);
-      }
-    }
-
-    void main() {
-      vec3 animated = applyMotion(aBase);
-      vec3 audioDriven = applyAudioReactive(animated);
-      vBase = aBase;
-      vPhase = aPhase;
-      vRadius = length(aBase);
-      vec4 mv = modelViewMatrix * vec4(audioDriven, 1.0);
-      vDepth = -mv.z;
-      float factor;
-      if (aCat < 0.5) {
-        factor = uSizeFactorSmall;
-      } else if (aCat < 1.5) {
-        factor = uSizeFactorMedium;
-      } else {
-        factor = uSizeFactorLarge;
-      }
-      gl_PointSize = aSize * factor * 4.0 * (300.0 / max(1.0, vDepth));
-      gl_Position = projectionMatrix * mv;
-    }
-  `;
-  // Fragment shader for stars
-  const starFrag = `
-    precision highp float;
-    uniform float uAlpha;
-    uniform float uEdgeSoftness;
-    uniform vec3 uColor;
-    uniform vec3 uColorAccent;
-    uniform vec3 uColorDim;
-    uniform float uColorMode;
-    uniform float uColorRadius;
-    uniform float uColorIntensity;
-    uniform float uColorSpeed;
-    uniform float uColorPropagationDistance;
-    uniform float uColorPropagationDuration;
-    uniform float uColorToneCount;
-    uniform float uHueSpread;
-    uniform float uTime;
-    varying vec3 vBase;
-    varying float vPhase;
-    varying float vRadius;
-
-    vec3 rgb2hsv(vec3 c) {
-      vec4 K = vec4(0.0, -1.0 / 3.0, 2.0 / 3.0, -1.0);
-      vec4 p = mix(vec4(c.bg, K.wz), vec4(c.gb, K.xy), step(c.b, c.g));
-      vec4 q = mix(vec4(p.xyw, c.r), vec4(c.r, p.yzx), step(p.x, c.r));
-      float d = q.x - min(q.w, q.y);
-      float e = 1.0e-10;
-      return vec3(abs(q.z + (q.w - q.y) / (6.0 * d + e)), d / (q.x + e), q.x);
-    }
-
-    vec3 hsv2rgb(vec3 c) {
-      vec3 rgb = clamp(abs(mod(c.x * 6.0 + vec3(0.0, 4.0, 2.0), 6.0) - 3.0) - 1.0, 0.0, 1.0);
-      return c.z * mix(vec3(1.0), rgb, c.y);
-    }
-
-    vec3 computeColor() {
-      float intensity = clamp(uColorIntensity, 0.0, 1.0);
-      float hueSpreadNorm = uHueSpread / 360.0;
-      float baseSpeed = max(uColorSpeed, 0.0);
-      float colorTime = uTime * baseSpeed;
-      float propagationOffset = 0.0;
-      if (uColorPropagationDistance > 1e-4 && uColorPropagationDuration > 1e-4) {
-        float normRadius = clamp(vRadius / uColorPropagationDistance, 0.0, 1.0);
-        propagationOffset = normRadius * uColorPropagationDuration;
-      }
-      colorTime -= propagationOffset;
-      vec3 baseHSVOriginal = rgb2hsv(uColor);
-      vec3 accentHSVOriginal = rgb2hsv(uColorAccent);
-      vec3 dimHSVOriginal = rgb2hsv(uColorDim);
-      float hueShift = 0.0;
-      if (hueSpreadNorm > 1e-6) {
-        hueShift = sin(colorTime + vPhase * 6.2831853) * hueSpreadNorm;
-      }
-      vec3 baseHSV = baseHSVOriginal;
-      baseHSV.x = fract(baseHSV.x + hueShift);
-      vec3 accentHSV = accentHSVOriginal;
-      accentHSV.x = fract(accentHSV.x + hueShift);
-      vec3 dimHSV = dimHSVOriginal;
-      dimHSV.x = fract(dimHSV.x + hueShift);
-      vec3 baseColor = hsv2rgb(baseHSV);
-      vec3 accentColor = hsv2rgb(accentHSV);
-      vec3 dimColor = hsv2rgb(dimHSV);
-
-      if (uColorMode < 0.5) {
-        return baseColor;
-      } else if (uColorMode < 1.5) {
-        float norm = uColorRadius > 1e-4 ? clamp(vRadius / uColorRadius, 0.0, 1.0) : 0.0;
-        float pulse = 0.5 + 0.5 * sin(colorTime * 2.2 + norm * 6.2831853 + vPhase * 3.1415926);
-        vec3 effect = mix(baseColor, accentColor, pulse);
-        return mix(baseColor, effect, intensity);
-      } else if (uColorMode < 2.5) {
-        float axis = clamp((vBase.y / max(uColorRadius, 1e-4)) * 0.5 + 0.5, 0.0, 1.0);
-        float sweep = 0.5 + 0.5 * sin(colorTime * 1.4 + axis * 6.2831853);
-        vec3 effect = mix(dimColor, accentColor, sweep);
-        return mix(baseColor, effect, intensity);
-      } else if (uColorMode < 3.5) {
-        float flicker = fract(sin(vPhase * 43758.5453 + colorTime * 0.45) * 43758.5453);
-        float mixAmt = smoothstep(0.2, 0.8, flicker);
-        vec3 effect = mix(dimColor, accentColor, mixAmt);
-        return mix(baseColor, effect, intensity);
-      } else {
-        float hueRange = hueSpreadNorm;
-        float randA = sin(vPhase * 213.135 + colorTime * 1.27);
-        float randB = sin(vPhase * 97.531 + colorTime * 0.93);
-        float randC = sin(vPhase * 47.853 + colorTime * 1.61);
-        float randomShift = (randA * 0.6 + randB * 0.4) * hueRange;
-        vec3 rndHSV = baseHSVOriginal;
-        rndHSV.x = fract(rndHSV.x + randomShift);
-        rndHSV.y = clamp(rndHSV.y * (0.7 + 0.3 * (randB * 0.5 + 0.5)), 0.0, 1.0);
-        rndHSV.z = clamp(rndHSV.z * (0.7 + 0.3 * (randC * 0.5 + 0.5)), 0.0, 1.2);
-        vec3 randomColor = hsv2rgb(rndHSV);
-        return mix(baseColor, randomColor, intensity);
-      }
-    }
-
-    void main() {
-      vec2 uv = gl_PointCoord * 2.0 - 1.0;
-      float d = dot(uv, uv);
-      if (d > 1.0) discard;
-      // compute inner radius where the point is fully opaque
-      float inner = 1.0 - uEdgeSoftness;
-      // fade alpha near the outer edge: inside 'inner' radius alpha=1, outside alpha decreases to 0 at the rim
-      float edge = 1.0 - smoothstep(inner, 1.0, d);
-      vec3 color = computeColor();
-      float toneCount = max(uColorToneCount, 1.0);
-      if (toneCount > 1.01) {
-        vec3 quantized = rgb2hsv(color);
-        quantized.x = floor(quantized.x * toneCount + 1e-4) / toneCount;
-        color = hsv2rgb(quantized);
-      }
-      gl_FragColor = vec4(color, edge * uAlpha);
-    }
-  `;
-  starMaterial = new THREE.ShaderMaterial({
-    vertexShader: starVert,
-    fragmentShader: starFrag,
-    transparent: true,
-    depthTest: true,
-    // disable depthWrite so points blend properly and do not occlude each other completely
-    depthWrite: false,
-    uniforms: {
-      uAlpha: { value: params.pointAlpha },
-      uEdgeSoftness: { value: params.filled ? 0.0 : params.edgeSoftness },
-      uSizeFactorSmall: { value: params.sizeFactorSmall },
-      uSizeFactorMedium: { value: params.sizeFactorMedium },
-      uSizeFactorLarge: { value: params.sizeFactorLarge },
-      uTime: { value: motionState.time },
-      uMotionMode: { value: getMotionModeIndex() },
-      uMotionSpeed: { value: params.motionSpeed },
-      uMotionAmplitude: { value: params.motionAmplitude },
-      uNoiseStrength: { value: params.motionNoiseStrength },
-      uNoiseScale: { value: params.motionNoiseScale },
-      uAudioBands: { value: new THREE.Vector3() },
-      uAudioEnergy: { value: 0 },
-      uAudioWave: { value: 0 },
-      uColor: { value: colorState.point.clone() },
-      uColorAccent: { value: colorState.accent.clone() },
-      uColorDim: { value: colorState.dim.clone() },
-      uColorMode: { value: getColorModeIndex() },
-      uColorRadius: { value: colorState.radius },
-      uColorIntensity: { value: params.colorIntensity },
-      uColorSpeed: { value: params.colorSpeed },
-      uColorPropagationDistance: { value: params.colorPropagationDistance },
-      uColorPropagationDuration: { value: params.colorPropagationDuration },
-      uColorToneCount: { value: params.colorToneCount },
-      uHueSpread: { value: params.hueSpread },
-    }
-  });
-  starMaterial.blending = (params.blending === 'Additive') ? THREE.AdditiveBlending : THREE.NormalBlending;
+  starMaterial = createPointShaderMaterial();
+  updatePointMaterialUniforms(starMaterial);
   starPoints = new THREE.Points(starGeometry, starMaterial);
   clusterGroup.add(starPoints);
 }
@@ -3898,72 +4077,9 @@ function makeTiny() {
 
 /* Update uniforms and materials when parameters change */
 function updateStarUniforms() {
-  if (!starMaterial) return;
-  starMaterial.uniforms.uAlpha.value = params.pointAlpha;
-  starMaterial.uniforms.uEdgeSoftness.value = params.filled ? 0.0 : params.edgeSoftness;
-  starMaterial.uniforms.uSizeFactorSmall.value = params.sizeFactorSmall;
-  starMaterial.uniforms.uSizeFactorMedium.value = params.sizeFactorMedium;
-  starMaterial.uniforms.uSizeFactorLarge.value = params.sizeFactorLarge;
-  if (starMaterial.uniforms.uTime) {
-    starMaterial.uniforms.uTime.value = motionState.time;
-  }
-  if (starMaterial.uniforms.uMotionMode) {
-    starMaterial.uniforms.uMotionMode.value = getMotionModeIndex();
-  }
-  if (starMaterial.uniforms.uMotionSpeed) {
-    starMaterial.uniforms.uMotionSpeed.value = params.motionSpeed;
-  }
-  if (starMaterial.uniforms.uMotionAmplitude) {
-    starMaterial.uniforms.uMotionAmplitude.value = params.motionAmplitude;
-  }
-  if (starMaterial.uniforms.uNoiseStrength) {
-    starMaterial.uniforms.uNoiseStrength.value = params.motionNoiseStrength;
-  }
-  if (starMaterial.uniforms.uNoiseScale) {
-    starMaterial.uniforms.uNoiseScale.value = params.motionNoiseScale;
-  }
-  if (starMaterial.uniforms.uColor) {
-    starMaterial.uniforms.uColor.value.copy(colorState.point);
-  }
-  if (starMaterial.uniforms.uColorAccent) {
-    starMaterial.uniforms.uColorAccent.value.copy(colorState.accent);
-  }
-  if (starMaterial.uniforms.uColorDim) {
-    starMaterial.uniforms.uColorDim.value.copy(colorState.dim);
-  }
-  if (starMaterial.uniforms.uColorMode) {
-    starMaterial.uniforms.uColorMode.value = getColorModeIndex();
-  }
-  if (starMaterial.uniforms.uColorRadius) {
-    starMaterial.uniforms.uColorRadius.value = Math.max(1, colorState.radius);
-  }
-  if (starMaterial.uniforms.uColorIntensity) {
-    const intensity = Math.max(0, Math.min(1, Number(params.colorIntensity) || 0));
-    starMaterial.uniforms.uColorIntensity.value = intensity;
-  }
-  if (starMaterial.uniforms.uColorSpeed) {
-    const speed = Math.max(0, Number(params.colorSpeed) || 0);
-    starMaterial.uniforms.uColorSpeed.value = speed;
-  }
-  if (starMaterial.uniforms.uColorPropagationDistance) {
-    const distance = Math.max(0, Number(params.colorPropagationDistance) || 0);
-    starMaterial.uniforms.uColorPropagationDistance.value = distance;
-  }
-  if (starMaterial.uniforms.uColorPropagationDuration) {
-    const duration = Math.max(0, Number(params.colorPropagationDuration) || 0);
-    starMaterial.uniforms.uColorPropagationDuration.value = duration;
-  }
-  if (starMaterial.uniforms.uColorToneCount) {
-    const tones = Math.max(1, Math.round(Number(params.colorToneCount) || 1));
-    params.colorToneCount = tones;
-    starMaterial.uniforms.uColorToneCount.value = tones;
-  }
-  if (starMaterial.uniforms.uHueSpread) {
-    const spread = Math.max(0, Math.min(360, Number(params.hueSpread) || 0));
-    starMaterial.uniforms.uHueSpread.value = spread;
-  }
-  starMaterial.blending = (params.blending === 'Additive') ? THREE.AdditiveBlending : THREE.NormalBlending;
-  starMaterial.needsUpdate = true;
+  updatePointMaterialUniforms(starMaterial);
+  const radius = Math.max(colorState.radius, stlState.boundingRadius || 0);
+  updatePointMaterialUniforms(stlMaterial, { radiusOverride: radius });
 }
 
 function updateTinyMaterial() {
@@ -5697,6 +5813,9 @@ function animate(now) {
   }
   if (starMaterial && starMaterial.uniforms && starMaterial.uniforms.uTime) {
     starMaterial.uniforms.uTime.value = motionState.time;
+  }
+  if (stlMaterial && stlMaterial.uniforms && stlMaterial.uniforms.uTime) {
+    stlMaterial.uniforms.uTime.value = motionState.time;
   }
   if (tinyMaterial && tinyMaterial.uniforms && tinyMaterial.uniforms.uTime) {
     tinyMaterial.uniforms.uTime.value = motionState.time;
