@@ -503,6 +503,7 @@
   <!-- Load Three.js and OrbitControls from local files -->
   <script src="./three.min.js"></script>
   <script src="./OrbitControls.js"></script>
+  <script src="./STLLoader.js"></script>
 </head>
 <body>
 <div id="bar">
@@ -726,6 +727,24 @@
             <input id="pCatLargeCount" type="number" min="0" step="1" />
             <div class="val" id="vCatLargeCount"></div>
           </div>
+        </div>
+      </div>
+    </div>
+  </section>
+  <section class="accordion" id="acc-volume">
+    <button type="button" class="accordion__trigger" id="acc-volume-trigger" aria-expanded="false" aria-controls="acc-volume-panel">
+      Volumenkörper
+    </button>
+    <div class="accordion__panel" id="acc-volume-panel" role="region" aria-labelledby="acc-volume-trigger" hidden>
+      <div class="row file-row">
+        <label for="stlFiles">STL-Modelle</label>
+        <input id="stlFiles" type="file" accept=".stl,model/stl,application/sla" multiple />
+        <div class="file-meta" id="stlFileMeta">Keine Auswahl</div>
+        <div class="hint">Lade eine oder mehrere STL-Dateien hoch, um sie zu einem Volumenkörper zu kombinieren.</div>
+      </div>
+      <div class="row">
+        <div class="wrap">
+          <button type="button" id="stlClear" disabled>🧹 Modelle entfernen</button>
         </div>
       </div>
     </div>
@@ -1158,6 +1177,25 @@ function mulberry32(seed) {
   };
 }
 
+function hashStringList(strings) {
+  if (!Array.isArray(strings) || !strings.length) {
+    return 0x9e3779b9;
+  }
+  let hash = 0x811c9dc5;
+  for (const entry of strings) {
+    const value = typeof entry === 'string' ? entry : '';
+    for (let i = 0; i < value.length; i++) {
+      hash ^= value.charCodeAt(i);
+      hash = Math.imul(hash, 0x01000193);
+      hash >>>= 0;
+    }
+  }
+  if (hash === 0) {
+    return 0x6d2b79f5;
+  }
+  return hash >>> 0;
+}
+
 function randomRange(min, max) {
   const a = Number.isFinite(min) ? min : 0;
   const b = Number.isFinite(max) ? max : 0;
@@ -1192,6 +1230,39 @@ controls.zoomSpeed = 0.6;
 
 const clusterGroup = new THREE.Group();
 scene.add(clusterGroup);
+
+const FELDAPPEN_CENTER = new THREE.Vector3(0, 0, 0);
+
+const stlGroup = new THREE.Group();
+stlGroup.name = 'feldappenVolume';
+stlGroup.visible = false;
+clusterGroup.add(stlGroup);
+
+const ambientLight = new THREE.AmbientLight(0xffffff, 0.45);
+scene.add(ambientLight);
+
+const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+directionalLight.position.set(220, 340, 260);
+directionalLight.target.position.copy(FELDAPPEN_CENTER);
+scene.add(directionalLight);
+scene.add(directionalLight.target);
+
+clusterGroup.position.copy(FELDAPPEN_CENTER);
+controls.target.copy(FELDAPPEN_CENTER);
+controls.update();
+
+const stlLoader = new THREE.STLLoader();
+let stlMaterial = null;
+const stlState = {
+  files: [],
+  points: null,
+  boundingRadius: 0
+};
+const stlUI = {
+  input: null,
+  meta: null,
+  clearBtn: null
+};
 
 /* Parameters */
 const params = {
@@ -1251,6 +1322,290 @@ const colorState = {
 const COLOR_MODES = ['uniform', 'radialPulse', 'axisWave', 'phaseFlicker', 'randomHue'];
 const MOTION_MODES = ['static', 'sine', 'noise', 'orbit'];
 const motionState = { time: 0 };
+
+function getFeldappenFocusRadius() {
+  const values = [
+    Number.isFinite(colorState.radius) ? colorState.radius : 0,
+    Number.isFinite(stlState.boundingRadius) ? stlState.boundingRadius : 0,
+    Number.isFinite(params.radius) ? params.radius : 0,
+    80
+  ];
+  return Math.max(...values);
+}
+
+function focusOnFeldappenCenter({ repositionCamera = true } = {}) {
+  const target = FELDAPPEN_CENTER;
+  controls.target.copy(target);
+  clusterGroup.position.copy(target);
+  if (repositionCamera) {
+    const distance = Math.max(getFeldappenFocusRadius() * 3.2, 320);
+    camera.position.set(target.x, target.y, target.z + distance);
+  }
+  controls.update();
+}
+
+function updateStlMeta(files = [], { loading = false, error = '' } = {}) {
+  const names = Array.isArray(files)
+    ? files.map(item => (typeof item === 'string' ? item : (item && item.name) || '')).filter(Boolean)
+    : [];
+  if (stlUI.meta) {
+    let text = 'Keine Auswahl';
+    let state = 'idle';
+    if (error) {
+      text = error;
+      state = 'error';
+    } else if (loading) {
+      text = 'Lade STL-Dateien …';
+      state = 'loading';
+    } else if (names.length) {
+      text = names.length === 1
+        ? `Geladen: ${names[0]}`
+        : `Geladen: ${names.length} STL-Dateien`;
+      state = 'ready';
+    }
+    stlUI.meta.textContent = text;
+    stlUI.meta.dataset.state = state;
+  }
+  if (stlUI.clearBtn) {
+    stlUI.clearBtn.disabled = loading || !stlState.points;
+  }
+  if (stlUI.input) {
+    stlUI.input.disabled = loading;
+  }
+}
+
+function clearStlModels({ keepCamera = false, skipInputReset = false, preserveMeta = false } = {}) {
+  const hadPoints = Boolean(stlState.points);
+  if (stlState.points) {
+    if (stlState.points.geometry) {
+      stlState.points.geometry.dispose();
+    }
+    stlGroup.remove(stlState.points);
+    stlState.points = null;
+  }
+  stlGroup.visible = false;
+  stlState.files = [];
+  stlState.boundingRadius = 0;
+  if (!skipInputReset && stlUI.input) {
+    stlUI.input.value = '';
+  }
+  if (!preserveMeta) {
+    updateStlMeta([]);
+  } else if (stlUI.clearBtn) {
+    stlUI.clearBtn.disabled = true;
+  }
+  updateStarUniforms();
+  if (hadPoints && !keepCamera) {
+    focusOnFeldappenCenter({ repositionCamera: true });
+  }
+}
+
+function mergeStlGeometries(geometries) {
+  if (!Array.isArray(geometries) || !geometries.length) {
+    return null;
+  }
+  let totalVertices = 0;
+  let hasNormals = true;
+  let hasColors = false;
+  let alpha = 1;
+  geometries.forEach(geometry => {
+    if (!geometry || !geometry.getAttribute) {
+      return;
+    }
+    const position = geometry.getAttribute('position');
+    if (!position) {
+      return;
+    }
+    totalVertices += position.count;
+    if (!geometry.getAttribute('normal')) {
+      hasNormals = false;
+    }
+    if (geometry.hasColors && geometry.getAttribute('color')) {
+      hasColors = true;
+      if (typeof geometry.alpha === 'number') {
+        alpha = Math.min(alpha, geometry.alpha);
+      }
+    }
+  });
+  if (!Number.isFinite(totalVertices) || totalVertices <= 0) {
+    return null;
+  }
+  const merged = new THREE.BufferGeometry();
+  const positions = new Float32Array(totalVertices * 3);
+  const normals = hasNormals ? new Float32Array(totalVertices * 3) : null;
+  const colors = hasColors ? new Float32Array(totalVertices * 3) : null;
+  let vertexOffset = 0;
+  geometries.forEach(geometry => {
+    if (!geometry || !geometry.getAttribute) {
+      return;
+    }
+    const position = geometry.getAttribute('position');
+    if (!position) {
+      return;
+    }
+    positions.set(position.array, vertexOffset * 3);
+    if (hasNormals) {
+      const normal = geometry.getAttribute('normal');
+      if (normal && normal.count === position.count) {
+        normals.set(normal.array, vertexOffset * 3);
+      }
+    }
+    if (hasColors) {
+      const colorAttr = geometry.getAttribute('color');
+      if (colorAttr && colorAttr.count === position.count) {
+        colors.set(colorAttr.array, vertexOffset * 3);
+      }
+    }
+    vertexOffset += position.count;
+  });
+  merged.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  if (hasNormals && normals) {
+    merged.setAttribute('normal', new THREE.BufferAttribute(normals, 3));
+  } else {
+    merged.computeVertexNormals();
+  }
+  if (hasColors && colors) {
+    merged.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    merged.hasColors = true;
+    merged.alpha = alpha;
+  }
+  return merged;
+}
+
+function ensureStlMaterial() {
+  if (stlMaterial) {
+    return stlMaterial;
+  }
+  if (!starMaterial) {
+    return null;
+  }
+  const uniforms = THREE.UniformsUtils.clone(starMaterial.uniforms);
+  stlMaterial = new THREE.ShaderMaterial({
+    vertexShader: starMaterial.vertexShader,
+    fragmentShader: starMaterial.fragmentShader,
+    transparent: starMaterial.transparent,
+    depthTest: starMaterial.depthTest,
+    depthWrite: starMaterial.depthWrite,
+    blending: starMaterial.blending,
+    uniforms
+  });
+  return stlMaterial;
+}
+
+function applyStlGeometry(geometry, fileNames = []) {
+  if (!(geometry instanceof THREE.BufferGeometry)) {
+    return;
+  }
+  if (stlState.points) {
+    clearStlModels({ keepCamera: true, skipInputReset: true, preserveMeta: true });
+  }
+  geometry.computeBoundingBox();
+  if (geometry.boundingBox) {
+    const center = new THREE.Vector3();
+    geometry.boundingBox.getCenter(center);
+    geometry.translate(-center.x, -center.y, -center.z);
+  }
+  geometry.computeBoundingSphere();
+  const radius = geometry.boundingSphere ? geometry.boundingSphere.radius : 0;
+  stlState.boundingRadius = Number.isFinite(radius) ? Math.max(0, radius) : 0;
+  const names = Array.isArray(fileNames) ? fileNames : [];
+  const positionAttr = geometry.getAttribute ? geometry.getAttribute('position') : null;
+  if (!positionAttr || !positionAttr.array || positionAttr.count <= 0) {
+    geometry.dispose();
+    return;
+  }
+  const count = positionAttr.count;
+  const positions = new Float32Array(positionAttr.array.length);
+  positions.set(positionAttr.array);
+  const basePositions = new Float32Array(positionAttr.array.length);
+  basePositions.set(positionAttr.array);
+  const phases = new Float32Array(count);
+  const sizes = new Float32Array(count);
+  const categories = new Float32Array(count);
+  const seed = hashStringList(names);
+  const rand = mulberry32(seed);
+  const phaseRand = mulberry32((seed ^ 0x51f32a95) >>> 0);
+  for (let i = 0; i < count; i++) {
+    phases[i] = phaseRand();
+    const catRoll = rand();
+    categories[i] = catRoll < 0.25 ? 0 : (catRoll < 0.7 ? 1 : 2);
+    sizes[i] = 0.85 + rand() * 0.4;
+  }
+  const pointGeometry = new THREE.BufferGeometry();
+  pointGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  pointGeometry.setAttribute('aBase', new THREE.BufferAttribute(basePositions, 3));
+  pointGeometry.setAttribute('aPhase', new THREE.BufferAttribute(phases, 1));
+  pointGeometry.setAttribute('aSize', new THREE.BufferAttribute(sizes, 1));
+  pointGeometry.setAttribute('aCat', new THREE.BufferAttribute(categories, 1));
+  pointGeometry.computeBoundingSphere();
+  if (pointGeometry.boundingSphere) {
+    pointGeometry.boundingSphere.center.set(0, 0, 0);
+  }
+  const material = ensureStlMaterial();
+  if (!material) {
+    pointGeometry.dispose();
+    return;
+  }
+  const points = new THREE.Points(pointGeometry, material);
+  points.name = 'feldappenVolumePoints';
+  stlGroup.add(points);
+  stlGroup.visible = true;
+  stlGroup.position.copy(FELDAPPEN_CENTER);
+  stlState.points = points;
+  stlState.files = names;
+  updateStlMeta(names);
+  updateStarUniforms();
+  focusOnFeldappenCenter({ repositionCamera: true });
+  geometry.dispose();
+}
+
+async function loadStlFilesFromInput(files) {
+  const selection = Array.isArray(files) ? files.filter(Boolean) : [];
+  if (!selection.length) {
+    clearStlModels();
+    return;
+  }
+  updateStlMeta(selection, { loading: true });
+  try {
+    const geometries = [];
+    for (const file of selection) {
+      const buffer = await file.arrayBuffer();
+      let geometry = stlLoader.parse(buffer);
+      if (!geometry) {
+        continue;
+      }
+      if (geometry.index) {
+        const nonIndexed = geometry.toNonIndexed();
+        geometry.dispose();
+        geometry = nonIndexed;
+      }
+      geometry.computeVertexNormals();
+      geometries.push(geometry);
+    }
+    if (!geometries.length) {
+      throw new Error('Keine gültigen STL-Geometrien gefunden.');
+    }
+    const merged = mergeStlGeometries(geometries);
+    geometries.forEach(geometry => geometry.dispose());
+    if (!merged) {
+      throw new Error('Geometrien konnten nicht kombiniert werden.');
+    }
+    merged.computeVertexNormals();
+    merged.computeBoundingBox();
+    merged.computeBoundingSphere();
+    const names = selection.map(file => (file && file.name) ? file.name : 'STL-Datei');
+    applyStlGeometry(merged, names);
+  } catch (error) {
+    console.error('STL-Dateien konnten nicht geladen werden:', error);
+    updateStlMeta([], { error: 'Fehler beim Laden der STL-Dateien.' });
+    clearStlModels({ keepCamera: true, skipInputReset: true, preserveMeta: true });
+  } finally {
+    if (stlUI.input) {
+      stlUI.input.disabled = false;
+      stlUI.input.value = '';
+    }
+  }
+}
 
 function getMotionModeIndex() {
   const idx = MOTION_MODES.indexOf(params.motionMode);
@@ -1797,6 +2152,36 @@ function applyAudioVisualState(modifiers = audioState.modifiers || {}) {
     }
     if (starMaterial.uniforms.uColor) {
       starMaterial.uniforms.uColor.value.copy(audioState.color);
+    }
+  }
+
+  if (stlMaterial && stlMaterial.uniforms) {
+    if (stlMaterial.uniforms.uAudioBands && stlMaterial.uniforms.uAudioBands.value) {
+      stlMaterial.uniforms.uAudioBands.value.copy(audioBandVector);
+    }
+    if (stlMaterial.uniforms.uAudioEnergy) {
+      stlMaterial.uniforms.uAudioEnergy.value = energyUniform;
+    }
+    if (stlMaterial.uniforms.uAudioWave) {
+      stlMaterial.uniforms.uAudioWave.value = waveUniform;
+    }
+    if (stlMaterial.uniforms.uSizeFactorSmall) {
+      stlMaterial.uniforms.uSizeFactorSmall.value = params.sizeFactorSmall * sizeBoost;
+    }
+    if (stlMaterial.uniforms.uSizeFactorMedium) {
+      stlMaterial.uniforms.uSizeFactorMedium.value = params.sizeFactorMedium * sizeBoost;
+    }
+    if (stlMaterial.uniforms.uSizeFactorLarge) {
+      stlMaterial.uniforms.uSizeFactorLarge.value = params.sizeFactorLarge * sizeBoost;
+    }
+    if (stlMaterial.uniforms.uAlpha) {
+      const baseAlpha = params.pointAlpha;
+      const alphaVisual = modifiers.alpha ? clampValue(audioState.visual.alpha, 0, 1.2) : AUDIO_VISUAL_BASE.alpha;
+      const boostedAlpha = Math.max(0.05, Math.min(1, (baseAlpha + alphaVisual) * visibilityFactor));
+      stlMaterial.uniforms.uAlpha.value = boostedAlpha;
+    }
+    if (stlMaterial.uniforms.uColor) {
+      stlMaterial.uniforms.uColor.value.copy(audioState.color);
     }
   }
 
@@ -2822,6 +3207,16 @@ function updatePointColor(applyUniforms = true) {
     }
     starMaterial.needsUpdate = true;
   }
+  if (stlMaterial && stlMaterial.uniforms && stlMaterial.uniforms.uColor) {
+    stlMaterial.uniforms.uColor.value.copy(colorState.point);
+    if (stlMaterial.uniforms.uColorAccent) {
+      stlMaterial.uniforms.uColorAccent.value.copy(colorState.accent);
+    }
+    if (stlMaterial.uniforms.uColorDim) {
+      stlMaterial.uniforms.uColorDim.value.copy(colorState.dim);
+    }
+    stlMaterial.needsUpdate = true;
+  }
   if (tinyMaterial && tinyMaterial.uniforms && tinyMaterial.uniforms.uColor) {
     tinyMaterial.uniforms.uColor.value.copy(colorState.point);
     if (tinyMaterial.uniforms.uColorAccent) {
@@ -3304,6 +3699,15 @@ function makeStars() {
   starMaterial.blending = (params.blending === 'Additive') ? THREE.AdditiveBlending : THREE.NormalBlending;
   starPoints = new THREE.Points(starGeometry, starMaterial);
   clusterGroup.add(starPoints);
+  const existingStlPoints = stlState.points;
+  if (stlMaterial) {
+    stlMaterial.dispose();
+    stlMaterial = null;
+  }
+  ensureStlMaterial();
+  if (existingStlPoints && stlMaterial) {
+    existingStlPoints.material = stlMaterial;
+  }
 }
 
 /* Create tiny connection points */
@@ -3672,6 +4076,83 @@ function updateStarUniforms() {
   }
   starMaterial.blending = (params.blending === 'Additive') ? THREE.AdditiveBlending : THREE.NormalBlending;
   starMaterial.needsUpdate = true;
+  if (stlMaterial && stlMaterial.uniforms) {
+    if (stlMaterial.uniforms.uAlpha) {
+      stlMaterial.uniforms.uAlpha.value = params.pointAlpha;
+    }
+    if (stlMaterial.uniforms.uEdgeSoftness) {
+      stlMaterial.uniforms.uEdgeSoftness.value = params.filled ? 0.0 : params.edgeSoftness;
+    }
+    if (stlMaterial.uniforms.uSizeFactorSmall) {
+      stlMaterial.uniforms.uSizeFactorSmall.value = params.sizeFactorSmall;
+    }
+    if (stlMaterial.uniforms.uSizeFactorMedium) {
+      stlMaterial.uniforms.uSizeFactorMedium.value = params.sizeFactorMedium;
+    }
+    if (stlMaterial.uniforms.uSizeFactorLarge) {
+      stlMaterial.uniforms.uSizeFactorLarge.value = params.sizeFactorLarge;
+    }
+    if (stlMaterial.uniforms.uTime) {
+      stlMaterial.uniforms.uTime.value = motionState.time;
+    }
+    if (stlMaterial.uniforms.uMotionMode) {
+      stlMaterial.uniforms.uMotionMode.value = getMotionModeIndex();
+    }
+    if (stlMaterial.uniforms.uMotionSpeed) {
+      stlMaterial.uniforms.uMotionSpeed.value = params.motionSpeed;
+    }
+    if (stlMaterial.uniforms.uMotionAmplitude) {
+      stlMaterial.uniforms.uMotionAmplitude.value = params.motionAmplitude;
+    }
+    if (stlMaterial.uniforms.uNoiseStrength) {
+      stlMaterial.uniforms.uNoiseStrength.value = params.motionNoiseStrength;
+    }
+    if (stlMaterial.uniforms.uNoiseScale) {
+      stlMaterial.uniforms.uNoiseScale.value = params.motionNoiseScale;
+    }
+    if (stlMaterial.uniforms.uColor) {
+      stlMaterial.uniforms.uColor.value.copy(colorState.point);
+    }
+    if (stlMaterial.uniforms.uColorAccent) {
+      stlMaterial.uniforms.uColorAccent.value.copy(colorState.accent);
+    }
+    if (stlMaterial.uniforms.uColorDim) {
+      stlMaterial.uniforms.uColorDim.value.copy(colorState.dim);
+    }
+    if (stlMaterial.uniforms.uColorMode) {
+      stlMaterial.uniforms.uColorMode.value = getColorModeIndex();
+    }
+    if (stlMaterial.uniforms.uColorRadius) {
+      const radius = Math.max(1, Math.max(colorState.radius, stlState.boundingRadius || 0));
+      stlMaterial.uniforms.uColorRadius.value = radius;
+    }
+    if (stlMaterial.uniforms.uColorIntensity) {
+      const intensity = Math.max(0, Math.min(1, Number(params.colorIntensity) || 0));
+      stlMaterial.uniforms.uColorIntensity.value = intensity;
+    }
+    if (stlMaterial.uniforms.uColorSpeed) {
+      const speed = Math.max(0, Number(params.colorSpeed) || 0);
+      stlMaterial.uniforms.uColorSpeed.value = speed;
+    }
+    if (stlMaterial.uniforms.uColorPropagationDistance) {
+      const distance = Math.max(0, Number(params.colorPropagationDistance) || 0);
+      stlMaterial.uniforms.uColorPropagationDistance.value = distance;
+    }
+    if (stlMaterial.uniforms.uColorPropagationDuration) {
+      const duration = Math.max(0, Number(params.colorPropagationDuration) || 0);
+      stlMaterial.uniforms.uColorPropagationDuration.value = duration;
+    }
+    if (stlMaterial.uniforms.uColorToneCount) {
+      const tones = Math.max(1, Math.round(Number(params.colorToneCount) || 1));
+      stlMaterial.uniforms.uColorToneCount.value = tones;
+    }
+    if (stlMaterial.uniforms.uHueSpread) {
+      const spread = Math.max(0, Math.min(360, Number(params.hueSpread) || 0));
+      stlMaterial.uniforms.uHueSpread.value = spread;
+    }
+    stlMaterial.blending = (params.blending === 'Additive') ? THREE.AdditiveBlending : THREE.NormalBlending;
+    stlMaterial.needsUpdate = true;
+  }
 }
 
 function updateTinyMaterial() {
@@ -3794,6 +4275,27 @@ audioUI.autoRandomBtn = $('audioRandomMode');
 audioUI.overlay = $('audioOverlay');
 audioUI.overlayButton = $('audioOverlayButton');
 audioUI.brightnessAdaptationBtn = $('brightnessAdaptationToggle');
+
+stlUI.input = $('stlFiles');
+stlUI.meta = $('stlFileMeta');
+stlUI.clearBtn = $('stlClear');
+
+if (stlUI.input) {
+  stlUI.input.addEventListener('change', event => {
+    const files = event.target.files ? Array.from(event.target.files).filter(Boolean) : [];
+    loadStlFilesFromInput(files).catch(error => {
+      console.error('Fehler beim Verarbeiten der STL-Auswahl:', error);
+      updateStlMeta([], { error: 'Fehler beim Laden der STL-Dateien.' });
+    });
+  });
+}
+if (stlUI.clearBtn) {
+  stlUI.clearBtn.addEventListener('click', () => {
+    clearStlModels();
+  });
+}
+
+updateStlMeta([]);
 
 if (audioUI.toggle && audioUI.body) {
   audioUI.toggle.addEventListener('click', () => {
@@ -5386,6 +5888,9 @@ function animate(now) {
   if (starMaterial && starMaterial.uniforms && starMaterial.uniforms.uTime) {
     starMaterial.uniforms.uTime.value = motionState.time;
   }
+  if (stlMaterial && stlMaterial.uniforms && stlMaterial.uniforms.uTime) {
+    stlMaterial.uniforms.uTime.value = motionState.time;
+  }
   if (tinyMaterial && tinyMaterial.uniforms && tinyMaterial.uniforms.uTime) {
     tinyMaterial.uniforms.uTime.value = motionState.time;
   }
@@ -5437,6 +5942,7 @@ setCameraLocked(false);
 updatePointColor(false);
 setSliders();
 rebuildStars();
+focusOnFeldappenCenter({ repositionCamera: true });
 applyAudioVisualState();
 requestAnimationFrame(animate);
 </script>
