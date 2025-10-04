@@ -5057,6 +5057,20 @@ const barState = {
   hideTimeout: null,
 };
 
+let panelVisible = false;
+let audioPanelVisible = false;
+let cameraLocked = false;
+const experienceState = {
+  started: false,
+  panelsHiddenForPlayback: false,
+  previousPanelVisible: null,
+  previousBarVisible: null,
+  pendingOverlayStart: false,
+  editingMode: false,
+  editingPreviousPanel: null,
+  editingPreviousBar: null
+};
+
 if (barButtons.length) {
   barButtons.forEach(button => {
     const existing = button.getAttribute('tabindex');
@@ -5532,19 +5546,6 @@ if (audioUI.fileMeta || audioUI.playlistMeta) {
 setAudioStatus('Audio-Reaktivität inaktiv', 'idle');
 refreshAudioUI();
 presetPlaylistPromise = ensurePresetPlaylistInitialized();
-let panelVisible = false;
-let audioPanelVisible = false;
-let cameraLocked = false;
-const experienceState = {
-  started: false,
-  panelsHiddenForPlayback: false,
-  previousPanelVisible: null,
-  previousBarVisible: null,
-  pendingOverlayStart: false,
-  editingMode: false,
-  editingPreviousPanel: null,
-  editingPreviousBar: null
-};
 
 function isMobileSheetActive() {
   return mobileSheetQuery.matches;
