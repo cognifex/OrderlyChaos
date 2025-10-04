@@ -503,6 +503,7 @@
   <!-- Load Three.js and OrbitControls from local files -->
   <script src="./three.min.js"></script>
   <script src="./OrbitControls.js"></script>
+  <script src="./STLLoader.js"></script>
 </head>
 <body>
 <div id="bar">
@@ -726,6 +727,24 @@
             <input id="pCatLargeCount" type="number" min="0" step="1" />
             <div class="val" id="vCatLargeCount"></div>
           </div>
+        </div>
+      </div>
+    </div>
+  </section>
+  <section class="accordion" id="acc-volume">
+    <button type="button" class="accordion__trigger" id="acc-volume-trigger" aria-expanded="false" aria-controls="acc-volume-panel">
+      Volumenkörper
+    </button>
+    <div class="accordion__panel" id="acc-volume-panel" role="region" aria-labelledby="acc-volume-trigger" hidden>
+      <div class="row file-row">
+        <label for="stlFiles">STL-Modelle</label>
+        <input id="stlFiles" type="file" accept=".stl,model/stl,application/sla" multiple />
+        <div class="file-meta" id="stlFileMeta">Keine Auswahl</div>
+        <div class="hint">Lade eine oder mehrere STL-Dateien hoch, um sie zu einem Volumenkörper zu kombinieren.</div>
+      </div>
+      <div class="row">
+        <div class="wrap">
+          <button type="button" id="stlClear" disabled>🧹 Modelle entfernen</button>
         </div>
       </div>
     </div>
@@ -1193,6 +1212,47 @@ controls.zoomSpeed = 0.6;
 const clusterGroup = new THREE.Group();
 scene.add(clusterGroup);
 
+const FELDAPPEN_CENTER = new THREE.Vector3(0, 0, 0);
+
+const ambientLight = new THREE.AmbientLight(0xffffff, 0.45);
+scene.add(ambientLight);
+
+const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+directionalLight.position.set(220, 340, 260);
+directionalLight.target.position.copy(FELDAPPEN_CENTER);
+scene.add(directionalLight);
+scene.add(directionalLight.target);
+
+const stlGroup = new THREE.Group();
+stlGroup.name = 'feldappenVolume';
+stlGroup.visible = false;
+clusterGroup.add(stlGroup);
+
+const stlLoader = new THREE.STLLoader();
+const stlMaterial = new THREE.MeshPhongMaterial({
+  color: 0x5fa8ff,
+  specular: 0x1a1a1a,
+  shininess: 60,
+  transparent: true,
+  opacity: 0.85,
+  side: THREE.DoubleSide,
+  vertexColors: false
+});
+const stlState = {
+  files: [],
+  combinedMesh: null,
+  boundingRadius: 0
+};
+const stlUI = {
+  input: null,
+  meta: null,
+  clearBtn: null
+};
+
+clusterGroup.position.copy(FELDAPPEN_CENTER);
+controls.target.copy(FELDAPPEN_CENTER);
+controls.update();
+
 /* Parameters */
 const params = {
   count: 2500,
@@ -1251,6 +1311,239 @@ const colorState = {
 const COLOR_MODES = ['uniform', 'radialPulse', 'axisWave', 'phaseFlicker', 'randomHue'];
 const MOTION_MODES = ['static', 'sine', 'noise', 'orbit'];
 const motionState = { time: 0 };
+
+function getFeldappenFocusRadius() {
+  const values = [
+    Number.isFinite(colorState.radius) ? colorState.radius : 0,
+    Number.isFinite(stlState.boundingRadius) ? stlState.boundingRadius : 0,
+    Number.isFinite(params.radius) ? params.radius : 0,
+    80
+  ];
+  return Math.max(...values);
+}
+
+function focusOnFeldappenCenter({ repositionCamera = true } = {}) {
+  const target = FELDAPPEN_CENTER;
+  controls.target.copy(target);
+  clusterGroup.position.copy(target);
+  if (repositionCamera) {
+    const distance = Math.max(getFeldappenFocusRadius() * 3.2, 320);
+    camera.position.set(target.x, target.y, target.z + distance);
+  }
+  controls.update();
+}
+
+function updateStlMeta(files = [], { loading = false, error = '' } = {}) {
+  const names = Array.isArray(files)
+    ? files.map(item => (typeof item === 'string' ? item : (item && item.name) || '')).filter(Boolean)
+    : [];
+  if (stlUI.meta) {
+    let text = 'Keine Auswahl';
+    let state = 'idle';
+    if (error) {
+      text = error;
+      state = 'error';
+    } else if (loading) {
+      text = 'Lade STL-Dateien …';
+      state = 'loading';
+    } else if (names.length) {
+      text = names.length === 1
+        ? `Geladen: ${names[0]}`
+        : `Geladen: ${names.length} STL-Dateien`;
+      state = 'ready';
+    }
+    stlUI.meta.textContent = text;
+    stlUI.meta.dataset.state = state;
+  }
+  if (stlUI.clearBtn) {
+    stlUI.clearBtn.disabled = loading || !stlState.combinedMesh;
+  }
+  if (stlUI.input) {
+    stlUI.input.disabled = loading;
+  }
+}
+
+function clearStlModels({ keepCamera = false, skipInputReset = false, preserveMeta = false } = {}) {
+  const hadMesh = Boolean(stlState.combinedMesh);
+  if (stlState.combinedMesh) {
+    if (stlState.combinedMesh.geometry) {
+      stlState.combinedMesh.geometry.dispose();
+    }
+    stlGroup.remove(stlState.combinedMesh);
+    stlState.combinedMesh = null;
+  }
+  stlGroup.visible = false;
+  stlState.files = [];
+  stlState.boundingRadius = 0;
+  if (!skipInputReset && stlUI.input) {
+    stlUI.input.value = '';
+  }
+  if (!preserveMeta) {
+    updateStlMeta([]);
+  } else if (stlUI.clearBtn) {
+    stlUI.clearBtn.disabled = true;
+  }
+  if (hadMesh && !keepCamera) {
+    focusOnFeldappenCenter({ repositionCamera: true });
+  }
+}
+
+function mergeStlGeometries(geometries) {
+  if (!Array.isArray(geometries) || !geometries.length) {
+    return null;
+  }
+  let totalVertices = 0;
+  let hasNormals = true;
+  let hasColors = false;
+  let alpha = 1;
+  geometries.forEach(geometry => {
+    if (!geometry || !geometry.getAttribute) {
+      return;
+    }
+    const position = geometry.getAttribute('position');
+    if (!position) {
+      return;
+    }
+    totalVertices += position.count;
+    if (!geometry.getAttribute('normal')) {
+      hasNormals = false;
+    }
+    if (geometry.hasColors && geometry.getAttribute('color')) {
+      hasColors = true;
+      if (typeof geometry.alpha === 'number') {
+        alpha = Math.min(alpha, geometry.alpha);
+      }
+    }
+  });
+  if (!Number.isFinite(totalVertices) || totalVertices <= 0) {
+    return null;
+  }
+  const merged = new THREE.BufferGeometry();
+  const positions = new Float32Array(totalVertices * 3);
+  const normals = hasNormals ? new Float32Array(totalVertices * 3) : null;
+  const colors = hasColors ? new Float32Array(totalVertices * 3) : null;
+  let vertexOffset = 0;
+  geometries.forEach(geometry => {
+    if (!geometry || !geometry.getAttribute) {
+      return;
+    }
+    const position = geometry.getAttribute('position');
+    if (!position) {
+      return;
+    }
+    positions.set(position.array, vertexOffset * 3);
+    if (hasNormals) {
+      const normal = geometry.getAttribute('normal');
+      if (normal && normal.count === position.count) {
+        normals.set(normal.array, vertexOffset * 3);
+      }
+    }
+    if (hasColors) {
+      const colorAttr = geometry.getAttribute('color');
+      if (colorAttr && colorAttr.count === position.count) {
+        colors.set(colorAttr.array, vertexOffset * 3);
+      }
+    }
+    vertexOffset += position.count;
+  });
+  merged.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  if (hasNormals && normals) {
+    merged.setAttribute('normal', new THREE.BufferAttribute(normals, 3));
+  } else {
+    merged.computeVertexNormals();
+  }
+  if (hasColors && colors) {
+    merged.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    merged.hasColors = true;
+    merged.alpha = alpha;
+  }
+  return merged;
+}
+
+function applyStlGeometry(geometry, fileNames = []) {
+  if (!(geometry instanceof THREE.BufferGeometry)) {
+    return;
+  }
+  if (stlState.combinedMesh) {
+    clearStlModels({ keepCamera: true, skipInputReset: true, preserveMeta: true });
+  }
+  geometry.computeBoundingBox();
+  if (geometry.boundingBox) {
+    const center = new THREE.Vector3();
+    geometry.boundingBox.getCenter(center);
+    geometry.translate(-center.x, -center.y, -center.z);
+  }
+  geometry.computeBoundingSphere();
+  const radius = geometry.boundingSphere ? geometry.boundingSphere.radius : 0;
+  stlState.boundingRadius = Number.isFinite(radius) ? Math.max(0, radius) : 0;
+  stlState.files = Array.isArray(fileNames) ? fileNames : [];
+  const hasColors = geometry.hasColors === true && geometry.getAttribute && geometry.getAttribute('color');
+  stlMaterial.vertexColors = Boolean(hasColors);
+  const alpha = hasColors && typeof geometry.alpha === 'number' ? geometry.alpha : stlMaterial.opacity;
+  const clampedAlpha = Math.max(0.2, Math.min(1, Number(alpha) || stlMaterial.opacity));
+  stlMaterial.opacity = clampedAlpha;
+  stlMaterial.transparent = clampedAlpha < 1;
+  stlMaterial.needsUpdate = true;
+  const mesh = new THREE.Mesh(geometry, stlMaterial);
+  mesh.name = 'feldappenVolumeMesh';
+  stlGroup.add(mesh);
+  stlGroup.position.copy(FELDAPPEN_CENTER);
+  stlGroup.visible = true;
+  stlState.combinedMesh = mesh;
+  if (stlUI.clearBtn) {
+    stlUI.clearBtn.disabled = false;
+  }
+  focusOnFeldappenCenter({ repositionCamera: true });
+}
+
+async function loadStlFilesFromInput(files) {
+  const selection = Array.isArray(files) ? files.filter(Boolean) : [];
+  if (!selection.length) {
+    clearStlModels();
+    return;
+  }
+  updateStlMeta(selection, { loading: true });
+  try {
+    const geometries = [];
+    for (const file of selection) {
+      const buffer = await file.arrayBuffer();
+      let geometry = stlLoader.parse(buffer);
+      if (!geometry) {
+        continue;
+      }
+      if (geometry.index) {
+        const nonIndexed = geometry.toNonIndexed();
+        geometry.dispose();
+        geometry = nonIndexed;
+      }
+      geometry.computeVertexNormals();
+      geometries.push(geometry);
+    }
+    if (!geometries.length) {
+      throw new Error('Keine gültigen STL-Geometrien gefunden.');
+    }
+    const merged = mergeStlGeometries(geometries);
+    geometries.forEach(geometry => geometry.dispose());
+    if (!merged) {
+      throw new Error('Geometrien konnten nicht kombiniert werden.');
+    }
+    merged.computeVertexNormals();
+    merged.computeBoundingBox();
+    merged.computeBoundingSphere();
+    const names = selection.map(file => (file && file.name) ? file.name : 'STL-Datei');
+    applyStlGeometry(merged, names);
+    updateStlMeta(names);
+  } catch (error) {
+    console.error('STL-Dateien konnten nicht geladen werden:', error);
+    updateStlMeta([], { error: 'Fehler beim Laden der STL-Dateien.' });
+    clearStlModels({ keepCamera: true, skipInputReset: true, preserveMeta: true });
+  } finally {
+    if (stlUI.input) {
+      stlUI.input.disabled = false;
+      stlUI.input.value = '';
+    }
+  }
+}
 
 function getMotionModeIndex() {
   const idx = MOTION_MODES.indexOf(params.motionMode);
@@ -2408,7 +2701,7 @@ function playCurrentTrack() {
   return true;
 }
 
-async function startRandomPlaylistPlayback() {
+async function startFirstPlaylistPlayback() {
   try {
     await ensurePresetPlaylistInitialized();
   } catch (error) {
@@ -2420,8 +2713,7 @@ async function startRandomPlaylistPlayback() {
     refreshAudioUI();
     return false;
   }
-  const randomIndex = Math.floor(Math.random() * total);
-  if (!setCurrentTrack(randomIndex)) {
+  if (!setCurrentTrack(0)) {
     return false;
   }
   await playSelectedFile();
@@ -3795,6 +4087,26 @@ audioUI.overlay = $('audioOverlay');
 audioUI.overlayButton = $('audioOverlayButton');
 audioUI.brightnessAdaptationBtn = $('brightnessAdaptationToggle');
 
+stlUI.input = $('stlFiles');
+stlUI.meta = $('stlFileMeta');
+stlUI.clearBtn = $('stlClear');
+
+if (stlUI.input) {
+  stlUI.input.addEventListener('change', event => {
+    const files = event.target.files ? Array.from(event.target.files).filter(Boolean) : [];
+    loadStlFilesFromInput(files).catch(error => {
+      console.error('Fehler beim Verarbeiten der STL-Auswahl:', error);
+      updateStlMeta([], { error: 'Fehler beim Laden der STL-Dateien.' });
+    });
+  });
+}
+if (stlUI.clearBtn) {
+  stlUI.clearBtn.addEventListener('click', () => {
+    clearStlModels();
+  });
+}
+updateStlMeta([]);
+
 if (audioUI.toggle && audioUI.body) {
   audioUI.toggle.addEventListener('click', () => {
     const expanded = audioUI.toggle.getAttribute('aria-expanded') === 'true';
@@ -4012,7 +4324,7 @@ if (audioUI.overlayButton) {
     if (audioUI.overlayButton.disabled) return;
     audioUI.overlayButton.disabled = true;
     audioUI.overlayButton.setAttribute('aria-busy', 'true');
-    const started = await startRandomPlaylistPlayback();
+    const started = await startFirstPlaylistPlayback();
     if (!started && shouldShowAudioOverlay()) {
       audioUI.overlayButton.disabled = false;
     }
@@ -5437,6 +5749,7 @@ setCameraLocked(false);
 updatePointColor(false);
 setSliders();
 rebuildStars();
+focusOnFeldappenCenter({ repositionCamera: true });
 applyAudioVisualState();
 requestAnimationFrame(animate);
 </script>
