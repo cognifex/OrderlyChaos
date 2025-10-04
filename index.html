@@ -5873,6 +5873,10 @@ function notifyPlaybackStarted() {
     setEditingMode(false, { skipStop: true, skipPanelRestore: true });
   }
   const wasStarted = experienceState.started;
+  const shouldAutoEnableRandom = !wasStarted && !audioState.usingMic && !autoRandomState.enabled;
+  if (shouldAutoEnableRandom) {
+    setAutoRandomEnabled(true);
+    randomizeParameters({ syncUI: true });
   if (!wasStarted && !audioState.usingMic && !autoRandomState.enabled) {
     setAutoRandomEnabled(true);
   }
