@@ -1252,6 +1252,18 @@ let stlMaterial = null;
 const stlState = {
   files: [],
   combinedPoints: null,
+const stlMaterial = new THREE.MeshPhongMaterial({
+  color: 0x5fa8ff,
+  specular: 0x1a1a1a,
+  shininess: 60,
+  transparent: true,
+  opacity: 0.85,
+  side: THREE.DoubleSide,
+  vertexColors: false
+});
+const stlState = {
+  files: [],
+  combinedMesh: null,
   boundingRadius: 0
 };
 const stlUI = {
@@ -1368,6 +1380,7 @@ function updateStlMeta(files = [], { loading = false, error = '' } = {}) {
   }
   if (stlUI.clearBtn) {
     stlUI.clearBtn.disabled = loading || !stlState.combinedPoints;
+    stlUI.clearBtn.disabled = loading || !stlState.combinedMesh;
   }
   if (stlUI.input) {
     stlUI.input.disabled = loading;
@@ -1382,6 +1395,13 @@ function clearStlModels({ keepCamera = false, skipInputReset = false, preserveMe
     }
     stlGroup.remove(stlState.combinedPoints);
     stlState.combinedPoints = null;
+  const hadMesh = Boolean(stlState.combinedMesh);
+  if (stlState.combinedMesh) {
+    if (stlState.combinedMesh.geometry) {
+      stlState.combinedMesh.geometry.dispose();
+    }
+    stlGroup.remove(stlState.combinedMesh);
+    stlState.combinedMesh = null;
   }
   stlGroup.visible = false;
   stlState.files = [];
@@ -1396,6 +1416,7 @@ function clearStlModels({ keepCamera = false, skipInputReset = false, preserveMe
   }
   updateStarUniforms();
   if (hadPoints && !keepCamera) {
+  if (hadMesh && !keepCamera) {
     focusOnFeldappenCenter({ repositionCamera: true });
   }
 }
@@ -1477,6 +1498,7 @@ function applyStlGeometry(geometry, fileNames = []) {
     return;
   }
   if (stlState.combinedPoints) {
+  if (stlState.combinedMesh) {
     clearStlModels({ keepCamera: true, skipInputReset: true, preserveMeta: true });
   }
   geometry.computeBoundingBox();
@@ -1532,6 +1554,24 @@ function applyStlGeometry(geometry, fileNames = []) {
   updateStarUniforms();
   focusOnFeldappenCenter({ repositionCamera: true });
   geometry.dispose();
+  stlState.files = Array.isArray(fileNames) ? fileNames : [];
+  const hasColors = geometry.hasColors === true && geometry.getAttribute && geometry.getAttribute('color');
+  stlMaterial.vertexColors = Boolean(hasColors);
+  const alpha = hasColors && typeof geometry.alpha === 'number' ? geometry.alpha : stlMaterial.opacity;
+  const clampedAlpha = Math.max(0.2, Math.min(1, Number(alpha) || stlMaterial.opacity));
+  stlMaterial.opacity = clampedAlpha;
+  stlMaterial.transparent = clampedAlpha < 1;
+  stlMaterial.needsUpdate = true;
+  const mesh = new THREE.Mesh(geometry, stlMaterial);
+  mesh.name = 'feldappenVolumeMesh';
+  stlGroup.add(mesh);
+  stlGroup.position.copy(FELDAPPEN_CENTER);
+  stlGroup.visible = true;
+  stlState.combinedMesh = mesh;
+  if (stlUI.clearBtn) {
+    stlUI.clearBtn.disabled = false;
+  }
+  focusOnFeldappenCenter({ repositionCamera: true });
 }
 
 async function loadStlFilesFromInput(files) {
