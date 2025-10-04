@@ -1113,6 +1113,17 @@ export function bootstrapApp() {
     nudgeInterval: 0.45
   };
 
+  const experienceState = {
+    started: false,
+    panelsHiddenForPlayback: false,
+    previousPanelVisible: null,
+    previousBarVisible: null,
+    pendingOverlayStart: false,
+    editingMode: false,
+    editingPreviousPanel: null,
+    editingPreviousBar: null,
+  };
+
   function clampIntensityPercent(value, fallback = 100, max = 200) {
     const numeric = Number(value);
     const limit = Number.isFinite(max) ? Math.max(0, max) : 200;
@@ -4204,16 +4215,6 @@ export function bootstrapApp() {
   let panelVisible = false;
   let audioPanelVisible = false;
   let cameraLocked = false;
-  const experienceState = {
-    started: false,
-    panelsHiddenForPlayback: false,
-    previousPanelVisible: null,
-    previousBarVisible: null,
-    pendingOverlayStart: false,
-    editingMode: false,
-    editingPreviousPanel: null,
-    editingPreviousBar: null
-  };
 
   function isMobileSheetActive() {
     return mobileSheetQuery.matches;
