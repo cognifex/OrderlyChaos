@@ -544,12 +544,12 @@
 </head>
 <body>
 <div id="barHotspot" aria-hidden="true"></div>
-<div id="bar" class="is-visible" role="toolbar" aria-hidden="false">
+<div id="bar" role="toolbar" aria-hidden="true">
   <button id="toggle" aria-expanded="true">↕ Panels ausblenden</button>
   <button id="lock" aria-pressed="false">🔓 Kamera frei</button>
   <button id="random">🎲 Random</button>
 </div>
-<div id="panel">
+<div id="panel" class="is-hidden" aria-hidden="true">
   <div class="sheet-handle">
     <button id="sheetHandle" type="button" aria-expanded="false" aria-controls="panel">
       <span class="sheet-handle-bar" aria-hidden="true"></span>
@@ -1010,7 +1010,7 @@
     </div>
   </section>
 </div>
-<div id="audioPanel" role="complementary" aria-label="Audio-Steuerung">
+<div id="audioPanel" class="is-hidden" role="complementary" aria-label="Audio-Steuerung" aria-hidden="true">
   <div class="panel-header">
     <h3>Audio-Reaktivität</h3>
     <button type="button" id="audioPanelToggle" aria-expanded="true" aria-controls="audioPanelBody" aria-label="Audio-Bedienfeld ein- oder ausblenden" title="Audio-Bedienfeld ein- oder ausblenden">▾</button>
@@ -1240,6 +1240,43 @@ function randomRange(min, max) {
   return a + Math.random() * (b - a);
 }
 
+function randomInRange(range, fallback = 0, { clamp = false } = {}) {
+  if (Array.isArray(range) && range.length === 2) {
+    const min = Number.isFinite(range[0]) ? range[0] : range[1];
+    const max = Number.isFinite(range[1]) ? range[1] : range[0];
+    if (Number.isFinite(min) && Number.isFinite(max)) {
+      const value = min + Math.random() * (max - min);
+      if (!clamp) {
+        return value;
+      }
+      if (min > max) {
+        return fallback;
+      }
+      return Math.min(Math.max(value, min), max);
+    }
+  }
+  if (Number.isFinite(range)) {
+    return range;
+  }
+  if (Array.isArray(fallback) && fallback.length === 2) {
+    return randomInRange(fallback, 0, { clamp });
+  }
+  return Number.isFinite(fallback) ? fallback : 0;
+}
+
+function randomIntInRange(range, fallback = 0) {
+  const value = randomInRange(range, fallback, { clamp: true });
+  return Math.round(value);
+}
+
+function randomChoice(list, fallback = null) {
+  if (Array.isArray(list) && list.length) {
+    const index = Math.floor(Math.random() * list.length);
+    return list[Math.max(0, Math.min(list.length - 1, index))];
+  }
+  return fallback;
+}
+
 function damp(current, target, rate, delta) {
   const clampedRate = Math.max(0, rate);
   const frame = Math.max(0, delta);
@@ -1289,6 +1326,7 @@ clusterGroup.position.copy(FELDAPPEN_CENTER);
 controls.target.copy(FELDAPPEN_CENTER);
 controls.update();
 const stlLoader = new THREE.STLLoader();
+const MAX_STL_POINTS = 18000;
 let stlMaterial = null;
 const stlState = {
   files: [],
@@ -1358,6 +1396,253 @@ const colorState = {
 };
 const COLOR_MODES = ['uniform', 'radialPulse', 'axisWave', 'phaseFlicker', 'randomHue'];
 const MOTION_MODES = ['static', 'sine', 'noise', 'orbit'];
+const EXPERIENCE_BIOMES = Object.freeze([
+  {
+    name: 'Aurora Drift',
+    distribution: ['fibonacci', 'spiral'],
+    count: [2200, 4200],
+    radius: [120, 200],
+    sizeVar: [3.2, 6.2],
+    cluster: [0.25, 0.55],
+    pointAlpha: [0.55, 0.78],
+    pointHueRanges: [[160, 220]],
+    pointSaturation: [0.55, 0.85],
+    pointValue: [0.68, 0.95],
+    colorMode: ['radialPulse', 'axisWave'],
+    colorIntensity: [0.55, 0.9],
+    colorSpeed: [0.18, 0.55],
+    hueSpread: [60, 140],
+    colorPropagationDistance: [120, 220],
+    colorPropagationDuration: [3.2, 7.5],
+    colorToneCount: [2, 4],
+    motionMode: ['sine', 'noise'],
+    motionSpeed: [0.28, 0.75],
+    motionAmplitude: [6, 18],
+    motionNoiseStrength: [0.35, 0.9],
+    motionNoiseScale: [0.6, 1.6],
+    catDistribution: [0.44, 0.36, 0.2],
+    sizeFactorTiny: [0.08, 0.24],
+    sizeFactorSmall: [0.6, 1.2],
+    sizeFactorMedium: [0.8, 1.6],
+    sizeFactorLarge: [1.1, 2.4],
+    tinyCount: [600, 1800],
+    tinyAlpha: [0.18, 0.36],
+    connPercent: [0.18, 0.38],
+    edgeSoftness: [0.45, 0.78],
+    blending: ['Additive'],
+    filledChance: 0.15,
+  },
+  {
+    name: 'Celestial Bloom',
+    distribution: ['fibonacci', 'cylinder', 'spiral'],
+    count: [2800, 5200],
+    radius: [140, 210],
+    sizeVar: [2.4, 5.2],
+    cluster: [0.3, 0.6],
+    pointAlpha: [0.45, 0.7],
+    pointHueRanges: [[330, 360], [0, 32], [28, 56]],
+    pointSaturation: [0.4, 0.7],
+    pointValue: [0.72, 1.0],
+    colorMode: ['phaseFlicker', 'radialPulse'],
+    colorIntensity: [0.45, 0.85],
+    colorSpeed: [0.24, 0.8],
+    hueSpread: [40, 110],
+    colorPropagationDistance: [100, 180],
+    colorPropagationDuration: [4.5, 8.5],
+    colorToneCount: [2, 5],
+    motionMode: ['sine', 'noise'],
+    motionSpeed: [0.24, 0.68],
+    motionAmplitude: [5, 14],
+    motionNoiseStrength: [0.25, 0.8],
+    motionNoiseScale: [0.5, 1.4],
+    catDistribution: [0.36, 0.38, 0.26],
+    sizeFactorTiny: [0.09, 0.28],
+    sizeFactorSmall: [0.7, 1.6],
+    sizeFactorMedium: [1.1, 2.4],
+    sizeFactorLarge: [1.5, 2.9],
+    tinyCount: [900, 2200],
+    tinyAlpha: [0.2, 0.42],
+    connPercent: [0.22, 0.48],
+    edgeSoftness: [0.35, 0.72],
+    blending: ['Normal', 'Additive'],
+    filledChance: 0.35,
+  },
+  {
+    name: 'Obsidian Pulse',
+    distribution: ['random', 'octahedron', 'spiral'],
+    count: [2600, 4800],
+    radius: [110, 180],
+    sizeVar: [4.2, 7.0],
+    cluster: [0.4, 0.75],
+    pointAlpha: [0.55, 0.85],
+    pointHueRanges: [[200, 240], [240, 290], [300, 330]],
+    pointSaturation: [0.6, 0.9],
+    pointValue: [0.45, 0.85],
+    colorMode: ['axisWave', 'randomHue'],
+    colorIntensity: [0.65, 0.95],
+    colorSpeed: [0.45, 1.4],
+    hueSpread: [80, 160],
+    colorPropagationDistance: [150, 260],
+    colorPropagationDuration: [2.8, 5.8],
+    colorToneCount: [3, 6],
+    motionMode: ['noise', 'sine'],
+    motionSpeed: [0.36, 0.9],
+    motionAmplitude: [8, 22],
+    motionNoiseStrength: [0.45, 1.2],
+    motionNoiseScale: [0.8, 2.4],
+    catDistribution: [0.4, 0.32, 0.28],
+    sizeFactorTiny: [0.1, 0.32],
+    sizeFactorSmall: [0.5, 1.1],
+    sizeFactorMedium: [1.0, 2.0],
+    sizeFactorLarge: [1.8, 3.3],
+    tinyCount: [400, 1200],
+    tinyAlpha: [0.26, 0.5],
+    connPercent: [0.28, 0.6],
+    edgeSoftness: [0.28, 0.6],
+    blending: ['Additive'],
+    filledChance: 0.1,
+  },
+  {
+    name: 'Deep Sea Shimmer',
+    distribution: ['fibonacci', 'cylinder', 'random'],
+    count: [2300, 4300],
+    radius: [130, 210],
+    sizeVar: [3.4, 5.8],
+    cluster: [0.2, 0.5],
+    pointAlpha: [0.5, 0.78],
+    pointHueRanges: [[170, 210], [190, 230]],
+    pointSaturation: [0.55, 0.85],
+    pointValue: [0.6, 0.92],
+    colorMode: ['radialPulse', 'axisWave'],
+    colorIntensity: [0.5, 0.85],
+    colorSpeed: [0.2, 0.7],
+    hueSpread: [50, 120],
+    colorPropagationDistance: [130, 240],
+    colorPropagationDuration: [3.2, 6.5],
+    colorToneCount: [2, 4],
+    motionMode: ['noise', 'sine'],
+    motionSpeed: [0.3, 0.78],
+    motionAmplitude: [7, 16],
+    motionNoiseStrength: [0.35, 0.95],
+    motionNoiseScale: [0.7, 1.9],
+    catDistribution: [0.38, 0.36, 0.26],
+    sizeFactorTiny: [0.08, 0.26],
+    sizeFactorSmall: [0.7, 1.4],
+    sizeFactorMedium: [1.1, 2.1],
+    sizeFactorLarge: [1.6, 2.8],
+    tinyCount: [700, 2000],
+    tinyAlpha: [0.22, 0.4],
+    connPercent: [0.2, 0.42],
+    edgeSoftness: [0.38, 0.75],
+    blending: ['Normal'],
+    filledChance: 0.25,
+  },
+]);
+
+function randomHueFromRanges(ranges, fallbackRange = [0, 360]) {
+  if (Array.isArray(ranges) && ranges.length) {
+    const choice = randomChoice(ranges);
+    if (Array.isArray(choice) && choice.length === 2) {
+      return normalizeHue(randomInRange(choice, normalizeHue(randomInRange(fallbackRange))));
+    }
+    if (Number.isFinite(choice)) {
+      return normalizeHue(choice);
+    }
+  }
+  if (Array.isArray(fallbackRange) && fallbackRange.length === 2) {
+    return normalizeHue(randomInRange(fallbackRange, 0));
+  }
+  if (Number.isFinite(fallbackRange)) {
+    return normalizeHue(fallbackRange);
+  }
+  return normalizeHue(Math.random() * 360);
+}
+
+function distributeCategoryCounts(total, weights = []) {
+  const safeTotal = Math.max(0, Math.floor(Number(total) || 0));
+  if (!Array.isArray(weights) || weights.length !== 3) {
+    const base = Math.floor(safeTotal / 3);
+    const remainder = safeTotal - base * 3;
+    return [base + (remainder > 0 ? 1 : 0), base + (remainder > 1 ? 1 : 0), safeTotal - base * 2 - (remainder > 0 ? 1 : 0) - (remainder > 1 ? 1 : 0)];
+  }
+  const normalized = weights.map(value => Math.max(0, Number(value) || 0));
+  const sum = normalized.reduce((acc, value) => acc + value, 0) || 1;
+  const provisional = normalized.map(value => Math.floor((value / sum) * safeTotal));
+  let assigned = provisional.reduce((acc, value) => acc + value, 0);
+  let index = 0;
+  while (assigned < safeTotal && index < 300) {
+    provisional[index % provisional.length] += 1;
+    assigned += 1;
+    index += 1;
+  }
+  const [small, medium, large] = provisional;
+  return [small, medium, Math.max(0, safeTotal - small - medium)];
+}
+
+function applyBiomePreset(preset, { syncUI = true, repositionCamera = false } = {}) {
+  if (!preset) {
+    return null;
+  }
+  const totalCount = clampTotalCount(randomIntInRange(preset.count, params.count));
+  params.count = totalCount;
+  params.radius = Math.max(0, randomInRange(preset.radius, params.radius));
+  params.sizeVar = Math.max(0, randomInRange(preset.sizeVar, params.sizeVar));
+  params.cluster = clamp01(randomInRange(preset.cluster, params.cluster));
+  params.pointAlpha = clamp01(randomInRange(preset.pointAlpha, params.pointAlpha));
+  params.pointHue = randomHueFromRanges(preset.pointHueRanges, preset.pointHue || [0, 360]);
+  params.pointSaturation = clamp01(randomInRange(preset.pointSaturation, params.pointSaturation));
+  params.pointValue = clamp01(randomInRange(preset.pointValue, params.pointValue));
+  params.colorMode = randomChoice(preset.colorMode, params.colorMode);
+  params.colorIntensity = clamp01(randomInRange(preset.colorIntensity, params.colorIntensity));
+  params.colorSpeed = Math.max(0, randomInRange(preset.colorSpeed, params.colorSpeed));
+  params.hueSpread = Math.max(0, randomInRange(preset.hueSpread, params.hueSpread));
+  params.colorPropagationDistance = Math.max(0, randomInRange(preset.colorPropagationDistance, params.colorPropagationDistance));
+  params.colorPropagationDuration = Math.max(0.25, randomInRange(preset.colorPropagationDuration, params.colorPropagationDuration));
+  params.colorToneCount = Math.max(1, randomIntInRange(preset.colorToneCount, params.colorToneCount));
+  params.distribution = randomChoice(preset.distribution, params.distribution);
+  params.motionMode = randomChoice(preset.motionMode, params.motionMode);
+  params.motionSpeed = Math.max(0, randomInRange(preset.motionSpeed, params.motionSpeed));
+  params.motionAmplitude = Math.max(0, randomInRange(preset.motionAmplitude, params.motionAmplitude));
+  params.motionNoiseStrength = Math.max(0, randomInRange(preset.motionNoiseStrength, params.motionNoiseStrength));
+  params.motionNoiseScale = Math.max(0.1, randomInRange(preset.motionNoiseScale, params.motionNoiseScale));
+  const [catSmall, catMedium, catLarge] = distributeCategoryCounts(totalCount, preset.catDistribution);
+  params.catSmallCount = catSmall;
+  params.catMediumCount = catMedium;
+  params.catLargeCount = Math.max(0, totalCount - catSmall - catMedium);
+  params.sizeFactorTiny = Math.max(0, randomInRange(preset.sizeFactorTiny, params.sizeFactorTiny));
+  params.sizeFactorSmall = Math.max(0.05, randomInRange(preset.sizeFactorSmall, params.sizeFactorSmall));
+  params.sizeFactorMedium = Math.max(0.05, randomInRange(preset.sizeFactorMedium, params.sizeFactorMedium));
+  params.sizeFactorLarge = Math.max(0.05, randomInRange(preset.sizeFactorLarge, params.sizeFactorLarge));
+  params.tinyCount = Math.max(0, randomIntInRange(preset.tinyCount, params.tinyCount));
+  params.connPercent = clamp01(randomInRange(preset.connPercent, params.connPercent));
+  params.tinyAlpha = clamp01(randomInRange(preset.tinyAlpha, params.tinyAlpha));
+  params.edgeSoftness = clamp01(randomInRange(preset.edgeSoftness, params.edgeSoftness));
+  params.blending = randomChoice(preset.blending, params.blending);
+  const filledChance = Number.isFinite(preset.filledChance) ? preset.filledChance : 0;
+  params.filled = Math.random() < Math.max(0, Math.min(1, filledChance));
+  params.seedStars = 1 + Math.floor(Math.random() * 9999);
+  params.seedTiny = 1 + Math.floor(Math.random() * 9999);
+  enforceBounds();
+  updatePointColor();
+  rebuildStars();
+  updateStarUniforms();
+  updateTinyMaterial();
+  if (repositionCamera) {
+    focusOnFeldappenCenter({ repositionCamera: true });
+  }
+  if (syncUI) {
+    setSliders();
+  }
+  return preset.name || null;
+}
+
+function generateRandomBiome(options = {}) {
+  const preset = randomChoice(EXPERIENCE_BIOMES);
+  if (!preset) {
+    return null;
+  }
+  return applyBiomePreset(preset, options);
+}
 const motionState = { time: 0 };
 
 function getFeldappenFocusRadius() {
@@ -1551,22 +1836,49 @@ function applyStlGeometry(geometry, fileNames = []) {
     geometry.dispose();
     return;
   }
-  const count = positionAttr.count;
-  const positions = new Float32Array(positionAttr.array.length);
-  positions.set(positionAttr.array);
-  const basePositions = new Float32Array(positionAttr.array.length);
-  basePositions.set(positionAttr.array);
-  const phases = new Float32Array(count);
-  const sizes = new Float32Array(count);
-  const categories = new Float32Array(count);
+  const sourceArray = positionAttr.array;
+  const sourceCount = positionAttr.count;
+  const targetCount = Math.min(sourceCount, MAX_STL_POINTS);
   const seed = hashStringList(names);
-  const rand = mulberry32(seed);
+  const sampleRand = mulberry32((seed ^ 0x27d4eb2f) >>> 0);
+  const indices = new Uint32Array(targetCount);
+  if (sourceCount <= targetCount) {
+    for (let i = 0; i < targetCount; i++) {
+      indices[i] = i;
+    }
+  } else {
+    const step = sourceCount / targetCount;
+    for (let i = 0; i < targetCount; i++) {
+      const base = i * step;
+      let idx = Math.floor(base + sampleRand() * step);
+      if (idx >= sourceCount) {
+        idx = sourceCount - 1;
+      }
+      indices[i] = idx;
+    }
+  }
+  const positions = new Float32Array(targetCount * 3);
+  const basePositions = new Float32Array(targetCount * 3);
+  for (let i = 0; i < targetCount; i++) {
+    const srcIndex = indices[i] * 3;
+    positions[i * 3] = sourceArray[srcIndex];
+    positions[i * 3 + 1] = sourceArray[srcIndex + 1];
+    positions[i * 3 + 2] = sourceArray[srcIndex + 2];
+    basePositions[i * 3] = sourceArray[srcIndex];
+    basePositions[i * 3 + 1] = sourceArray[srcIndex + 1];
+    basePositions[i * 3 + 2] = sourceArray[srcIndex + 2];
+  }
+  const phases = new Float32Array(targetCount);
+  const sizes = new Float32Array(targetCount);
+  const categories = new Float32Array(targetCount);
+  const categoryRand = mulberry32(seed);
+  const sizeRand = mulberry32((seed ^ 0x85ebca6b) >>> 0);
   const phaseRand = mulberry32((seed ^ 0x51f32a95) >>> 0);
-  for (let i = 0; i < count; i++) {
+  for (let i = 0; i < targetCount; i++) {
     phases[i] = phaseRand();
-    const catRoll = rand();
+    const catRoll = categoryRand();
     categories[i] = catRoll < 0.25 ? 0 : (catRoll < 0.7 ? 1 : 2);
-    sizes[i] = 0.85 + rand() * 0.4;
+    sizes[i] = 0.85 + sizeRand() * 0.4;
   }
   const pointGeometry = new THREE.BufferGeometry();
   pointGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
@@ -1574,6 +1886,7 @@ function applyStlGeometry(geometry, fileNames = []) {
   pointGeometry.setAttribute('aPhase', new THREE.BufferAttribute(phases, 1));
   pointGeometry.setAttribute('aSize', new THREE.BufferAttribute(sizes, 1));
   pointGeometry.setAttribute('aCat', new THREE.BufferAttribute(categories, 1));
+  pointGeometry.setDrawRange(0, targetCount);
   pointGeometry.computeBoundingSphere();
   if (pointGeometry.boundingSphere) {
     pointGeometry.boundingSphere.center.set(0, 0, 0);
@@ -2367,7 +2680,8 @@ function disconnectAnalyser() {
   }
 }
 
-function stopAudioPlayback({ suspendContext = false } = {}) {
+function stopAudioPlayback({ suspendContext = false, skipUiUpdates = false } = {}) {
+  const wasActive = audioState.playing || audioState.usingMic;
   if (audioState.source) {
     try { audioState.source.disconnect(); } catch (err) { /* ignore */ }
     if (typeof audioState.source.stop === 'function') {
@@ -2383,6 +2697,9 @@ function stopAudioPlayback({ suspendContext = false } = {}) {
   audioState.usingMic = false;
   disconnectAnalyser();
   resetAudioReactivity();
+  if (!skipUiUpdates && (wasActive || experienceState.panelsHiddenForPlayback)) {
+    notifyPlaybackStopped();
+  }
   if (audioState.context && suspendContext && typeof audioState.context.suspend === 'function') {
     audioState.context.suspend().catch(() => {});
   }
@@ -2849,9 +3166,11 @@ async function startFirstPlaylistPlayback() {
     refreshAudioUI();
     return false;
   }
-  if (!setCurrentTrack(0)) {
+  const randomIndex = Math.floor(Math.random() * total);
+  if (!setCurrentTrack(randomIndex)) {
     return false;
   }
+  prepareExperienceForPlayback();
   await playSelectedFile();
   return true;
 }
@@ -2952,7 +3271,7 @@ async function playSelectedFile() {
     const context = ensureAudioContext();
     await context.resume();
     const analyser = ensureAnalyser(context);
-    stopAudioPlayback();
+    stopAudioPlayback({ skipUiUpdates: true });
     disconnectAnalyser();
     const arrayBuffer = await audioState.selectedFile.arrayBuffer();
     const buffer = await decodeAudioBuffer(context, arrayBuffer);
@@ -2974,6 +3293,7 @@ async function playSelectedFile() {
     audioState.fileName = audioState.selectedFile.name || 'Audio';
     setAudioStatus(`Wiedergabe läuft – ${trackDescriptor}`, 'active');
     refreshAudioUI();
+    notifyPlaybackStarted();
   } catch (error) {
     console.error('Audio playback failed:', error);
     setAudioStatus('Fehler beim Laden der Datei.', 'error');
@@ -2999,7 +3319,7 @@ async function startMicrophone() {
     const context = ensureAudioContext();
     await context.resume();
     const analyser = ensureAnalyser(context);
-    stopAudioPlayback();
+    stopAudioPlayback({ skipUiUpdates: true });
     disconnectAnalyser();
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
     const source = context.createMediaStreamSource(stream);
@@ -3010,6 +3330,7 @@ async function startMicrophone() {
     audioState.usingMic = true;
     setAudioStatus('Mikrofon aktiv – Live-Reaktion', 'active');
     refreshAudioUI();
+    notifyPlaybackStarted();
   } catch (error) {
     console.error('Microphone start failed:', error);
     const denied = error && (error.name === 'NotAllowedError' || error.name === 'SecurityError');
@@ -4486,9 +4807,14 @@ function hideBar(options = {}) {
   scheduleBarHide(delay);
 }
 
-function initializeBarReveal() {
+function initializeBarReveal({ initialReveal = true } = {}) {
   if (!bar) return;
-  showBar({ autoHideDelay: 2800 });
+  if (initialReveal) {
+    showBar({ autoHideDelay: 2800 });
+  } else {
+    setBarVisible(false);
+    scheduleBarHide(null);
+  }
   const reveal = () => showBar({ autoHideDelay: 4200 });
   const deferHide = () => hideBar({ delay: 1000 });
   if (barHotspot) {
@@ -4518,7 +4844,7 @@ function initializeBarReveal() {
   });
 }
 
-initializeBarReveal();
+initializeBarReveal({ initialReveal: false });
 audioUI.intensityControls = new Map();
 audioUI.supportNotice = $('audioSupportNotice');
 audioUI.autoRandomBtn = $('audioRandomMode');
@@ -4851,9 +5177,16 @@ if (audioUI.fileMeta || audioUI.playlistMeta) {
 setAudioStatus('Audio-Reaktivität inaktiv', 'idle');
 refreshAudioUI();
 presetPlaylistPromise = ensurePresetPlaylistInitialized();
-let panelVisible = true;
-let audioPanelVisible = true;
+let panelVisible = false;
+let audioPanelVisible = false;
 let cameraLocked = false;
+const experienceState = {
+  started: false,
+  panelsHiddenForPlayback: false,
+  previousPanelVisible: null,
+  previousBarVisible: null,
+  pendingOverlayStart: false,
+};
 
 function isMobileSheetActive() {
   return mobileSheetQuery.matches;
@@ -4867,6 +5200,7 @@ function setAudioPanelVisible(show) {
   audioPanelVisible = !!show;
   if (audioUI.panel) {
     audioUI.panel.classList.toggle('is-hidden', !audioPanelVisible);
+    audioUI.panel.setAttribute('aria-hidden', audioPanelVisible ? 'false' : 'true');
   }
 }
 
@@ -4972,7 +5306,12 @@ function handleMobileMediaChange() {
 
 function setPanelVisible(show) {
   panelVisible = !!show;
+  if (!panel) {
+    setAudioPanelVisible(panelVisible);
+    return;
+  }
   panel.classList.toggle('is-hidden', !panelVisible);
+  panel.setAttribute('aria-hidden', panelVisible ? 'false' : 'true');
   if (isMobileSheetActive()) {
     if (panelVisible) {
       setSheetMode('compact', { force: true });
@@ -4996,6 +5335,63 @@ function setPanelVisible(show) {
     toggleBtn.setAttribute('aria-expanded', panelVisible ? 'true' : 'false');
   }
   updateSheetHandleAria();
+}
+
+function getDefaultPanelVisibility() {
+  return window.innerWidth > 580;
+}
+
+function hideInterfaceForPlayback({ remember = true } = {}) {
+  if (experienceState.panelsHiddenForPlayback) return;
+  if (remember) {
+    if (experienceState.previousPanelVisible === null) {
+      experienceState.previousPanelVisible = panelVisible;
+    }
+    if (experienceState.previousBarVisible === null) {
+      experienceState.previousBarVisible = barState.visible;
+    }
+  }
+  setPanelVisible(false);
+  hideBar({ immediate: true });
+  experienceState.panelsHiddenForPlayback = true;
+}
+
+function restoreInterfaceAfterPlayback() {
+  if (!experienceState.panelsHiddenForPlayback) return;
+  const desiredPanel = experienceState.previousPanelVisible;
+  const shouldShowPanel = (desiredPanel === null) ? getDefaultPanelVisibility() : desiredPanel;
+  setPanelVisible(shouldShowPanel);
+  const previousBar = experienceState.previousBarVisible;
+  if (previousBar) {
+    showBar({ autoHideDelay: 3200 });
+  } else {
+    hideBar({ immediate: true });
+  }
+  experienceState.panelsHiddenForPlayback = false;
+  experienceState.previousPanelVisible = null;
+  experienceState.previousBarVisible = null;
+}
+
+function notifyPlaybackStarted() {
+  hideInterfaceForPlayback({ remember: true });
+  experienceState.started = true;
+  experienceState.pendingOverlayStart = false;
+}
+
+function notifyPlaybackStopped() {
+  experienceState.pendingOverlayStart = false;
+  restoreInterfaceAfterPlayback();
+}
+
+function prepareExperienceForPlayback() {
+  if (!experienceState.started && experienceState.previousPanelVisible === null) {
+    experienceState.previousPanelVisible = getDefaultPanelVisibility();
+    experienceState.previousBarVisible = barState.visible;
+  }
+  generateRandomBiome({ syncUI: true, repositionCamera: true });
+  setAutoRotation(false);
+  experienceState.pendingOverlayStart = true;
+  hideInterfaceForPlayback({ remember: true });
 }
 
 function setCameraLocked(lock) {
@@ -6184,9 +6580,9 @@ function animate(now) {
 /* Initialization */
 setInertiaDuration(spinState.inertiaDuration);
 setInertiaEnabled(spinState.inertiaEnabled);
-setAutoRotation(true);
+setAutoRotation(false);
 recalculateSheetMetrics();
-const initialPanelVisible = window.innerWidth > 580;
+const initialPanelVisible = false;
 setPanelVisible(initialPanelVisible);
 setCameraLocked(false);
 updatePointColor(false);
