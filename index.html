@@ -230,6 +230,11 @@
     }
     .file-row { display: flex; flex-direction: column; gap: .35rem; }
     .file-meta { font-size: .75rem; opacity: .75; word-break: break-word; }
+    .model-actions { display: flex; flex-wrap: wrap; gap: .5rem; }
+    .model-actions button { flex: 1 1 140px; }
+    .model-status { font-size: .75rem; opacity: .8; word-break: break-word; }
+    .model-status[data-state="warning"] { color: #ffd27f; }
+    .model-status[data-state="error"] { color: #ff8a80; }
     .audio-controls { display: flex; flex-wrap: wrap; gap: .5rem; }
     .audio-controls button { flex: 1 1 140px; }
     .audio-controls--primary button { flex: 1 1 calc(50% - .5rem); }
@@ -502,6 +507,8 @@
   </style>
   <!-- Load Three.js and OrbitControls from local files -->
   <script src="./three.min.js"></script>
+  <script src="./BufferGeometryUtils.js"></script>
+  <script src="./STLLoader.js"></script>
   <script src="./OrbitControls.js"></script>
 </head>
 <body>
@@ -952,6 +959,25 @@
       </div>
     </div>
   </section>
+  <section class="accordion" id="acc-models">
+    <button type="button" class="accordion__trigger" id="acc-models-trigger" aria-expanded="false" aria-controls="acc-models-panel">
+      Volumenkörper
+    </button>
+    <div class="accordion__panel" id="acc-models-panel" role="region" aria-labelledby="acc-models-trigger" hidden>
+      <div class="row file-row">
+        <label for="modelFile">STL-Dateien</label>
+        <input id="modelFile" type="file" accept=".stl" multiple />
+        <div class="file-meta model-status" id="modelStatus">Kein Modell geladen</div>
+      </div>
+      <div class="row">
+        <div class="model-actions">
+          <button type="button" id="modelClear" disabled>🗑️ Entfernen</button>
+          <button type="button" id="modelFocus" disabled>🎯 Zentrieren</button>
+        </div>
+      </div>
+      <p class="hint">Tipp: Wähle mehrere STL-Dateien gleichzeitig aus, um sie zu einem Körper zu verschmelzen. Mit „Entfernen“ setzt du den Zustand zurück.</p>
+    </div>
+  </section>
 </div>
 <div id="audioPanel" role="complementary" aria-label="Audio-Steuerung">
   <div class="panel-header">
@@ -1172,6 +1198,278 @@ function damp(current, target, rate, delta) {
   return current + (target - current) * factor;
 }
 
+function resetCameraView({ immediate = true } = {}) {
+  controls.target.set(0, 0, 0);
+  clusterGroup.position.set(0, 0, 0);
+  if (immediate) {
+    camera.position.set(0, 0, 480);
+    controls.update();
+  }
+}
+
+function isStlSupportAvailable() {
+  return Boolean(THREE && typeof THREE.STLLoader === 'function' &&
+    THREE.BufferGeometryUtils && typeof THREE.BufferGeometryUtils.mergeBufferGeometries === 'function');
+}
+
+function setModelStatus(message, state = 'info') {
+  if (!modelUI.status) return;
+  modelUI.status.textContent = message;
+  modelUI.status.dataset.state = state;
+}
+
+function syncModelButtonState(button, disabled) {
+  if (!button) return;
+  button.disabled = disabled;
+  if (disabled) {
+    button.setAttribute('aria-disabled', 'true');
+  } else {
+    button.removeAttribute('aria-disabled');
+  }
+}
+
+function updateModelButtons() {
+  const hasModel = uploadedModelState.sources.length > 0 && uploadedModelState.mesh;
+  syncModelButtonState(modelUI.clearBtn, !hasModel || uploadedModelState.loading);
+  syncModelButtonState(modelUI.focusBtn, !hasModel || uploadedModelState.loading);
+}
+
+function setModelLoading(loading) {
+  uploadedModelState.loading = Boolean(loading);
+  if (modelUI.fileInput) {
+    modelUI.fileInput.disabled = uploadedModelState.loading;
+  }
+  updateModelButtons();
+  if (uploadedModelState.loading) {
+    setModelStatus('Lade STL-Dateien…', 'info');
+  }
+}
+
+function disposeModelSources(sources) {
+  (sources || []).forEach(source => {
+    if (source && source.geometry && typeof source.geometry.dispose === 'function') {
+      source.geometry.dispose();
+    }
+  });
+}
+
+function clearUploadedModel({ updateUI = true } = {}) {
+  disposeModelSources(uploadedModelState.sources);
+  uploadedModelState.sources = [];
+  if (uploadedModelState.mesh) {
+    uploadedModelGroup.remove(uploadedModelState.mesh);
+    uploadedModelState.mesh.geometry.dispose();
+    uploadedModelState.mesh = null;
+  }
+  if (uploadedModelState.mergedGeometry) {
+    uploadedModelState.mergedGeometry.dispose();
+    uploadedModelState.mergedGeometry = null;
+  }
+  uploadedModelState.boundingSphere = new THREE.Sphere();
+  if (updateUI) {
+    setModelStatus('Kein Modell geladen', 'info');
+    updateModelButtons();
+  }
+}
+
+function cloneGeometryForMerge(geometry) {
+  if (!geometry || !(geometry instanceof THREE.BufferGeometry)) {
+    return null;
+  }
+  let prepared = geometry.clone();
+  if (prepared.index) {
+    prepared = prepared.toNonIndexed();
+  }
+  prepared.computeVertexNormals();
+  return prepared;
+}
+
+function normalizeMergedGeometry(geometry) {
+  geometry.computeBoundingBox();
+  const box = geometry.boundingBox;
+  if (!box) {
+    throw new Error('Keine gültige Begrenzungsbox für STL-Daten.');
+  }
+  box.getCenter(uploadedModelCenter);
+  geometry.translate(-uploadedModelCenter.x, -uploadedModelCenter.y, -uploadedModelCenter.z);
+
+  box.getSize(uploadedModelTempVec);
+  const maxDimension = Math.max(uploadedModelTempVec.x, uploadedModelTempVec.y, uploadedModelTempVec.z) || 1;
+  const targetSize = Math.max(params.radius * 1.35, MODEL_DEFAULT_TARGET_SIZE);
+  const scale = targetSize / maxDimension;
+  geometry.scale(scale, scale, scale);
+
+  geometry.computeBoundingBox();
+  geometry.computeBoundingSphere();
+  uploadedModelState.boundingSphere = geometry.boundingSphere ? geometry.boundingSphere.clone() : new THREE.Sphere();
+}
+
+function buildMergedGeometryFromSources(sources) {
+  if (!Array.isArray(sources) || !sources.length) {
+    return null;
+  }
+  if (!isStlSupportAvailable()) {
+    return null;
+  }
+  const prepared = [];
+  try {
+    sources.forEach(source => {
+      if (!source || !source.geometry) return;
+      const cloned = cloneGeometryForMerge(source.geometry);
+      if (cloned) {
+        prepared.push(cloned);
+      }
+    });
+    if (!prepared.length) {
+      return null;
+    }
+    const merged = THREE.BufferGeometryUtils.mergeBufferGeometries(prepared, true);
+    if (!merged) {
+      return null;
+    }
+    normalizeMergedGeometry(merged);
+    return merged;
+  } finally {
+    prepared.forEach(geom => geom.dispose());
+  }
+}
+
+function formatModelStatusLabel(total, names) {
+  if (!total) {
+    return 'Kein Modell geladen';
+  }
+  if (total === 1) {
+    return names[0] ? `1 Modell: ${names[0]}` : '1 Modell geladen';
+  }
+  const preview = names.slice(-3);
+  const suffix = names.length > preview.length ? ' …' : '';
+  return preview.length
+    ? `${total} Modelle (${preview.join(', ')}${suffix})`
+    : `${total} Modelle`;
+}
+
+function applyMergedModel(sources, merged, { focus = true, warning = false } = {}) {
+  const previousGeometry = uploadedModelState.mergedGeometry;
+  uploadedModelState.mergedGeometry = merged;
+  uploadedModelState.sources = sources.slice();
+  if (!uploadedModelState.mesh) {
+    uploadedModelState.mesh = new THREE.Mesh(merged, uploadedModelMaterial);
+    uploadedModelGroup.add(uploadedModelState.mesh);
+  } else {
+    uploadedModelState.mesh.geometry = merged;
+  }
+  if (previousGeometry && previousGeometry !== merged) {
+    previousGeometry.dispose();
+  }
+  const names = uploadedModelState.sources.map(source => source && source.name).filter(Boolean);
+  const message = formatModelStatusLabel(uploadedModelState.sources.length, names);
+  setModelStatus(message, warning ? 'warning' : 'info');
+  updateModelButtons();
+  if (focus) {
+    focusCameraOnUploadedModel();
+  }
+}
+
+function focusCameraOnUploadedModel() {
+  if (!uploadedModelState.mesh || !uploadedModelState.boundingSphere) {
+    return false;
+  }
+  const radius = Number.isFinite(uploadedModelState.boundingSphere.radius)
+    ? Math.max(uploadedModelState.boundingSphere.radius, 1)
+    : 120;
+  const currentDirection = camera.position.clone().sub(controls.target);
+  if (currentDirection.lengthSq() < 1e-4) {
+    currentDirection.set(0, 0, 1);
+  }
+  currentDirection.normalize();
+  const distance = radius * 2.4 + 80;
+  uploadedModelGroup.updateMatrixWorld(true);
+  const centerWorld = uploadedModelGroup.getWorldPosition(uploadedModelCenter);
+  const nextPosition = centerWorld.clone().add(currentDirection.multiplyScalar(distance));
+  camera.position.copy(nextPosition);
+  controls.target.copy(centerWorld);
+  controls.update();
+  return true;
+}
+
+function loadStlFile(file) {
+  return new Promise((resolve, reject) => {
+    if (!file) {
+      reject(new Error('Keine Datei angegeben.'));
+      return;
+    }
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error(`Datei „${file.name}“ konnte nicht gelesen werden.`));
+    reader.onload = event => {
+      try {
+        const buffer = event && event.target ? event.target.result : null;
+        if (!buffer) {
+          throw new Error('Leere Datei.');
+        }
+        const geometry = stlLoader.parse(buffer);
+        if (!geometry || !geometry.attributes || !geometry.attributes.position) {
+          throw new Error('Keine gültige Geometrie.');
+        }
+        resolve({ geometry, name: file.name || 'STL', size: file.size || 0 });
+      } catch (error) {
+        reject(error);
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  });
+}
+
+async function handleModelFileSelection(files) {
+  if (!Array.isArray(files) || !files.length) {
+    if (!uploadedModelState.sources.length) {
+      setModelStatus('Kein Modell geladen', 'info');
+    }
+    return;
+  }
+  if (!isStlSupportAvailable()) {
+    setModelStatus('STL-Unterstützung ist nicht verfügbar.', 'error');
+    return;
+  }
+  setModelLoading(true);
+  try {
+    const tasks = files.map(file => loadStlFile(file));
+    const results = await Promise.allSettled(tasks);
+    const successes = [];
+    const failures = [];
+    results.forEach((result, index) => {
+      if (result.status === 'fulfilled' && result.value && result.value.geometry) {
+        successes.push(result.value);
+      } else {
+        const name = files[index] ? files[index].name : 'Unbekannt';
+        failures.push(name);
+      }
+    });
+    if (!successes.length) {
+      if (failures.length) {
+        setModelStatus(`Keine der ausgewählten Dateien konnte geladen werden (${failures.join(', ')}).`, 'error');
+      }
+      return;
+    }
+    const candidateSources = uploadedModelState.sources.concat(successes);
+    const merged = buildMergedGeometryFromSources(candidateSources);
+    if (!merged) {
+      setModelStatus('Die STL-Daten konnten nicht verbunden werden.', 'error');
+      disposeModelSources(successes);
+      return;
+    }
+    applyMergedModel(candidateSources, merged, { focus: true, warning: failures.length > 0 });
+    if (failures.length) {
+      const names = failures.join(', ');
+      setModelStatus(`${formatModelStatusLabel(uploadedModelState.sources.length, uploadedModelState.sources.map(s => s && s.name).filter(Boolean))} · Folgende Dateien wurden übersprungen: ${names}`, 'warning');
+    }
+  } finally {
+    setModelLoading(false);
+    if (modelUI.fileInput) {
+      modelUI.fileInput.value = '';
+    }
+  }
+}
+
 /* Renderer/Scene/Camera */
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
 renderer.setSize(window.innerWidth, window.innerHeight);
@@ -1192,6 +1490,20 @@ controls.zoomSpeed = 0.6;
 
 const clusterGroup = new THREE.Group();
 scene.add(clusterGroup);
+
+const uploadedModelGroup = new THREE.Group();
+clusterGroup.add(uploadedModelGroup);
+
+const ambientLight = new THREE.AmbientLight(0xffffff, 0.45);
+scene.add(ambientLight);
+
+const keyLight = new THREE.DirectionalLight(0xffffff, 0.85);
+keyLight.position.set(180, 220, 260);
+scene.add(keyLight);
+
+const fillLight = new THREE.DirectionalLight(0xffffff, 0.35);
+fillLight.position.set(-160, -120, -200);
+scene.add(fillLight);
 
 /* Parameters */
 const params = {
@@ -1251,6 +1563,28 @@ const colorState = {
 const COLOR_MODES = ['uniform', 'radialPulse', 'axisWave', 'phaseFlicker', 'randomHue'];
 const MOTION_MODES = ['static', 'sine', 'noise', 'orbit'];
 const motionState = { time: 0 };
+
+const MODEL_DEFAULT_TARGET_SIZE = 240;
+const uploadedModelState = {
+  sources: [],
+  mesh: null,
+  mergedGeometry: null,
+  loading: false,
+  boundingSphere: new THREE.Sphere()
+};
+
+const stlLoader = new THREE.STLLoader();
+const uploadedModelMaterial = new THREE.MeshStandardMaterial({
+  color: 0x6bd0ff,
+  metalness: 0.15,
+  roughness: 0.65,
+  transparent: true,
+  opacity: 0.92,
+  side: THREE.DoubleSide
+});
+const uploadedModelTempVec = new THREE.Vector3();
+const uploadedModelCenter = new THREE.Vector3();
+const modelUI = { fileInput: null, status: null, clearBtn: null, focusBtn: null };
 
 function getMotionModeIndex() {
   const idx = MOTION_MODES.indexOf(params.motionMode);
@@ -2408,7 +2742,7 @@ function playCurrentTrack() {
   return true;
 }
 
-async function startRandomPlaylistPlayback() {
+async function startInitialPlaylistPlayback() {
   try {
     await ensurePresetPlaylistInitialized();
   } catch (error) {
@@ -2420,8 +2754,7 @@ async function startRandomPlaylistPlayback() {
     refreshAudioUI();
     return false;
   }
-  const randomIndex = Math.floor(Math.random() * total);
-  if (!setCurrentTrack(randomIndex)) {
+  if (!setCurrentTrack(0)) {
     return false;
   }
   await playSelectedFile();
@@ -3772,6 +4105,66 @@ const sheetState = {
   preventClick: false,
 };
 
+modelUI.fileInput = $('modelFile');
+modelUI.status = $('modelStatus');
+modelUI.clearBtn = $('modelClear');
+modelUI.focusBtn = $('modelFocus');
+
+if (modelUI.status && !modelUI.status.dataset.state) {
+  modelUI.status.dataset.state = 'info';
+}
+
+if (!isStlSupportAvailable()) {
+  if (modelUI.fileInput) {
+    modelUI.fileInput.disabled = true;
+  }
+  setModelStatus('STL-Unterstützung ist nicht verfügbar.', 'error');
+} else {
+  setModelStatus(formatModelStatusLabel(uploadedModelState.sources.length, []), 'info');
+}
+
+updateModelButtons();
+
+if (modelUI.fileInput) {
+  modelUI.fileInput.addEventListener('change', async event => {
+    if (uploadedModelState.loading) {
+      return;
+    }
+    const selection = Array.from(event.target.files || []);
+    const accepted = selection.filter(file => file && /\.stl$/i.test(file.name || ''));
+    const rejected = selection.filter(file => !file || !/\.stl$/i.test(file.name || ''));
+    if (!accepted.length) {
+      if (rejected.length) {
+        const skipped = rejected.map(file => file && file.name ? file.name : 'Unbekannt').join(', ');
+        setModelStatus(`Keine gültigen STL-Dateien ausgewählt (${skipped}).`, 'warning');
+      }
+      modelUI.fileInput.value = '';
+      return;
+    }
+    await handleModelFileSelection(accepted);
+    if (rejected.length) {
+      const skipped = rejected.map(file => file && file.name ? file.name : 'Unbekannt').join(', ');
+      const currentNames = uploadedModelState.sources.map(source => source && source.name).filter(Boolean);
+      const base = formatModelStatusLabel(uploadedModelState.sources.length, currentNames);
+      setModelStatus(`${base} · Ignoriert: ${skipped}`, 'warning');
+    }
+  });
+}
+
+if (modelUI.clearBtn) {
+  modelUI.clearBtn.addEventListener('click', () => {
+    if (uploadedModelState.loading) return;
+    clearUploadedModel({ updateUI: true });
+  });
+}
+
+if (modelUI.focusBtn) {
+  modelUI.focusBtn.addEventListener('click', () => {
+    if (uploadedModelState.loading) return;
+    focusCameraOnUploadedModel();
+  });
+}
+
 audioUI.panel = $('audioPanel');
 audioUI.body = $('audioPanelBody');
 audioUI.toggle = $('audioPanelToggle');
@@ -4012,7 +4405,7 @@ if (audioUI.overlayButton) {
     if (audioUI.overlayButton.disabled) return;
     audioUI.overlayButton.disabled = true;
     audioUI.overlayButton.setAttribute('aria-busy', 'true');
-    const started = await startRandomPlaylistPlayback();
+    const started = await startInitialPlaylistPlayback();
     if (!started && shouldShowAudioOverlay()) {
       audioUI.overlayButton.disabled = false;
     }
@@ -5433,6 +5826,7 @@ setAutoRotation(true);
 recalculateSheetMetrics();
 const initialPanelVisible = window.innerWidth > 580;
 setPanelVisible(initialPanelVisible);
+resetCameraView({ immediate: true });
 setCameraLocked(false);
 updatePointColor(false);
 setSliders();
