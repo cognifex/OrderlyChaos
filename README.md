@@ -17,10 +17,10 @@ Das Skript erstellt bzw. aktualisiert `Musik/playlist.json` und ermittelt Dateig
 
 ## Entwicklung
 
-Installiere Abhängigkeiten und starte die Vite-Entwicklungsumgebung:
+Installiere Abhängigkeiten (mit dem im Repository gepflegten Lockfile) und starte die Vite-Entwicklungsumgebung:
 
 ```bash
-npm install
+npm ci
 npm run dev
 ```
 
@@ -29,3 +29,6 @@ Für einen Produktionsbuild:
 ```bash
 npm run build
 ```
+
+> Hinweis: Die Toolchain ist auf Node.js >= 16.20 ausgelegt und wurde zuletzt mit Node.js 20 getestet. Ältere Node-16-Umgebungen
+> funktionieren weiterhin, ohne dass ein Upgrade auf Node 20 erforderlich ist.
