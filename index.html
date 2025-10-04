@@ -235,6 +235,66 @@
     .audio-controls--primary button { flex: 1 1 calc(50% - .5rem); }
     .audio-controls--secondary button { flex: 1 1 100%; }
     .playlist-meta { font-size: .74rem; line-height: 1.4; opacity: .75; }
+    .stl-mode-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 40;
+      display: grid;
+      place-items: center;
+      background: rgba(0, 0, 0, 0.6);
+      backdrop-filter: blur(3px);
+    }
+    .stl-mode-dialog {
+      width: min(420px, calc(100vw - 32px));
+      background: rgba(20, 20, 20, 0.95);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 12px;
+      padding: 1.25rem;
+      display: grid;
+      gap: .85rem;
+      box-shadow: 0 28px 64px rgba(0, 0, 0, 0.55);
+    }
+    .stl-mode-dialog h2 {
+      margin: 0;
+      font-size: 1rem;
+      letter-spacing: .01em;
+    }
+    .stl-mode-dialog p {
+      margin: 0;
+      font-size: .82rem;
+      line-height: 1.5;
+      opacity: .85;
+    }
+    .stl-mode-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: .5rem;
+    }
+    .stl-mode-actions button {
+      flex: 1 1 120px;
+      padding: .55rem .75rem;
+      font-size: .85rem;
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      background: rgba(255, 255, 255, 0.08);
+      color: inherit;
+      cursor: pointer;
+      transition: background .2s ease, border-color .2s ease, transform .2s ease;
+    }
+    .stl-mode-actions button:focus-visible {
+      outline: 2px solid rgba(90, 190, 255, 0.9);
+      outline-offset: 2px;
+    }
+    .stl-mode-actions button[data-choice="distribution"] {
+      background: rgba(40, 160, 220, 0.35);
+      border-color: rgba(90, 190, 255, 0.65);
+    }
+    .stl-mode-actions button:hover {
+      background: rgba(255, 255, 255, 0.16);
+    }
+    .stl-mode-actions button[data-choice="distribution"]:hover {
+      background: rgba(60, 180, 240, 0.45);
+    }
     .modifier-grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
@@ -546,6 +606,7 @@
 <div id="barHotspot" aria-hidden="true"></div>
 <div id="bar" role="toolbar" aria-hidden="true">
   <button id="toggle" aria-expanded="true">↕ Panels ausblenden</button>
+  <button id="editMode" aria-pressed="true">🛠️ Bearbeitungsmodus an</button>
   <button id="lock" aria-pressed="false">🔓 Kamera frei</button>
   <button id="random">🎲 Random</button>
 </div>
@@ -577,17 +638,6 @@
           <input class="bound-input" type="number" data-target="pRadius" data-bound="max" />
           <div class="val" id="vRadius"></div>
         </div>
-      </div>
-      <div class="row">
-        <label for="pDistribution">Verteilungsalgorithmus</label>
-        <select id="pDistribution">
-          <option value="random">Zufall (Sphäre)</option>
-          <option value="fibonacci">Fibonacci-Sphäre</option>
-          <option value="spiral">Galaxie-Spirale</option>
-          <option value="cube">Würfel-Volumen</option>
-          <option value="cylinder">Zylinder-Volumen</option>
-          <option value="octahedron">Oktaeder-Volumen</option>
-        </select>
       </div>
       <div class="row">
         <label for="pSizeVar">Größenvariation (Δ)</label>
@@ -769,16 +819,28 @@
       </div>
     </div>
   </section>
-  <section class="accordion" id="acc-volume">
-    <button type="button" class="accordion__trigger" id="acc-volume-trigger" aria-expanded="false" aria-controls="acc-volume-panel">
-      Volumenkörper
+  <section class="accordion" id="acc-distribution">
+    <button type="button" class="accordion__trigger" id="acc-distribution-trigger" aria-expanded="false" aria-controls="acc-distribution-panel">
+      Verteilung & Volumen
     </button>
-    <div class="accordion__panel" id="acc-volume-panel" role="region" aria-labelledby="acc-volume-trigger" hidden>
+    <div class="accordion__panel" id="acc-distribution-panel" role="region" aria-labelledby="acc-distribution-trigger" hidden>
+      <div class="row">
+        <label for="pDistribution">Verteilungsalgorithmus</label>
+        <select id="pDistribution">
+          <option value="random">Zufall (Sphäre)</option>
+          <option value="fibonacci">Fibonacci-Sphäre</option>
+          <option value="spiral">Galaxie-Spirale</option>
+          <option value="cube">Würfel-Volumen</option>
+          <option value="cylinder">Zylinder-Volumen</option>
+          <option value="octahedron">Oktaeder-Volumen</option>
+          <option value="stl" data-stl-option hidden disabled>Importierte STL-Punkte</option>
+        </select>
+      </div>
       <div class="row file-row">
         <label for="stlFiles">STL-Modelle</label>
         <input id="stlFiles" type="file" accept=".stl,model/stl,application/sla" multiple />
         <div class="file-meta" id="stlFileMeta">Keine Auswahl</div>
-        <div class="hint">Lade eine oder mehrere STL-Dateien hoch, um sie zu einem Volumenkörper zu kombinieren.</div>
+        <div class="hint">Nach dem Import kannst du wählen, ob die STL-Punkte zusätzlich oder als Verteilungsalgorithmus genutzt werden.</div>
       </div>
       <div class="row">
         <div class="wrap">
@@ -1331,13 +1393,18 @@ let stlMaterial = null;
 const stlState = {
   files: [],
   points: null,
-  boundingRadius: 0
+  boundingRadius: 0,
+  samples: null,
+  sampleCount: 0,
+  displayMode: 'overlay',
+  previousDistribution: null
 };
 const stlUI = {
   input: null,
   meta: null,
   clearBtn: null
 };
+let stlDistributionOption = null;
 
 /* Parameters */
 const params = {
@@ -1599,7 +1666,22 @@ function applyBiomePreset(preset, { syncUI = true, repositionCamera = false } = 
   params.colorPropagationDistance = Math.max(0, randomInRange(preset.colorPropagationDistance, params.colorPropagationDistance));
   params.colorPropagationDuration = Math.max(0.25, randomInRange(preset.colorPropagationDuration, params.colorPropagationDuration));
   params.colorToneCount = Math.max(1, randomIntInRange(preset.colorToneCount, params.colorToneCount));
-  params.distribution = randomChoice(preset.distribution, params.distribution);
+  const availableDistributions = getAvailableDistributions();
+  let presetDistribution = preset.distribution;
+  if (Array.isArray(presetDistribution)) {
+    presetDistribution = presetDistribution.filter(option => availableDistributions.includes(option));
+  } else if (typeof presetDistribution === 'string' && !availableDistributions.includes(presetDistribution)) {
+    presetDistribution = null;
+  }
+  const fallbackDistribution = availableDistributions.includes(params.distribution)
+    ? params.distribution
+    : 'random';
+  const chosenDistribution = Array.isArray(presetDistribution) && presetDistribution.length
+    ? randomChoice(presetDistribution, fallbackDistribution)
+    : (typeof presetDistribution === 'string' ? presetDistribution : fallbackDistribution);
+  params.distribution = availableDistributions.includes(chosenDistribution)
+    ? chosenDistribution
+    : fallbackDistribution;
   params.motionMode = randomChoice(preset.motionMode, params.motionMode);
   params.motionSpeed = Math.max(0, randomInRange(preset.motionSpeed, params.motionSpeed));
   params.motionAmplitude = Math.max(0, randomInRange(preset.motionAmplitude, params.motionAmplitude));
@@ -1666,7 +1748,7 @@ function focusOnFeldappenCenter({ repositionCamera = true } = {}) {
   controls.update();
 }
 
-function updateStlMeta(files = [], { loading = false, error = '' } = {}) {
+function updateStlMeta(files = stlState.files || [], { loading = false, error = '' } = {}) {
   const names = Array.isArray(files)
     ? files.map(item => (typeof item === 'string' ? item : (item && item.name) || '')).filter(Boolean)
     : [];
@@ -1684,9 +1766,19 @@ function updateStlMeta(files = [], { loading = false, error = '' } = {}) {
         ? `Geladen: ${names[0]}`
         : `Geladen: ${names.length} STL-Dateien`;
       state = 'ready';
+      if (stlState.displayMode === 'distribution') {
+        text += ' – als Verteilungsalgorithmus aktiv';
+      } else {
+        text += ' – zusätzlich eingeblendet';
+      }
     }
     stlUI.meta.textContent = text;
     stlUI.meta.dataset.state = state;
+    if (!loading && !error && names.length) {
+      stlUI.meta.dataset.mode = stlState.displayMode || 'overlay';
+    } else if (stlUI.meta.dataset.mode) {
+      delete stlUI.meta.dataset.mode;
+    }
   }
   if (stlUI.clearBtn) {
     stlUI.clearBtn.disabled = loading || !stlState.points;
@@ -1696,7 +1788,7 @@ function updateStlMeta(files = [], { loading = false, error = '' } = {}) {
   }
 }
 
-function clearStlModels({ keepCamera = false, skipInputReset = false, preserveMeta = false } = {}) {
+function clearStlModels({ keepCamera = false, skipInputReset = false, preserveMeta = false, preserveUsage = false } = {}) {
   const hadPoints = Boolean(stlState.points);
   if (stlState.points) {
     if (stlState.points.geometry) {
@@ -1708,6 +1800,12 @@ function clearStlModels({ keepCamera = false, skipInputReset = false, preserveMe
   stlGroup.visible = false;
   stlState.files = [];
   stlState.boundingRadius = 0;
+  stlState.samples = null;
+  stlState.sampleCount = 0;
+  if (!preserveUsage) {
+    stlState.displayMode = 'overlay';
+    stlState.previousDistribution = null;
+  }
   if (!skipInputReset && stlUI.input) {
     stlUI.input.value = '';
   }
@@ -1716,10 +1814,68 @@ function clearStlModels({ keepCamera = false, skipInputReset = false, preserveMe
   } else if (stlUI.clearBtn) {
     stlUI.clearBtn.disabled = true;
   }
+  if (!preserveUsage) {
+    const reverted = revertFromStlDistribution();
+    if (reverted) {
+      rebuildStars();
+      setSliders();
+    }
+  }
+  updateStlOptionAvailability();
   updateStarUniforms();
   if (hadPoints && !keepCamera) {
     focusOnFeldappenCenter({ repositionCamera: true });
   }
+}
+
+function hasStlSamples() {
+  return stlState.samples instanceof Float32Array && stlState.sampleCount > 0;
+}
+
+function getAvailableDistributions() {
+  const base = ['random', 'fibonacci', 'spiral', 'cube', 'cylinder', 'octahedron'];
+  if (hasStlSamples()) {
+    base.push('stl');
+  }
+  return base;
+}
+
+function updateStlVisibility() {
+  stlGroup.visible = Boolean(stlState.points && stlState.displayMode === 'overlay');
+}
+
+function updateStlOptionAvailability() {
+  if (!stlDistributionOption) return;
+  const available = hasStlSamples();
+  stlDistributionOption.hidden = available ? false : true;
+  stlDistributionOption.disabled = available ? false : true;
+}
+
+function useStlAsDistribution({ rememberPrevious = true } = {}) {
+  if (!hasStlSamples()) {
+    return false;
+  }
+  if (rememberPrevious && params.distribution !== 'stl') {
+    stlState.previousDistribution = params.distribution;
+  }
+  params.distribution = 'stl';
+  stlState.displayMode = 'distribution';
+  return true;
+}
+
+function revertFromStlDistribution({ fallback = 'random' } = {}) {
+  if (params.distribution !== 'stl') {
+    return false;
+  }
+  const fallbackValue = stlState.previousDistribution && stlState.previousDistribution !== 'stl'
+    ? stlState.previousDistribution
+    : fallback;
+  stlState.previousDistribution = null;
+  params.distribution = fallbackValue;
+  if (stlState.displayMode === 'distribution') {
+    stlState.displayMode = 'overlay';
+  }
+  return true;
 }
 
 function mergeStlGeometries(geometries) {
@@ -1819,7 +1975,7 @@ function applyStlGeometry(geometry, fileNames = []) {
     return;
   }
   if (stlState.points) {
-    clearStlModels({ keepCamera: true, skipInputReset: true, preserveMeta: true });
+    clearStlModels({ keepCamera: true, skipInputReset: true, preserveMeta: true, preserveUsage: true });
   }
   geometry.computeBoundingBox();
   if (geometry.boundingBox) {
@@ -1899,14 +2055,117 @@ function applyStlGeometry(geometry, fileNames = []) {
   const points = new THREE.Points(pointGeometry, material);
   points.name = 'feldappenVolumePoints';
   stlGroup.add(points);
-  stlGroup.visible = true;
   stlGroup.position.copy(FELDAPPEN_CENTER);
   stlState.points = points;
   stlState.files = names;
+  stlState.samples = basePositions.slice(0);
+  stlState.sampleCount = targetCount;
+  updateStlOptionAvailability();
+  updateStlVisibility();
+  if (stlState.displayMode === 'distribution') {
+    const applied = useStlAsDistribution({ rememberPrevious: true });
+    if (applied) {
+      rebuildStars();
+      setSliders();
+    } else {
+      stlState.displayMode = 'overlay';
+    }
+  } else if (params.distribution === 'stl') {
+    const reverted = revertFromStlDistribution();
+    if (reverted) {
+      rebuildStars();
+      setSliders();
+    }
+  }
   updateStlMeta(names);
+  updateStlVisibility();
   updateStarUniforms();
   focusOnFeldappenCenter({ repositionCamera: true });
   geometry.dispose();
+}
+
+function askStlUsageMode(files) {
+  return new Promise(resolve => {
+    const previousFocus = document.activeElement;
+    const backdrop = document.createElement('div');
+    backdrop.className = 'stl-mode-backdrop';
+    backdrop.setAttribute('role', 'dialog');
+    backdrop.setAttribute('aria-modal', 'true');
+    const dialog = document.createElement('div');
+    dialog.className = 'stl-mode-dialog';
+    const headingId = `stl-mode-heading-${Date.now()}`;
+    const title = document.createElement('h2');
+    title.id = headingId;
+    title.textContent = 'STL-Nutzung wählen';
+    dialog.setAttribute('aria-labelledby', headingId);
+    const description = document.createElement('p');
+    const fileHint = Array.isArray(files) && files.length === 1
+      ? `(${files[0].name || 'STL-Datei'})`
+      : '';
+    description.textContent = fileHint
+      ? `Wie sollen die importierten STL-Punkte ${fileHint} verwendet werden?`
+      : 'Wie sollen die importierten STL-Punkte verwendet werden?';
+    const actions = document.createElement('div');
+    actions.className = 'stl-mode-actions';
+
+    const overlayBtn = document.createElement('button');
+    overlayBtn.type = 'button';
+    overlayBtn.dataset.choice = 'overlay';
+    overlayBtn.textContent = 'Zusätzlich anzeigen';
+
+    const distributionBtn = document.createElement('button');
+    distributionBtn.type = 'button';
+    distributionBtn.dataset.choice = 'distribution';
+    distributionBtn.textContent = 'Als Verteilungsalgorithmus nutzen';
+
+    const cancelBtn = document.createElement('button');
+    cancelBtn.type = 'button';
+    cancelBtn.dataset.choice = 'cancel';
+    cancelBtn.textContent = 'Abbrechen';
+
+    actions.append(overlayBtn, distributionBtn, cancelBtn);
+    dialog.append(title, description, actions);
+    backdrop.appendChild(dialog);
+    document.body.appendChild(backdrop);
+
+    let settled = false;
+    const cleanup = choice => {
+      if (settled) return;
+      settled = true;
+      document.removeEventListener('keydown', onKeyDown);
+      backdrop.removeEventListener('click', onBackdropClick);
+      if (backdrop.parentNode) {
+        backdrop.parentNode.removeChild(backdrop);
+      }
+      if (previousFocus && typeof previousFocus.focus === 'function') {
+        previousFocus.focus();
+      }
+      resolve(choice);
+    };
+
+    const onKeyDown = event => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        cleanup('cancel');
+      }
+    };
+
+    const onBackdropClick = event => {
+      if (event.target === backdrop) {
+        cleanup('cancel');
+      }
+    };
+
+    overlayBtn.addEventListener('click', () => cleanup('overlay'));
+    distributionBtn.addEventListener('click', () => cleanup('distribution'));
+    cancelBtn.addEventListener('click', () => cleanup('cancel'));
+    document.addEventListener('keydown', onKeyDown);
+    backdrop.addEventListener('click', onBackdropClick);
+
+    window.requestAnimationFrame(() => {
+      overlayBtn.focus();
+    });
+  });
 }
 
 async function loadStlFilesFromInput(files) {
@@ -1915,6 +2174,15 @@ async function loadStlFilesFromInput(files) {
     clearStlModels();
     return;
   }
+  const mode = await askStlUsageMode(selection);
+  if (mode === 'cancel') {
+    updateStlMeta(stlState.files);
+    if (stlUI.input) {
+      stlUI.input.value = '';
+    }
+    return;
+  }
+  stlState.displayMode = mode === 'distribution' ? 'distribution' : 'overlay';
   updateStlMeta(selection, { loading: true });
   try {
     const geometries = [];
@@ -2739,6 +3007,7 @@ function toggleAudioModifier(key) {
 function shouldShowAudioOverlay() {
   if (!audioUI.overlay) return false;
   if (!isAudioSupported()) return false;
+  if (experienceState.editingMode) return false;
   if (audioState.playing || audioState.usingMic) return false;
   if (audioState.status === 'waiting' || audioState.status === 'error') return false;
   return true;
@@ -3150,8 +3419,24 @@ function playCurrentTrack() {
   if (!audioState.selectedFile) {
     return false;
   }
+  prepareExperienceForPlayback();
   playSelectedFile();
   return true;
+}
+
+async function requestPlaybackStart({ preferCurrent = true } = {}) {
+  if (audioState.playing || audioState.usingMic) {
+    return true;
+  }
+  if (experienceState.editingMode) {
+    setEditingMode(false, { skipStop: true, skipPanelRestore: true });
+  }
+  if (preferCurrent && audioState.selectedFile) {
+    prepareExperienceForPlayback();
+    await playSelectedFile();
+    return true;
+  }
+  return startFirstPlaylistPlayback();
 }
 
 async function startFirstPlaylistPlayback() {
@@ -3353,6 +3638,9 @@ function stopAudioFromUser() {
 }
 
 function updateAudioReactive(delta) {
+  if (experienceState.editingMode) {
+    return;
+  }
   let energyTarget = 0;
   let bassTarget = 0;
   let midTarget = 0;
@@ -3520,6 +3808,9 @@ function updateAudioReactive(delta) {
 }
 
 function applyAudioVisuals(delta, skipReactive = false) {
+  if (experienceState.editingMode) {
+    return;
+  }
   if (!skipReactive) {
     updateAudioReactive(delta);
   }
@@ -4003,6 +4294,17 @@ function makeStars() {
   const orientEuler = new THREE.Euler(rand() * Math.PI * 2, rand() * Math.PI * 2, rand() * Math.PI * 2);
   orientation.makeRotationFromEuler(orientEuler);
   const tmpVec = new THREE.Vector3();
+  const stlSamples = stlState.samples;
+  const stlSampleCount = stlState.sampleCount || 0;
+  const desiredRadius = Math.max(1e-3, Number(params.radius) || stlState.boundingRadius || 1);
+  const stlRadius = Math.max(1e-3, stlState.boundingRadius || desiredRadius);
+  const stlScale = params.distribution === 'stl' ? desiredRadius / stlRadius : 1;
+  const stlIndexRand = params.distribution === 'stl'
+    ? mulberry32((params.seedStars ^ 0x7f4a7c15) >>> 0)
+    : null;
+  const stlJitterStrength = params.distribution === 'stl'
+    ? Math.max(0, params.cluster) * desiredRadius * 0.04
+    : 0;
   const fibOffset = (params.distribution === 'fibonacci' && total > 0) ? (2 / total) : 0;
   const fibIncrement = Math.PI * (3 - Math.sqrt(5));
   const spiralArms = 4;
@@ -4071,6 +4373,27 @@ function makeStars() {
         tmpVec.set((rand() * 2 - 1) * radius, (rand() * 2 - 1) * radius, (rand() * 2 - 1) * radius);
       }
       tmpVec.applyMatrix4(orientation);
+    } else if (params.distribution === 'stl') {
+      if (stlSamples && stlSampleCount > 0 && stlIndexRand) {
+        const idx = Math.floor(stlIndexRand() * stlSampleCount) % stlSampleCount;
+        const baseIndex = idx * 3;
+        let x = stlSamples[baseIndex];
+        let y = stlSamples[baseIndex + 1];
+        let z = stlSamples[baseIndex + 2];
+        if (stlScale !== 1) {
+          x *= stlScale;
+          y *= stlScale;
+          z *= stlScale;
+        }
+        if (stlJitterStrength > 0) {
+          x += (rand() - 0.5) * stlJitterStrength;
+          y += (rand() - 0.5) * stlJitterStrength;
+          z += (rand() - 0.5) * stlJitterStrength;
+        }
+        tmpVec.set(x, y, z);
+      } else {
+        tmpVec.set((rand() * 2 - 1) * radius, (rand() * 2 - 1) * radius, (rand() * 2 - 1) * radius);
+      }
     } else {
       const u = rand();
       const v = rand();
@@ -4689,6 +5012,7 @@ function rebuildTiny() {
 const $ = id => document.getElementById(id);
 const panel = $('panel');
 const toggleBtn = $('toggle');
+const editModeBtn = $('editMode');
 const lockBtn = $('lock');
 const sheetHandleBtn = $('sheetHandle');
 const bar = $('bar');
@@ -4855,6 +5179,8 @@ audioUI.brightnessAdaptationBtn = $('brightnessAdaptationToggle');
 stlUI.input = $('stlFiles');
 stlUI.meta = $('stlFileMeta');
 stlUI.clearBtn = $('stlClear');
+stlDistributionOption = document.querySelector('#pDistribution option[value="stl"]');
+updateStlOptionAvailability();
 
 if (stlUI.input) {
   stlUI.input.addEventListener('change', event => {
@@ -4927,7 +5253,7 @@ syncAudioIntensityControls();
 
 function updateAutoRandomButton(forceDisabled = false) {
   if (!audioUI.autoRandomBtn) return;
-  const disabled = Boolean(forceDisabled);
+  const disabled = Boolean(forceDisabled || experienceState.editingMode);
   if (disabled) {
     audioUI.autoRandomBtn.disabled = true;
     audioUI.autoRandomBtn.setAttribute('aria-disabled', 'true');
@@ -4951,9 +5277,9 @@ function scheduleNextAutoRandom() {
 }
 
 function setAutoRandomEnabled(enabled) {
-  const next = Boolean(enabled);
+  const next = experienceState.editingMode ? false : Boolean(enabled);
   if (autoRandomState.enabled === next) {
-    updateAutoRandomButton(audioUI.autoRandomBtn ? audioUI.autoRandomBtn.disabled : false);
+    updateAutoRandomButton();
     return;
   }
   autoRandomState.enabled = next;
@@ -4964,7 +5290,7 @@ function setAutoRandomEnabled(enabled) {
   } else {
     autoRandomState.nextTrigger = Infinity;
   }
-  updateAutoRandomButton(audioUI.autoRandomBtn ? audioUI.autoRandomBtn.disabled : false);
+  updateAutoRandomButton();
 }
 
 function isUserInteractingWithControls() {
@@ -5050,6 +5376,11 @@ function applyAudioDrivenTweaks(delta, playing) {
 }
 
 function updateAutoRandom(delta) {
+  if (experienceState.editingMode) {
+    autoRandomState.elapsed = 0;
+    autoRandomState.nextTrigger = Infinity;
+    return;
+  }
   autoRandomState.elapsed += delta;
   if (!autoRandomState.enabled) {
     return;
@@ -5090,7 +5421,7 @@ if (audioUI.overlayButton) {
     if (audioUI.overlayButton.disabled) return;
     audioUI.overlayButton.disabled = true;
     audioUI.overlayButton.setAttribute('aria-busy', 'true');
-    const started = await startFirstPlaylistPlayback();
+    const started = await requestPlaybackStart({ preferCurrent: false });
     if (!started && shouldShowAudioOverlay()) {
       audioUI.overlayButton.disabled = false;
     }
@@ -5101,6 +5432,26 @@ if (audioUI.overlayButton) {
 
 setAutoRandomEnabled(false);
 updateAudioOverlayVisibility();
+
+document.addEventListener('keydown', event => {
+  if ((event.code !== 'Space' && event.key !== ' ') || event.defaultPrevented) {
+    return;
+  }
+  if (event.repeat) {
+    return;
+  }
+  const target = event.target;
+  if (target && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/i.test(target.tagName))) {
+    return;
+  }
+  event.preventDefault();
+  if (audioState.playing || audioState.usingMic) {
+    stopAudioFromUser();
+    setEditingMode(true, { skipStop: true });
+  } else {
+    requestPlaybackStart({ preferCurrent: true });
+  }
+});
 
 if (audioUI.brightnessAdaptationBtn) {
   audioUI.brightnessAdaptationBtn.addEventListener('click', () => {
@@ -5131,7 +5482,7 @@ if (audioUI.fileInput) {
 
 if (audioUI.playBtn) {
   audioUI.playBtn.addEventListener('click', () => {
-    playCurrentTrack();
+    requestPlaybackStart({ preferCurrent: true });
   });
 }
 
@@ -5186,6 +5537,9 @@ const experienceState = {
   previousPanelVisible: null,
   previousBarVisible: null,
   pendingOverlayStart: false,
+  editingMode: false,
+  editingPreviousPanel: null,
+  editingPreviousBar: null
 };
 
 function isMobileSheetActive() {
@@ -5337,11 +5691,70 @@ function setPanelVisible(show) {
   updateSheetHandleAria();
 }
 
+function updateEditModeButton() {
+  if (!editModeBtn) return;
+  const active = experienceState.editingMode;
+  editModeBtn.setAttribute('aria-pressed', active ? 'true' : 'false');
+  editModeBtn.textContent = active ? '🛠️ Bearbeitungsmodus an' : '🛠️ Bearbeitungsmodus aus';
+  const label = active
+    ? 'Bearbeitungsmodus aktiv – Panels bleiben sichtbar.'
+    : 'Bearbeitungsmodus deaktiviert.';
+  editModeBtn.setAttribute('aria-label', label);
+}
+
+function setEditingMode(enabled, { skipStop = false, skipPanelRestore = false } = {}) {
+  const next = Boolean(enabled);
+  if (experienceState.editingMode === next) {
+    updateEditModeButton();
+    return;
+  }
+  experienceState.editingMode = next;
+  updateEditModeButton();
+  if (next) {
+    experienceState.editingPreviousPanel = panelVisible;
+    experienceState.editingPreviousBar = barState.visible;
+    setPanelVisible(true);
+    showBar({ autoHideDelay: 4200 });
+    setAutoRandomEnabled(false);
+    if (!skipStop) {
+      stopAudioFromUser();
+    } else {
+      refreshAudioUI();
+    }
+    resetAudioReactivity();
+    applyAudioVisualState();
+    restoreInterfaceAfterPlayback();
+    updateAudioOverlayVisibility();
+  } else {
+    const prevPanel = experienceState.editingPreviousPanel;
+    const prevBar = experienceState.editingPreviousBar;
+    experienceState.editingPreviousPanel = null;
+    experienceState.editingPreviousBar = null;
+    if (!skipPanelRestore) {
+      if (prevPanel !== null) {
+        setPanelVisible(prevPanel);
+      }
+      if (typeof prevBar === 'boolean') {
+        if (prevBar) {
+          showBar({ autoHideDelay: 3200 });
+        } else {
+          hideBar({ immediate: true });
+        }
+      }
+    }
+    updateAudioOverlayVisibility();
+  }
+}
+
 function getDefaultPanelVisibility() {
   return window.innerWidth > 580;
 }
 
 function hideInterfaceForPlayback({ remember = true } = {}) {
+  if (experienceState.editingMode) {
+    experienceState.panelsHiddenForPlayback = false;
+    return;
+  }
   if (experienceState.panelsHiddenForPlayback) return;
   if (remember) {
     if (experienceState.previousPanelVisible === null) {
@@ -5358,6 +5771,14 @@ function hideInterfaceForPlayback({ remember = true } = {}) {
 
 function restoreInterfaceAfterPlayback() {
   if (!experienceState.panelsHiddenForPlayback) return;
+  if (experienceState.editingMode) {
+    setPanelVisible(true);
+    showBar({ autoHideDelay: 3200 });
+    experienceState.panelsHiddenForPlayback = false;
+    experienceState.previousPanelVisible = null;
+    experienceState.previousBarVisible = null;
+    return;
+  }
   const desiredPanel = experienceState.previousPanelVisible;
   const shouldShowPanel = (desiredPanel === null) ? getDefaultPanelVisibility() : desiredPanel;
   setPanelVisible(shouldShowPanel);
@@ -5373,6 +5794,9 @@ function restoreInterfaceAfterPlayback() {
 }
 
 function notifyPlaybackStarted() {
+  if (experienceState.editingMode) {
+    setEditingMode(false, { skipStop: true, skipPanelRestore: true });
+  }
   hideInterfaceForPlayback({ remember: true });
   experienceState.started = true;
   experienceState.pendingOverlayStart = false;
@@ -5384,6 +5808,9 @@ function notifyPlaybackStopped() {
 }
 
 function prepareExperienceForPlayback() {
+  if (experienceState.editingMode) {
+    setEditingMode(false, { skipStop: true, skipPanelRestore: true });
+  }
   if (!experienceState.started && experienceState.previousPanelVisible === null) {
     experienceState.previousPanelVisible = getDefaultPanelVisibility();
     experienceState.previousBarVisible = barState.visible;
@@ -6273,9 +6700,37 @@ $('pBlending').addEventListener('change', e => {
   updateTinyMaterial();
 });
 $('pDistribution').addEventListener('change', e => {
-  params.distribution = e.target.value;
+  const value = e.target.value;
+  if (value === 'stl') {
+    const applied = useStlAsDistribution({ rememberPrevious: true });
+    if (!applied) {
+      stlState.displayMode = 'overlay';
+      updateStlOptionAvailability();
+      const fallback = stlState.previousDistribution && stlState.previousDistribution !== 'stl'
+        ? stlState.previousDistribution
+        : 'random';
+      params.distribution = fallback;
+      e.target.value = fallback;
+      setSliders();
+      updateStlMeta(stlState.files);
+      updateStlVisibility();
+      return;
+    }
+    rebuildStars();
+    setSliders();
+    updateStlVisibility();
+    updateStlMeta(stlState.files);
+    return;
+  }
+  if (params.distribution === 'stl') {
+    revertFromStlDistribution({ fallback: value });
+    stlState.displayMode = 'overlay';
+  }
+  params.distribution = value;
   rebuildStars();
   setSliders();
+  updateStlVisibility();
+  updateStlMeta(stlState.files);
 });
 $('pColorMode').addEventListener('change', e => {
   params.colorMode = e.target.value;
@@ -6320,6 +6775,11 @@ accordionTriggers.forEach(trigger => {
 toggleBtn.addEventListener('click', () => {
   setPanelVisible(!panelVisible);
 });
+if (editModeBtn) {
+  editModeBtn.addEventListener('click', () => {
+    setEditingMode(!experienceState.editingMode);
+  });
+}
 
 if (sheetHandleBtn) {
   sheetHandleBtn.addEventListener('pointerdown', event => {
@@ -6363,8 +6823,8 @@ function randomizeParameters({ syncUI = true } = {}) {
   params.pointSaturation = Math.random();
   params.pointValue = 0.3 + Math.random() * 0.7;
   params.seedStars = 1 + Math.floor(Math.random() * 9999);
-  const distributions = ['random', 'fibonacci', 'spiral', 'cube', 'cylinder', 'octahedron'];
-  params.distribution = distributions[Math.floor(Math.random() * distributions.length)];
+  const distributions = getAvailableDistributions();
+  params.distribution = distributions[Math.floor(Math.random() * distributions.length)] || 'random';
   params.colorMode = COLOR_MODES[Math.floor(Math.random() * COLOR_MODES.length)];
   params.colorIntensity = Math.random();
   params.colorSpeed = Math.random() * 4.5;
@@ -6584,6 +7044,7 @@ setAutoRotation(false);
 recalculateSheetMetrics();
 const initialPanelVisible = false;
 setPanelVisible(initialPanelVisible);
+setEditingMode(true, { skipStop: true });
 setCameraLocked(false);
 updatePointColor(false);
 setSliders();
