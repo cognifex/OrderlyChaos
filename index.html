@@ -3119,7 +3119,7 @@ async function initializePresetPlaylist() {
   const files = descriptors.map(descriptor => new PresetAudioFile(descriptor));
   setPlaylist(files);
   const label = files.length === 1 ? (files[0].name || 'Audio-Datei') : `${files.length} Titel`;
-  setAudioStatus(`Preset-Playlist geladen – ${label}`, 'waiting');
+  setAudioStatus(`Preset-Playlist geladen – ${label}`, 'idle');
   refreshAudioUI();
 }
 
@@ -5120,7 +5120,7 @@ if (audioUI.fileInput) {
       const label = files.length === 1
         ? (files[0].name || 'Audio-Datei')
         : `${files.length} Titel`;
-      setAudioStatus(`Playlist geladen – ${label}`, 'waiting');
+      setAudioStatus(`Playlist geladen – ${label}`, 'idle');
     } else if (!audioState.playing) {
       setAudioStatus('Audio-Reaktivität inaktiv', 'idle');
     }
