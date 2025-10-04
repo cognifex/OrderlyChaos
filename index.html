@@ -5018,6 +5018,10 @@ const sheetHandleBtn = $('sheetHandle');
 const bar = $('bar');
 const barHotspot = $('barHotspot');
 const barButtons = bar ? Array.from(bar.querySelectorAll('button')) : [];
+const startInEditingMode = (() => {
+  const params = new URLSearchParams(window.location.search);
+  return params.get('edit') === '1' || window.location.hash.includes('edit');
+})();
 const mobileSheetQuery = window.matchMedia('(max-width: 768px)');
 const sheetState = {
   mode: 'compact',
@@ -5168,7 +5172,7 @@ function initializeBarReveal({ initialReveal = true } = {}) {
   });
 }
 
-initializeBarReveal({ initialReveal: false });
+initializeBarReveal({ initialReveal: !startInEditingMode });
 audioUI.intensityControls = new Map();
 audioUI.supportNotice = $('audioSupportNotice');
 audioUI.autoRandomBtn = $('audioRandomMode');
@@ -7044,8 +7048,6 @@ setAutoRotation(false);
 recalculateSheetMetrics();
 const initialPanelVisible = false;
 setPanelVisible(initialPanelVisible);
-const urlParams = new URLSearchParams(window.location.search);
-const startInEditingMode = urlParams.get('edit') === '1' || window.location.hash.includes('edit');
 if (startInEditingMode) {
   setEditingMode(true, { skipStop: true });
 } else {
