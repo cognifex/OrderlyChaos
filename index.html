@@ -606,7 +606,7 @@
 <div id="barHotspot" aria-hidden="true"></div>
 <div id="bar" role="toolbar" aria-hidden="true">
   <button id="toggle" aria-expanded="true">↕ Panels ausblenden</button>
-  <button id="editMode" aria-pressed="true">🛠️ Bearbeitungsmodus an</button>
+  <button id="editMode" aria-pressed="false">🛠️ Bearbeitungsmodus aus</button>
   <button id="lock" aria-pressed="false">🔓 Kamera frei</button>
   <button id="random">🎲 Random</button>
 </div>
@@ -7044,7 +7044,13 @@ setAutoRotation(false);
 recalculateSheetMetrics();
 const initialPanelVisible = false;
 setPanelVisible(initialPanelVisible);
-setEditingMode(true, { skipStop: true });
+const urlParams = new URLSearchParams(window.location.search);
+const startInEditingMode = urlParams.get('edit') === '1' || window.location.hash.includes('edit');
+if (startInEditingMode) {
+  setEditingMode(true, { skipStop: true });
+} else {
+  updateEditModeButton();
+}
 setCameraLocked(false);
 updatePointColor(false);
 setSliders();
