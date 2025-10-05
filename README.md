@@ -39,3 +39,15 @@ npm run dev
 ```
 
 Ein Produktionsbuild über Vite ist nicht mehr erforderlich, kann aber bei Bedarf weiterhin mit `npm run build` erzeugt werden.
+
+### Vendor-Dateien aktualisieren
+
+Die Anwendung lädt Three.js als ES-Module direkt aus `src/vendor`. Wenn eine neue Version von `three` benötigt wird, führe nach
+einem `npm ci` den folgenden Kopiervorgang aus, um die Dateien zu aktualisieren:
+
+```bash
+cp node_modules/three/build/three.{core,module}.js src/vendor/
+```
+
+Das stellt sicher, dass sowohl `three.module.js` als auch die zugehörige `three.core.js` für den statischen Import über relative
+Pfade verfügbar sind.
