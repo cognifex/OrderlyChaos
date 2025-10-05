@@ -279,6 +279,17 @@ export function bootstrapApp() {
     },
   ]);
 
+  const PATTERN_DESCRIPTIONS = new Map([
+    ['Aurora Drift', 'Schillernde Polarlichter mit sanften Bewegungen.'],
+    ['Celestial Bloom', 'Warme Blütenfarben mit organischen Spiralen.'],
+    ['Obsidian Pulse', 'Dunkle Energie mit leuchtenden Impulsen.'],
+    ['Deep Sea Shimmer', 'Tiefblaue Strömungen mit ruhigen Wellen.']
+  ]);
+
+  const DEFAULT_PATTERN_DESCRIPTION = 'Nutze Presets oder die Regler, um dein persönliches Sternenfeld zu gestalten.';
+
+  let currentPatternName = 'Freestyle';
+
   function randomHueFromRanges(ranges, fallbackRange = [0, 360]) {
     if (Array.isArray(ranges) && ranges.length) {
       const choice = randomChoice(ranges);
@@ -315,7 +326,7 @@ export function bootstrapApp() {
       assigned += 1;
       index += 1;
     }
-    const [small, medium, large] = provisional;
+    const [small, medium] = provisional;
     return [small, medium, Math.max(0, safeTotal - small - medium)];
   }
 
@@ -360,7 +371,7 @@ export function bootstrapApp() {
     params.motionAmplitude = Math.max(0, randomInRange(preset.motionAmplitude, params.motionAmplitude));
     params.motionNoiseStrength = Math.max(0, randomInRange(preset.motionNoiseStrength, params.motionNoiseStrength));
     params.motionNoiseScale = Math.max(0.1, randomInRange(preset.motionNoiseScale, params.motionNoiseScale));
-    const [catSmall, catMedium, catLarge] = distributeCategoryCounts(totalCount, preset.catDistribution);
+    const [catSmall, catMedium] = distributeCategoryCounts(totalCount, preset.catDistribution);
     params.catSmallCount = catSmall;
     params.catMediumCount = catMedium;
     params.catLargeCount = Math.max(0, totalCount - catSmall - catMedium);
@@ -495,6 +506,7 @@ export function bootstrapApp() {
       }
     }
     updateStlOptionAvailability();
+    renderDistributionChips();
     updateStarUniforms();
     if (hadPoints && !keepCamera) {
       focusOnFeldappenCenter({ repositionCamera: true });
@@ -511,6 +523,144 @@ export function bootstrapApp() {
       base.push('stl');
     }
     return base;
+  }
+
+  function getDistributionLabel(value) {
+    switch (value) {
+      case 'random':
+        return 'Freestyle';
+      case 'fibonacci':
+        return 'Fibonacci-Sphäre';
+      case 'spiral':
+        return 'Spirale';
+      case 'cube':
+        return 'Würfelwolke';
+      case 'cylinder':
+        return 'Zylindersäule';
+      case 'octahedron':
+        return 'Oktaeder';
+      case 'stl':
+        return 'STL-Form';
+      default:
+        return value || 'Muster';
+    }
+  }
+
+  function updatePresetButtonStates(activeName = '') {
+    if (!patternUI.presetList) return;
+    const normalized = (activeName || '').toLowerCase();
+    patternUI.presetList.querySelectorAll('button[data-preset]').forEach(button => {
+      const pressed = button.dataset.preset && button.dataset.preset.toLowerCase() === normalized;
+      button.setAttribute('aria-pressed', pressed ? 'true' : 'false');
+      button.dataset.active = pressed ? 'true' : 'false';
+    });
+  }
+
+  function setCurrentPattern(name = 'Freestyle', description = '') {
+    currentPatternName = name || 'Freestyle';
+    if (patternUI.activeName) {
+      patternUI.activeName.textContent = `Aktives Muster: ${currentPatternName}`;
+    }
+    const detail = description
+      || PATTERN_DESCRIPTIONS.get(currentPatternName)
+      || DEFAULT_PATTERN_DESCRIPTION;
+    if (patternUI.activeDescription) {
+      patternUI.activeDescription.textContent = detail;
+    }
+    updatePresetButtonStates(currentPatternName);
+  }
+
+  function renderPatternPresets() {
+    if (!patternUI.presetList) return;
+    patternUI.presetList.innerHTML = '';
+    EXPERIENCE_BIOMES.forEach(preset => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'pattern-quick__button';
+      button.dataset.preset = preset.name;
+      button.setAttribute('aria-pressed', 'false');
+      const description = PATTERN_DESCRIPTIONS.get(preset.name) || 'Atmosphärisches Chaos-Muster.';
+      button.innerHTML = `<strong>${preset.name}</strong><span>${description}</span>`;
+      button.addEventListener('click', () => {
+        const appliedName = applyBiomePreset(preset, { syncUI: true, repositionCamera: true });
+        if (appliedName) {
+          setCurrentPattern(appliedName);
+        }
+      });
+      patternUI.presetList.appendChild(button);
+    });
+    updatePresetButtonStates(currentPatternName);
+  }
+
+  function updateDistributionChips() {
+    if (!patternUI.distributionChips) return;
+    const available = new Set(getAvailableDistributions());
+    patternUI.distributionChips.querySelectorAll('button[data-distribution]').forEach(button => {
+      const type = button.dataset.distribution;
+      const supported = available.has(type);
+      button.toggleAttribute('hidden', !supported);
+      button.disabled = !supported;
+      const isActive = supported && type === params.distribution;
+      button.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+      if (isActive) {
+        button.dataset.active = 'true';
+      } else if (button.dataset.active) {
+        delete button.dataset.active;
+      }
+    });
+  }
+
+  function setDistributionFromChip(type) {
+    if (!type) return;
+    if (type === 'stl') {
+      const applied = useStlAsDistribution({ rememberPrevious: true });
+      if (!applied) {
+        updateDistributionChips();
+        return;
+      }
+      setCurrentPattern('STL-Form', 'Nutze deine importierte STL-Geometrie als Verteilung.');
+    } else {
+      if (params.distribution === 'stl') {
+        revertFromStlDistribution({ fallback: type });
+      }
+      params.distribution = type;
+    }
+    rebuildStars();
+    updateStarUniforms();
+    updateTinyMaterial();
+    setSliders();
+    if (type !== 'stl') {
+      setCurrentPattern('Freestyle');
+    }
+  }
+
+  function renderDistributionChips() {
+    if (!patternUI.distributionChips) return;
+    const container = patternUI.distributionChips;
+    const existingButtons = new Map();
+    container.querySelectorAll('button[data-distribution]').forEach(button => {
+      existingButtons.set(button.dataset.distribution, button);
+    });
+    const available = getAvailableDistributions();
+    existingButtons.forEach((button, key) => {
+      if (!available.includes(key)) {
+        button.remove();
+        existingButtons.delete(key);
+      }
+    });
+    available.forEach(type => {
+      if (existingButtons.has(type)) {
+        return;
+      }
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.dataset.distribution = type;
+      button.textContent = getDistributionLabel(type);
+      button.addEventListener('click', () => setDistributionFromChip(type));
+      container.appendChild(button);
+      existingButtons.set(type, button);
+    });
+    updateDistributionChips();
   }
 
   function updateStlVisibility() {
@@ -734,6 +884,7 @@ export function bootstrapApp() {
     stlState.samples = basePositions.slice(0);
     stlState.sampleCount = targetCount;
     updateStlOptionAvailability();
+    renderDistributionChips();
     updateStlVisibility();
     if (stlState.displayMode === 'distribution') {
       const applied = useStlAsDistribution({ rememberPrevious: true });
@@ -1088,8 +1239,16 @@ export function bootstrapApp() {
     toggle: null,
     fileInput: null,
     fileMeta: null,
+    playlistMeta: null,
+    playlistList: null,
+    playlistEmpty: null,
+    currentTitle: null,
+    currentDetails: null,
     playBtn: null,
     stopBtn: null,
+    prevBtn: null,
+    nextBtn: null,
+    repeatBtn: null,
     micStartBtn: null,
     micStopBtn: null,
     statusText: null,
@@ -1101,6 +1260,15 @@ export function bootstrapApp() {
     overlay: null,
     overlayButton: null,
     brightnessAdaptationBtn: null
+  };
+
+  const patternUI = {
+    presetList: null,
+    activeName: null,
+    activeDescription: null,
+    distributionChips: null,
+    randomPresetBtn: null,
+    focusBtn: null
   };
 
   const autoRandomState = {
@@ -1779,6 +1947,7 @@ export function bootstrapApp() {
       }
       updateAutoRandomButton(!supportedAudio);
     }
+    renderPlaylist({ preserveScroll: true });
     updateAudioOverlayVisibility();
   }
 
@@ -1797,6 +1966,76 @@ export function bootstrapApp() {
       audioState.currentIndex = clamped;
     }
     return clamped;
+  }
+
+  function isPresetTrack(file) {
+    return file instanceof PresetAudioFile;
+  }
+
+  function getTrackIdentifier(file) {
+    if (!file) return '';
+    if (isPresetTrack(file)) {
+      return `preset:${file.src || file.name || ''}`;
+    }
+    const name = file.name || '';
+    const size = Number(file.size) || 0;
+    const modified = Number(file.lastModified) || 0;
+    return `upload:${name}:${size}:${modified}`;
+  }
+
+  function describePlaylistItem(file, index) {
+    const name = file ? (file.name || `Titel ${index + 1}`) : `Titel ${index + 1}`;
+    const metaParts = [];
+    if (isPresetTrack(file)) {
+      metaParts.push('Preset-Track');
+    } else {
+      metaParts.push('Eigene Datei');
+    }
+    const sizeLabel = formatFileSize(file ? file.size : 0);
+    if (sizeLabel) {
+      metaParts.push(sizeLabel);
+    }
+    return {
+      title: name,
+      meta: metaParts.join(' · ')
+    };
+  }
+
+  function renderPlaylist({ preserveScroll = true } = {}) {
+    if (!audioUI.playlistList) return;
+    const listEl = audioUI.playlistList;
+    const currentScroll = preserveScroll ? listEl.scrollTop : 0;
+    listEl.innerHTML = '';
+    const playlist = Array.isArray(audioState.playlist) ? audioState.playlist : [];
+    if (audioUI.playlistEmpty) {
+      audioUI.playlistEmpty.hidden = playlist.length > 0;
+    }
+    if (!playlist.length) {
+      return;
+    }
+    playlist.forEach((file, index) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'audio-playlist__item';
+      button.dataset.index = String(index);
+      const { title, meta } = describePlaylistItem(file, index);
+      const titleSpan = document.createElement('span');
+      titleSpan.className = 'audio-playlist__item-title';
+      titleSpan.textContent = title;
+      button.appendChild(titleSpan);
+      if (meta) {
+        const metaSpan = document.createElement('span');
+        metaSpan.className = 'audio-playlist__item-meta';
+        metaSpan.textContent = meta;
+        button.appendChild(metaSpan);
+      }
+      const active = index === audioState.currentIndex;
+      button.setAttribute('aria-selected', active ? 'true' : 'false');
+      listEl.appendChild(button);
+    });
+    if (preserveScroll) {
+      listEl.scrollTop = currentScroll;
+    }
   }
 
   function formatFileSize(bytes = 0) {
@@ -1850,14 +2089,32 @@ export function bootstrapApp() {
       audioState.selectedFile = null;
       audioState.fileName = '';
     }
+    const activeName = activeFile ? (activeFile.name || 'Audio') : 'Keine Auswahl';
     if (audioUI.fileMeta) {
       if (!activeFile) {
         audioUI.fileMeta.textContent = hasFiles ? 'Datei nicht verfügbar' : 'Keine Auswahl';
       } else {
-        const name = activeFile.name || 'Audio';
         const sizeLabel = formatFileSize(activeFile.size);
-        audioUI.fileMeta.textContent = sizeLabel ? `${name} · ${sizeLabel}` : name;
+        audioUI.fileMeta.textContent = sizeLabel ? `${activeName} · ${sizeLabel}` : activeName;
       }
+    }
+    if (audioUI.currentTitle) {
+      audioUI.currentTitle.textContent = activeName;
+    }
+    if (audioUI.currentDetails) {
+      let detailText = '';
+      if (activeFile) {
+        const position = currentIndex >= 0 ? `Titel ${currentIndex + 1} von ${total}` : '';
+        const origin = isPresetTrack(activeFile) ? 'Preset-Track' : 'Eigene Datei';
+        const size = formatFileSize(activeFile.size);
+        detailText = [position, origin, size].filter(Boolean).join(' · ');
+      } else if (hasFiles) {
+        const position = currentIndex >= 0 ? `Titel ${currentIndex + 1} von ${total}` : '';
+        detailText = position ? `${position} · Datei nicht verfügbar` : 'Datei nicht verfügbar';
+      } else {
+        detailText = 'Lade eigene Songs oder nutze die Preset-Playlist.';
+      }
+      audioUI.currentDetails.textContent = detailText;
     }
     if (audioUI.playlistMeta) {
       if (!hasFiles) {
@@ -1867,21 +2124,51 @@ export function bootstrapApp() {
         audioUI.playlistMeta.textContent = `Titel ${displayIndex} von ${total} · ${formatRepeatMode(audioState.repeatMode)}`;
       }
     }
+    renderPlaylist({ preserveScroll: true });
   }
 
-  function setPlaylist(files) {
-    const list = Array.from(files || []).filter(Boolean);
-    audioState.playlist = list;
-    if (list.length) {
-      audioState.currentIndex = 0;
-      audioState.selectedFile = list[0] || null;
-      audioState.fileName = audioState.selectedFile ? (audioState.selectedFile.name || 'Audio') : '';
-    } else {
+  function setPlaylist(files, { append = false, activateFirstNew = false } = {}) {
+    const entries = Array.from(files || []).filter(Boolean);
+    let playlist = Array.isArray(audioState.playlist) ? audioState.playlist.slice() : [];
+    if (!append) {
+      playlist = [];
+    }
+    const seen = new Set(playlist.map(getTrackIdentifier).filter(Boolean));
+    let firstNewIndex = -1;
+    entries.forEach(file => {
+      const identifier = getTrackIdentifier(file);
+      if (identifier && seen.has(identifier)) {
+        return;
+      }
+      playlist.push(file);
+      if (identifier) {
+        seen.add(identifier);
+      }
+      if (firstNewIndex === -1) {
+        firstNewIndex = playlist.length - 1;
+      }
+    });
+    audioState.playlist = playlist;
+    let selectionHandled = false;
+    if (!playlist.length) {
       audioState.currentIndex = -1;
       audioState.selectedFile = null;
       audioState.fileName = '';
+      selectionHandled = true;
+      updateAudioFileMeta(null);
+    } else if (!append || audioState.currentIndex < 0) {
+      selectionHandled = setCurrentTrack(0, { updateMeta: true });
+    } else if (activateFirstNew && firstNewIndex !== -1) {
+      selectionHandled = setCurrentTrack(firstNewIndex, { updateMeta: true });
+    } else {
+      clampTrackIndex(audioState.currentIndex);
+      updateAudioFileMeta(audioState.selectedFile);
+      selectionHandled = true;
     }
-    updateAudioFileMeta(audioState.selectedFile);
+    if (!selectionHandled) {
+      renderPlaylist({ preserveScroll: append });
+    }
+    return firstNewIndex;
   }
 
   class PresetAudioFile {
@@ -2070,7 +2357,7 @@ export function bootstrapApp() {
       return;
     }
     const files = descriptors.map(descriptor => new PresetAudioFile(descriptor));
-    setPlaylist(files);
+    setPlaylist(files, { append: false, activateFirstNew: true });
     const label = files.length === 1 ? (files[0].name || 'Audio-Datei') : `${files.length} Titel`;
     setAudioStatus(`Preset-Playlist geladen – ${label}`, 'idle');
     refreshAudioUI();
@@ -2095,17 +2382,10 @@ export function bootstrapApp() {
     audioState.fileName = audioState.selectedFile ? (audioState.selectedFile.name || 'Audio') : '';
     if (updateMeta) {
       updateAudioFileMeta(audioState.selectedFile);
+    } else {
+      renderPlaylist({ preserveScroll: true });
     }
     return Boolean(audioState.selectedFile);
-  }
-
-  function playCurrentTrack() {
-    if (!audioState.selectedFile) {
-      return false;
-    }
-    prepareExperienceForPlayback();
-    playSelectedFile();
-    return true;
   }
 
   async function requestPlaybackStart({ preferCurrent = true } = {}) {
@@ -3715,12 +3995,23 @@ export function bootstrapApp() {
     preventClick: false,
   };
 
+  patternUI.presetList = $('patternPresetList');
+  patternUI.activeName = $('patternActiveName');
+  patternUI.activeDescription = $('patternActiveDescription');
+  patternUI.distributionChips = $('patternDistributionChips');
+  patternUI.randomPresetBtn = $('patternRandomPreset');
+  patternUI.focusBtn = $('patternFocus');
+
   audioUI.panel = $('audioPanel');
   audioUI.body = $('audioPanelBody');
   audioUI.toggle = $('audioPanelToggle');
   audioUI.fileInput = $('audioFile');
   audioUI.fileMeta = $('audioFileMeta');
   audioUI.playlistMeta = $('audioPlaylistMeta');
+  audioUI.playlistList = $('audioPlaylist');
+  audioUI.playlistEmpty = $('audioPlaylistEmpty');
+  audioUI.currentTitle = $('audioCurrentTitle');
+  audioUI.currentDetails = $('audioCurrentDetails');
   audioUI.playBtn = $('audioPlay');
   audioUI.stopBtn = $('audioStop');
   audioUI.prevBtn = $('audioPrev');
@@ -3731,6 +4022,10 @@ export function bootstrapApp() {
   audioUI.statusText = $('audioStatus');
   audioUI.statusDot = $('audioStatusDot');
   audioUI.modifierButtons = Array.from(document.querySelectorAll('#audioModifierGrid [data-modifier]'));
+
+  renderPatternPresets();
+  renderDistributionChips();
+  setCurrentPattern(currentPatternName);
 
   const barState = {
     visible: bar ? bar.classList.contains('is-visible') : false,
@@ -4147,20 +4442,50 @@ export function bootstrapApp() {
   if (audioUI.fileInput) {
     audioUI.fileInput.addEventListener('change', event => {
       const files = event.target.files ? Array.from(event.target.files).filter(Boolean) : [];
-      if (audioState.playing || audioState.usingMic) {
+      if (!files.length) {
+        if (!audioState.playing && !audioState.usingMic) {
+          setAudioStatus('Audio-Reaktivität inaktiv', 'idle');
+        }
+        event.target.value = '';
+        return;
+      }
+      if (audioState.usingMic) {
         stopAudioPlayback();
       }
-      setPlaylist(files);
-      if (files.length) {
-        const label = files.length === 1
-          ? (files[0].name || 'Audio-Datei')
-          : `${files.length} Titel`;
-        setAudioStatus(`Playlist geladen – ${label}`, 'idle');
-      } else if (!audioState.playing) {
-        setAudioStatus('Audio-Reaktivität inaktiv', 'idle');
+      const hadPlaylist = getPlaylistLength() > 0;
+      const firstNewIndex = setPlaylist(files, { append: true, activateFirstNew: !hadPlaylist });
+      const label = files.length === 1
+        ? (files[0].name || 'Audio-Datei')
+        : `${files.length} Titel`;
+      if (firstNewIndex !== -1) {
+        const statusLabel = hadPlaylist ? 'Playlist erweitert' : 'Playlist geladen';
+        setAudioStatus(`${statusLabel} – ${label}`, 'idle');
+      } else {
+        setAudioStatus('Diese Dateien befinden sich bereits in der Playlist.', 'warning');
       }
       refreshAudioUI();
       event.target.value = '';
+    });
+  }
+
+  if (audioUI.playlistList) {
+    audioUI.playlistList.addEventListener('click', event => {
+      const button = event.target.closest('button.audio-playlist__item');
+      if (!button || button.disabled) return;
+      const index = Number(button.dataset.index);
+      if (!Number.isFinite(index)) return;
+      const changed = setCurrentTrack(index, { updateMeta: true });
+      if (!changed) {
+        refreshAudioUI();
+        return;
+      }
+      if (audioState.playing && !audioState.usingMic) {
+        playSelectedFile();
+      } else {
+        const name = audioState.fileName || 'Audio';
+        setAudioStatus(`Titel ausgewählt – ${name}`, 'idle');
+      }
+      refreshAudioUI();
     });
   }
 
@@ -4191,6 +4516,21 @@ export function bootstrapApp() {
   if (audioUI.repeatBtn) {
     audioUI.repeatBtn.addEventListener('click', () => {
       cycleRepeatMode();
+    });
+  }
+
+  if (patternUI.focusBtn) {
+    patternUI.focusBtn.addEventListener('click', () => {
+      focusOnFeldappenCenter({ repositionCamera: true });
+    });
+  }
+
+  if (patternUI.randomPresetBtn) {
+    patternUI.randomPresetBtn.addEventListener('click', () => {
+      const appliedName = generateRandomBiome({ syncUI: true, repositionCamera: true });
+      if (appliedName) {
+        setCurrentPattern(appliedName);
+      }
     });
   }
 
@@ -4489,7 +4829,10 @@ export function bootstrapApp() {
       experienceState.previousPanelVisible = getDefaultPanelVisibility();
       experienceState.previousBarVisible = barState.visible;
     }
-    generateRandomBiome({ syncUI: true, repositionCamera: true });
+    const presetName = generateRandomBiome({ syncUI: true, repositionCamera: true });
+    if (presetName) {
+      setCurrentPattern(presetName);
+    }
     setAutoRotation(false);
     experienceState.pendingOverlayStart = true;
     hideInterfaceForPlayback({ remember: true });
@@ -5541,6 +5884,7 @@ export function bootstrapApp() {
     enforceBounds();
     updatePointColor();
     rebuildStars();
+    setCurrentPattern('Freestyle');
     if (syncUI) {
       setSliders();
     }
@@ -5555,6 +5899,7 @@ export function bootstrapApp() {
     // star params
     params.count = clampTotalCount(params.count);
     params.colorToneCount = Math.max(1, Math.round(Number(params.colorToneCount) || 1));
+    updateDistributionChips();
     if ($('pCount')) {
       $('pCount').value = params.count;
     }
