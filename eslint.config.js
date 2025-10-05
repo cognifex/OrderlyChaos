@@ -3,7 +3,7 @@ import globals from 'globals';
 
 export default [
   {
-    ignores: ['dist/**', 'OrbitControls.js', 'STLLoader.js', 'three.min.js', 'scripts/**']
+    ignores: ['dist/**', 'OrbitControls.js', 'STLLoader.js', 'three.min.js', 'scripts/**', 'src/vendor/**']
   },
   js.configs.recommended,
   {

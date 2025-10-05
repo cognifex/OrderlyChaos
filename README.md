@@ -15,20 +15,27 @@ node scripts/generate-preset-playlist.mjs
 Das Skript erstellt bzw. aktualisiert `Musik/playlist.json` und ermittelt Dateigröße sowie MIME-Typ. Anschließend stehen die Titel bei der nächsten Aktualisierung der Seite direkt in der App bereit.
 
 
-## Entwicklung
+## Lokaler Test ohne Build
 
-Installiere Abhängigkeiten (mit dem im Repository gepflegten Lockfile) und starte die Vite-Entwicklungsumgebung:
+Die Anwendung ist vollständig modularisiert und kann ohne Vite-Bundling direkt über `index.html` geladen werden. Starte einen
+beliebigen statischen HTTP-Server im Projektverzeichnis (z. B. mit `npx serve .` oder `python -m http.server`) und öffne
+anschließend `http://localhost:<port>/index.html` im Browser. Alle Module werden über relative Pfade geladen, sodass die Seite
+auch auf GitHub Pages ohne Anpassungen lauffähig ist.
+
+## Entwicklung & Linting
+
+Für lokale Qualitätschecks oder wenn neue Vendor-Dateien aus `node_modules` übernommen werden sollen, können weiterhin die npm
+Skripte genutzt werden:
 
 ```bash
 npm ci
+npm run lint
+```
+
+Optional steht die Vite-Entwicklungsumgebung für schnellere Iterationen bereit:
+
+```bash
 npm run dev
 ```
 
-Für einen Produktionsbuild:
-
-```bash
-npm run build
-```
-
-> Hinweis: Die Toolchain ist auf Node.js >= 16.20 ausgelegt und wurde zuletzt mit Node.js 20 getestet. Ältere Node-16-Umgebungen
-> funktionieren weiterhin, ohne dass ein Upgrade auf Node 20 erforderlich ist.
+Ein Produktionsbuild über Vite ist nicht mehr erforderlich, kann aber bei Bedarf weiterhin mit `npm run build` erzeugt werden.
