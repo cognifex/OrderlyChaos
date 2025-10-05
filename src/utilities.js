@@ -1,4 +1,4 @@
-import * as THREE from 'three';
+import * as THREE from './vendor/three.module.js';
 
 export function hsv2rgb(h, s, v) {
   const c = v * s;
