@@ -21,6 +21,31 @@
       <span class="sheet-handle-label">Panel vergrößern</span>
     </button>
   </div>
+  <section class="panel-card panel-card--studio" id="patternStudio" aria-labelledby="patternStudioTitle">
+    <header class="panel-card__header">
+      <div>
+        <h3 id="patternStudioTitle">Pattern-Studio</h3>
+        <p class="panel-card__subtitle">Starte mit kuratierten Presets oder forme deine eigene Ordnung aus dem Chaos.</p>
+      </div>
+      <button type="button" class="panel-card__action" id="patternFocus" aria-label="Kamera auf Mittelpunkt ausrichten">📌 Fokus</button>
+    </header>
+    <div class="pattern-quick" id="patternPresetList" role="list" aria-label="Empfohlene Muster"></div>
+    <div class="pattern-active">
+      <span class="pattern-active__label" id="patternActiveName">Aktives Muster: Freestyle</span>
+      <p class="pattern-active__description" id="patternActiveDescription">Nutze Presets oder die Regler unten, um dein persönliches Sternenfeld zu gestalten.</p>
+    </div>
+    <div class="pattern-formations">
+      <div class="pattern-formations__head">
+        <h4 id="patternFormationTitle">Formationen</h4>
+        <p class="pattern-formations__hint">Wechsle schnell zwischen geometrischen Anordnungen. STL-Importe erscheinen hier automatisch.</p>
+      </div>
+      <div class="chip-group" id="patternDistributionChips" role="group" aria-labelledby="patternFormationTitle"></div>
+    </div>
+    <div class="pattern-actions">
+      <button type="button" id="patternRandomPreset">✨ Zufallspreset</button>
+      <button type="button" id="random">🎲 Freies Chaos</button>
+    </div>
+  </section>
   <h3>Parameter</h3>
   <section class="accordion" id="acc-points">
     <button type="button" class="accordion__trigger" id="acc-points-trigger" aria-expanded="true" aria-controls="acc-points-panel">
@@ -482,108 +507,127 @@
     <button type="button" id="audioPanelToggle" aria-expanded="true" aria-controls="audioPanelBody" aria-label="Audio-Bedienfeld ein- oder ausblenden" title="Audio-Bedienfeld ein- oder ausblenden">▾</button>
   </div>
   <div class="panel-body" id="audioPanelBody">
-    <div class="row file-row">
-      <label for="audioFile">Audio-Dateien</label>
-      <input id="audioFile" type="file" accept="audio/*" multiple />
-      <div class="file-meta" id="audioFileMeta">Keine Auswahl</div>
-      <div class="playlist-meta" id="audioPlaylistMeta">Keine Playlist geladen</div>
-    </div>
-    <div class="row">
-      <div class="audio-controls audio-controls--primary">
-        <button type="button" id="audioPrev" disabled>⏮️ Zurück</button>
-        <button type="button" id="audioPlay" disabled>▶️ Abspielen</button>
-        <button type="button" id="audioStop" disabled>⏹️ Stop</button>
-        <button type="button" id="audioNext" disabled>⏭️ Weiter</button>
-      </div>
-    </div>
-    <div class="row">
-      <div class="audio-controls audio-controls--secondary">
-        <button type="button" id="audioRepeat" aria-pressed="false" disabled>🔁 Repeat aus</button>
-      </div>
-    </div>
-    <div class="row">
-      <label for="audioMicStart">Mikrofon</label>
-      <div class="audio-controls">
-        <button type="button" id="audioMicStart">🎙️ Start</button>
-        <button type="button" id="audioMicStop" disabled>⏹️ Stop</button>
-      </div>
-    </div>
-    <div class="row">
-      <label>Audio-Reaktionsziele</label>
-      <div class="modifier-grid" id="audioModifierGrid">
-        <button type="button" class="modifier-toggle" data-modifier="motion" aria-pressed="true">Rotation</button>
-        <button type="button" class="modifier-toggle" data-modifier="scale" aria-pressed="true">Skalierung</button>
-        <button type="button" class="modifier-toggle" data-modifier="size" aria-pressed="true">Punktgröße</button>
-        <button type="button" class="modifier-toggle" data-modifier="hue" aria-pressed="true">Farbton</button>
-        <button type="button" class="modifier-toggle" data-modifier="saturation" aria-pressed="true">Sättigung</button>
-        <button type="button" class="modifier-toggle" data-modifier="brightness" aria-pressed="true">Helligkeit</button>
-        <button type="button" class="modifier-toggle" data-modifier="alpha" aria-pressed="true">Transparenz</button>
-      </div>
-    </div>
-    <div class="row">
-      <label>Reaktionsstärke</label>
-      <div class="intensity-grid">
-        <div class="wrap" data-intensity-row="motion">
-          <span class="tag">Rotation</span>
-          <input class="intensity-limit" type="number" min="5" max="200" step="5" value="20" data-intensity-limit="motion" aria-label="Maximale Reaktionsstärke für Rotation in Prozent" />
-          <input type="range" min="0" max="100" step="5" value="50" data-intensity-target="motion" />
-          <div class="val" data-intensity-value="motion">50%</div>
+    <section class="audio-section audio-section--player" aria-labelledby="audioPlaylistTitle">
+      <header class="audio-player-head">
+        <div class="audio-player-head__meta">
+          <span class="audio-player-head__label">Jetzt läuft</span>
+          <h4 class="audio-player-head__title" id="audioCurrentTitle">Keine Auswahl</h4>
+          <p class="audio-player-head__description" id="audioCurrentDetails">Lade eigene Songs oder nutze die Preset-Playlist.</p>
         </div>
-        <div class="wrap" data-intensity-row="scale">
-          <span class="tag">Skalierung</span>
-          <input class="intensity-limit" type="number" min="5" max="200" step="5" value="100" data-intensity-limit="scale" aria-label="Maximale Reaktionsstärke für Skalierung in Prozent" />
-          <input type="range" min="0" max="100" step="5" value="100" data-intensity-target="scale" />
-          <div class="val" data-intensity-value="scale">100%</div>
+        <div class="audio-player-head__status" role="status" aria-live="polite">
+          <span class="status-indicator" id="audioStatusDot" data-state="idle" aria-hidden="true"></span>
+          <span class="status-text" id="audioStatus" data-state="idle">Audio-Reaktivität inaktiv</span>
         </div>
-        <div class="wrap" data-intensity-row="size">
-          <span class="tag">Punktgröße</span>
-          <input class="intensity-limit" type="number" min="5" max="200" step="5" value="100" data-intensity-limit="size" aria-label="Maximale Reaktionsstärke für Punktgröße in Prozent" />
-          <input type="range" min="0" max="100" step="5" value="100" data-intensity-target="size" />
-          <div class="val" data-intensity-value="size">100%</div>
+      </header>
+      <div class="audio-player-controls">
+        <div class="audio-controls audio-controls--primary">
+          <button type="button" id="audioPrev" disabled aria-label="Vorheriger Titel">⏮️ Zurück</button>
+          <button type="button" id="audioPlay" disabled aria-label="Titel abspielen">▶️ Play</button>
+          <button type="button" id="audioStop" disabled aria-label="Wiedergabe stoppen">⏹️ Stop</button>
+          <button type="button" id="audioNext" disabled aria-label="Nächster Titel">⏭️ Weiter</button>
         </div>
-        <div class="wrap" data-intensity-row="hue">
-          <span class="tag">Farbton</span>
-          <input class="intensity-limit" type="number" min="5" max="200" step="5" value="100" data-intensity-limit="hue" aria-label="Maximale Reaktionsstärke für Farbton in Prozent" />
-          <input type="range" min="0" max="100" step="5" value="100" data-intensity-target="hue" />
-          <div class="val" data-intensity-value="hue">100%</div>
-        </div>
-        <div class="wrap" data-intensity-row="saturation">
-          <span class="tag">Sättigung</span>
-          <input class="intensity-limit" type="number" min="5" max="200" step="5" value="100" data-intensity-limit="saturation" aria-label="Maximale Reaktionsstärke für Sättigung in Prozent" />
-          <input type="range" min="0" max="100" step="5" value="100" data-intensity-target="saturation" />
-          <div class="val" data-intensity-value="saturation">100%</div>
-        </div>
-        <div class="wrap" data-intensity-row="brightness">
-          <span class="tag">Helligkeit</span>
-          <input class="intensity-limit" type="number" min="5" max="200" step="5" value="100" data-intensity-limit="brightness" aria-label="Maximale Reaktionsstärke für Helligkeit in Prozent" />
-          <input type="range" min="0" max="100" step="5" value="100" data-intensity-target="brightness" />
-          <div class="val" data-intensity-value="brightness">100%</div>
-        </div>
-        <div class="wrap" data-intensity-row="alpha">
-          <span class="tag">Transparenz</span>
-          <input class="intensity-limit" type="number" min="5" max="200" step="5" value="100" data-intensity-limit="alpha" aria-label="Maximale Reaktionsstärke für Transparenz in Prozent" />
-          <input type="range" min="0" max="100" step="5" value="100" data-intensity-target="alpha" />
-          <div class="val" data-intensity-value="alpha">100%</div>
+        <div class="audio-controls audio-controls--secondary">
+          <button type="button" id="audioRepeat" aria-pressed="false" disabled>🔁 Repeat aus</button>
         </div>
       </div>
-    </div>
-    <div class="row">
-      <label for="brightnessAdaptationToggle">Helligkeitsadaption</label>
-      <div class="wrap">
-        <button type="button" id="brightnessAdaptationToggle" aria-pressed="true">🌗 Adaption an</button>
+      <div class="audio-player-upload">
+        <label for="audioFile">Playlist erweitern</label>
+        <input id="audioFile" type="file" accept="audio/*" multiple />
+        <div class="audio-player-upload__meta">
+          <div class="file-meta" id="audioFileMeta">Keine Auswahl</div>
+        </div>
       </div>
-    </div>
-    <div class="row">
-      <label for="audioRandomMode">Random-Modus</label>
-      <div class="audio-controls">
-        <button type="button" id="audioRandomMode" aria-pressed="false">🔀 Random-Modus aus</button>
+      <div class="audio-playlist" aria-live="polite">
+        <div class="audio-playlist__head">
+          <h4 id="audioPlaylistTitle">Playlist</h4>
+          <div class="playlist-meta" id="audioPlaylistMeta">Keine Playlist geladen</div>
+        </div>
+        <div class="audio-playlist__list" id="audioPlaylist" role="listbox" aria-label="Wiedergabeliste"></div>
+        <p class="audio-playlist__empty" id="audioPlaylistEmpty">Keine Titel vorhanden. Lade deine Lieblingstracks oder nutze die Presets.</p>
       </div>
-    </div>
-    <div class="row status-row" role="status" aria-live="polite">
-      <span class="status-indicator" id="audioStatusDot" data-state="idle" aria-hidden="true"></span>
-      <span class="status-text" id="audioStatus" data-state="idle">Audio-Reaktivität inaktiv</span>
-    </div>
-    <div class="panel-footnote" id="audioSupportNotice">Nutze eine Datei oder das Mikrofon, um die Punktfarben an Audio zu koppeln.</div>
+    </section>
+    <section class="audio-section audio-section--reactivity">
+      <div class="row">
+        <label for="audioMicStart">Mikrofon</label>
+        <div class="audio-controls">
+          <button type="button" id="audioMicStart">🎙️ Start</button>
+          <button type="button" id="audioMicStop" disabled>⏹️ Stop</button>
+        </div>
+      </div>
+      <div class="row">
+        <label>Audio-Reaktionsziele</label>
+        <div class="modifier-grid" id="audioModifierGrid">
+          <button type="button" class="modifier-toggle" data-modifier="motion" aria-pressed="true">Rotation</button>
+          <button type="button" class="modifier-toggle" data-modifier="scale" aria-pressed="true">Skalierung</button>
+          <button type="button" class="modifier-toggle" data-modifier="size" aria-pressed="true">Punktgröße</button>
+          <button type="button" class="modifier-toggle" data-modifier="hue" aria-pressed="true">Farbton</button>
+          <button type="button" class="modifier-toggle" data-modifier="saturation" aria-pressed="true">Sättigung</button>
+          <button type="button" class="modifier-toggle" data-modifier="brightness" aria-pressed="true">Helligkeit</button>
+          <button type="button" class="modifier-toggle" data-modifier="alpha" aria-pressed="true">Transparenz</button>
+        </div>
+      </div>
+      <div class="row">
+        <label>Reaktionsstärke</label>
+        <div class="intensity-grid">
+          <div class="wrap" data-intensity-row="motion">
+            <span class="tag">Rotation</span>
+            <input class="intensity-limit" type="number" min="5" max="200" step="5" value="20" data-intensity-limit="motion" aria-label="Maximale Reaktionsstärke für Rotation in Prozent" />
+            <input type="range" min="0" max="100" step="5" value="50" data-intensity-target="motion" />
+            <div class="val" data-intensity-value="motion">50%</div>
+          </div>
+          <div class="wrap" data-intensity-row="scale">
+            <span class="tag">Skalierung</span>
+            <input class="intensity-limit" type="number" min="5" max="200" step="5" value="100" data-intensity-limit="scale" aria-label="Maximale Reaktionsstärke für Skalierung in Prozent" />
+            <input type="range" min="0" max="100" step="5" value="100" data-intensity-target="scale" />
+            <div class="val" data-intensity-value="scale">100%</div>
+          </div>
+          <div class="wrap" data-intensity-row="size">
+            <span class="tag">Punktgröße</span>
+            <input class="intensity-limit" type="number" min="5" max="200" step="5" value="100" data-intensity-limit="size" aria-label="Maximale Reaktionsstärke für Punktgröße in Prozent" />
+            <input type="range" min="0" max="100" step="5" value="100" data-intensity-target="size" />
+            <div class="val" data-intensity-value="size">100%</div>
+          </div>
+          <div class="wrap" data-intensity-row="hue">
+            <span class="tag">Farbton</span>
+            <input class="intensity-limit" type="number" min="5" max="200" step="5" value="100" data-intensity-limit="hue" aria-label="Maximale Reaktionsstärke für Farbton in Prozent" />
+            <input type="range" min="0" max="100" step="5" value="100" data-intensity-target="hue" />
+            <div class="val" data-intensity-value="hue">100%</div>
+          </div>
+          <div class="wrap" data-intensity-row="saturation">
+            <span class="tag">Sättigung</span>
+            <input class="intensity-limit" type="number" min="5" max="200" step="5" value="100" data-intensity-limit="saturation" aria-label="Maximale Reaktionsstärke für Sättigung in Prozent" />
+            <input type="range" min="0" max="100" step="5" value="100" data-intensity-target="saturation" />
+            <div class="val" data-intensity-value="saturation">100%</div>
+          </div>
+          <div class="wrap" data-intensity-row="brightness">
+            <span class="tag">Helligkeit</span>
+            <input class="intensity-limit" type="number" min="5" max="200" step="5" value="100" data-intensity-limit="brightness" aria-label="Maximale Reaktionsstärke für Helligkeit in Prozent" />
+            <input type="range" min="0" max="100" step="5" value="100" data-intensity-target="brightness" />
+            <div class="val" data-intensity-value="brightness">100%</div>
+          </div>
+          <div class="wrap" data-intensity-row="alpha">
+            <span class="tag">Transparenz</span>
+            <input class="intensity-limit" type="number" min="5" max="200" step="5" value="100" data-intensity-limit="alpha" aria-label="Maximale Reaktionsstärke für Transparenz in Prozent" />
+            <input type="range" min="0" max="100" step="5" value="100" data-intensity-target="alpha" />
+            <div class="val" data-intensity-value="alpha">100%</div>
+          </div>
+        </div>
+      </div>
+      <div class="row">
+        <label for="brightnessAdaptationToggle">Helligkeitsadaption</label>
+        <div class="wrap">
+          <button type="button" id="brightnessAdaptationToggle" aria-pressed="true">🌗 Adaption an</button>
+        </div>
+      </div>
+      <div class="row">
+        <label for="audioRandomMode">Random-Modus</label>
+        <div class="audio-controls">
+          <button type="button" id="audioRandomMode" aria-pressed="false">🔀 Random-Modus aus</button>
+        </div>
+      </div>
+      <div class="panel-footnote" id="audioSupportNotice">Nutze eine Datei oder das Mikrofon, um die Punktfarben an Audio zu koppeln.</div>
+    </section>
+  </div>
   </div>
 </div>
 <div id="audioOverlay" data-visible="false" aria-hidden="true">
