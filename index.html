@@ -21,32 +21,99 @@
       <span class="sheet-handle-label">Panel vergrößern</span>
     </button>
   </div>
-  <section class="panel-card panel-card--studio" id="patternStudio" aria-labelledby="patternStudioTitle">
-    <header class="panel-card__header">
-      <div>
-        <h3 id="patternStudioTitle">Pattern-Studio</h3>
-        <p class="panel-card__subtitle">Starte mit kuratierten Presets oder forme deine eigene Ordnung aus dem Chaos.</p>
+  <nav class="control-panel-tabs" aria-label="Panel-Navigation">
+    <button type="button" class="control-panel-tab" data-panel-tab="media" aria-controls="audioPanel" aria-pressed="false">
+      🎧 Media Player
+    </button>
+    <button type="button" class="control-panel-tab is-active" data-panel-tab="presets" aria-controls="visualPresetsPanel" aria-pressed="true">
+      🎨 Visual Presets
+    </button>
+    <button type="button" class="control-panel-tab" data-panel-tab="config" aria-controls="configPanel" aria-pressed="false">
+      🛠️ Config
+    </button>
+  </nav>
+  <section class="control-panel control-panel--presets" id="visualPresetsPanel" data-panel="presets" aria-labelledby="visualPresetsHeading">
+    <header class="control-panel__header">
+      <div class="control-panel__title">
+        <h2 id="visualPresetsHeading">Visual Presets</h2>
+        <p class="control-panel__subtitle">Kuratiere Presets, speichere Favoriten und stelle Zufallssets zusammen.</p>
       </div>
-      <button type="button" class="panel-card__action" id="patternFocus" aria-label="Kamera auf Mittelpunkt ausrichten">📌 Fokus</button>
+      <button type="button" class="control-panel__toggle" data-panel-toggle aria-expanded="true">Panel ausblenden</button>
     </header>
-    <div class="pattern-quick" id="patternPresetList" role="list" aria-label="Empfohlene Muster"></div>
-    <div class="pattern-active">
-      <span class="pattern-active__label" id="patternActiveName">Aktives Muster: Freestyle</span>
-      <p class="pattern-active__description" id="patternActiveDescription">Nutze Presets oder die Regler unten, um dein persönliches Sternenfeld zu gestalten.</p>
-    </div>
-    <div class="pattern-formations">
-      <div class="pattern-formations__head">
-        <h4 id="patternFormationTitle">Formationen</h4>
-        <p class="pattern-formations__hint">Wechsle schnell zwischen geometrischen Anordnungen. STL-Importe erscheinen hier automatisch.</p>
-      </div>
-      <div class="chip-group" id="patternDistributionChips" role="group" aria-labelledby="patternFormationTitle"></div>
-    </div>
-    <div class="pattern-actions">
-      <button type="button" id="patternRandomPreset">✨ Zufallspreset</button>
-      <button type="button" id="random">🎲 Freies Chaos</button>
+    <div class="control-panel__body">
+      <section class="panel-card panel-card--studio" id="patternStudio" aria-labelledby="patternStudioTitle">
+        <header class="panel-card__header">
+          <div>
+            <h3 id="patternStudioTitle">Pattern-Studio</h3>
+            <p class="panel-card__subtitle">Starte mit kuratierten Presets oder forme deine eigene Ordnung aus dem Chaos.</p>
+          </div>
+          <button type="button" class="panel-card__action" id="patternFocus" aria-label="Kamera auf Mittelpunkt ausrichten">📌 Fokus</button>
+        </header>
+        <div class="pattern-quick" id="patternPresetList" role="list" aria-label="Empfohlene Muster"></div>
+        <div class="pattern-active">
+          <span class="pattern-active__label" id="patternActiveName">Aktives Muster: Freestyle</span>
+          <p class="pattern-active__description" id="patternActiveDescription">Nutze Presets oder die Regler unten, um dein persönliches Sternenfeld zu gestalten.</p>
+        </div>
+        <div class="pattern-formations">
+          <div class="pattern-formations__head">
+            <h4 id="patternFormationTitle">Formationen</h4>
+            <p class="pattern-formations__hint">Wechsle schnell zwischen geometrischen Anordnungen. STL-Importe erscheinen hier automatisch.</p>
+          </div>
+          <div class="chip-group" id="patternDistributionChips" role="group" aria-labelledby="patternFormationTitle"></div>
+        </div>
+        <div class="pattern-actions">
+          <button type="button" id="patternRandomPreset">✨ Zufallspreset</button>
+          <button type="button" id="patternRandomParameters">🎲 Freies Chaos</button>
+        </div>
+      </section>
+      <section class="panel-card panel-card--presets" aria-labelledby="userPresetTitle">
+        <header class="panel-card__header">
+          <div>
+            <h3 id="userPresetTitle">Gespeicherte Presets</h3>
+            <p class="panel-card__subtitle">Wähle mehrere Presets für die Galerie oder starte die zufällige Wiedergabe.</p>
+          </div>
+          <div class="panel-card__action-group">
+            <button type="button" class="panel-card__action" id="presetGalleryToggle" aria-pressed="false">🖼️ Galerie</button>
+            <button type="button" class="panel-card__action" id="presetRandomPlayback" aria-pressed="false" disabled>🎲 Zufall aus Auswahl</button>
+          </div>
+        </header>
+        <div class="preset-gallery" id="userPresetGallery" role="list" aria-label="Eigene Presets"></div>
+        <p class="preset-gallery__empty" id="userPresetEmpty">Noch keine Presets gespeichert. Erstelle im Config-Panel deine ersten Favoriten.</p>
+      </section>
     </div>
   </section>
-  <h3>Parameter</h3>
+  <section class="control-panel control-panel--config is-collapsed" id="configPanel" data-panel="config" aria-labelledby="configPanelHeading" aria-hidden="true">
+    <header class="control-panel__header">
+      <div class="control-panel__title">
+        <h2 id="configPanelHeading">Config</h2>
+        <p class="control-panel__subtitle">Speichere deine Einstellungen als Preset oder passe jeden Parameter fein an.</p>
+      </div>
+      <button type="button" class="control-panel__toggle" data-panel-toggle aria-expanded="false">Panel einblenden</button>
+    </header>
+    <div class="control-panel__body">
+      <section class="panel-card panel-card--config" aria-labelledby="presetCreateTitle">
+        <header class="panel-card__header">
+          <div>
+            <h3 id="presetCreateTitle">Visuelles Preset speichern</h3>
+            <p class="panel-card__subtitle">Nutze den aktuellen Stand als neues Preset inklusive Vorschaubild.</p>
+          </div>
+        </header>
+        <form class="preset-form" id="presetCreateForm">
+          <div class="preset-form__row">
+            <label for="presetName">Name</label>
+            <input id="presetName" name="presetName" type="text" maxlength="60" placeholder="z. B. Polar Glow" required />
+          </div>
+          <div class="preset-form__row">
+            <label for="presetNotes">Notizen</label>
+            <textarea id="presetNotes" name="presetNotes" rows="2" maxlength="160" placeholder="Stimmung, Nutzung, Besonderheiten"></textarea>
+          </div>
+          <div class="preset-form__actions">
+            <button type="submit" id="presetSaveButton">💾 Preset speichern</button>
+          </div>
+        </form>
+        <p class="preset-form__hint" id="presetFormHint">Deine Presets werden lokal gespeichert und stehen in der Galerie bereit.</p>
+      </section>
+      <h3>Parameter</h3>
   <section class="accordion" id="acc-points">
     <button type="button" class="accordion__trigger" id="acc-points-trigger" aria-expanded="true" aria-controls="acc-points-panel">
       Punkte
@@ -500,13 +567,17 @@
       </div>
     </div>
   </section>
-</div>
-<div id="audioPanel" class="is-hidden" role="complementary" aria-label="Audio-Steuerung" aria-hidden="true">
-  <div class="panel-header">
-    <h3>Audio-Reaktivität</h3>
-    <button type="button" id="audioPanelToggle" aria-expanded="true" aria-controls="audioPanelBody" aria-label="Audio-Bedienfeld ein- oder ausblenden" title="Audio-Bedienfeld ein- oder ausblenden">▾</button>
-  </div>
-  <div class="panel-body" id="audioPanelBody">
+    </div>
+  </section>
+  <section class="control-panel control-panel--media is-collapsed" id="audioPanel" data-panel="media" role="complementary" aria-label="Audio-Steuerung" aria-hidden="true">
+    <header class="control-panel__header">
+      <div class="control-panel__title">
+        <h2 id="mediaPanelHeading">Media Player</h2>
+        <p class="control-panel__subtitle">Steuere Wiedergabe, Mikrofon und Audio-Reaktivität.</p>
+      </div>
+      <button type="button" class="control-panel__toggle" data-panel-toggle aria-expanded="false">Panel einblenden</button>
+    </header>
+    <div class="control-panel__body" id="audioPanelBody">
     <section class="audio-section audio-section--player" aria-labelledby="audioPlaylistTitle">
       <header class="audio-player-head">
         <div class="audio-player-head__meta">
@@ -620,15 +691,15 @@
         </div>
       </div>
       <div class="row">
-        <label for="audioRandomMode">Random-Modus</label>
+        <label for="audioRandomMode">Parameter-Zufall</label>
         <div class="audio-controls">
-          <button type="button" id="audioRandomMode" aria-pressed="false">🔀 Random-Modus aus</button>
+          <button type="button" id="audioRandomMode" aria-pressed="false">🔀 Komplett Random aus</button>
         </div>
       </div>
       <div class="panel-footnote" id="audioSupportNotice">Nutze eine Datei oder das Mikrofon, um die Punktfarben an Audio zu koppeln.</div>
     </section>
   </div>
-  </div>
+  </section>
 </div>
 <div id="audioOverlay" data-visible="false" aria-hidden="true">
   <button type="button" id="audioOverlayButton" aria-label="Musik und Visualisierung starten">
