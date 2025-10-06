@@ -12,6 +12,7 @@
       --sheet-expanded-height: 84vh;
       --app-viewport-height: 100vh;
       --panel-max-height: 84vh;
+      --panel-horizontal-shift: -50%;
     }
     @supports (height: 100dvh) {
       :root {
@@ -118,59 +119,75 @@
       cursor: wait;
       opacity: .7;
     }
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
     #panel {
       position: fixed;
       bottom: env(safe-area-inset-bottom, 0px);
       left: 50%;
-      transform: translate(-50%, 0);
+      transform: translate(var(--panel-horizontal-shift, -50%), 0);
       z-index: 10;
       width: min(720px, calc(100% - 24px));
       max-height: min(var(--sheet-expanded-height, 84vh), var(--panel-max-height, 84vh));
       overflow-y: auto;
       background: var(--panel);
       border-radius: 20px 20px 0 0;
-      padding: 18px 22px calc(26px + env(safe-area-inset-bottom, 0px));
+      padding: 14px 20px calc(24px + env(safe-area-inset-bottom, 0px));
       backdrop-filter: blur(8px);
       transition: opacity .25s ease, transform .35s ease;
     }
     #panel.is-hidden {
       opacity: 0;
       pointer-events: none;
-      transform: translate(-50%, 18px);
+      transform: translate(var(--panel-horizontal-shift, -50%), 18px);
     }
-    #panel[data-sheet-state="compact"] {
-      transform: translate(-50%, calc(var(--sheet-offset, 0px)));
-    }
-    #panel[data-sheet-state="custom"] {
-      transform: translate(-50%, calc(var(--sheet-offset, 0px)));
+    #panel[data-sheet-state="compact"],
+    #panel[data-sheet-state="custom"],
+    #panel[data-sheet-state="expanded"] {
+      transform: translate(var(--panel-horizontal-shift, -50%), calc(var(--sheet-offset, 0px)));
     }
     #panel[data-sheet-state="expanded"] {
-      transform: translate(-50%, calc(var(--sheet-offset, 0px)));
       height: min(var(--sheet-expanded-height, 84vh), var(--panel-max-height, 84vh));
     }
     #panel h3 { margin: .25rem 0 .5rem; font-size: .95rem; }
     .panel-close {
       display: flex;
       justify-content: flex-end;
-      margin: -6px 0 8px;
+      margin: -2px -6px 6px;
     }
     .panel-close button {
       appearance: none;
       border: none;
       background: rgba(255, 255, 255, 0.08);
       color: var(--fg);
-      padding: .45rem .9rem;
+      padding: .4rem;
       border-radius: 999px;
       font-weight: 600;
-      font-size: .78rem;
+      font-size: 1.1rem;
+      line-height: 1;
       letter-spacing: .02em;
       cursor: pointer;
       transition: background .2s ease, transform .2s ease;
+      width: 36px;
+      height: 36px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
     }
     .panel-close button:hover,
     .panel-close button:focus-visible {
       background: rgba(90, 190, 255, 0.28);
       outline: none;
+      transform: translateY(1px);
     }
     .panel-toolbar {
       display: flex;
@@ -190,6 +207,28 @@
       letter-spacing: .01em;
       cursor: pointer;
       transition: background .2s ease, border-color .2s ease, transform .2s ease;
+    }
+    @media (max-width: 768px) {
+      #panel {
+        left: 0;
+        right: 0;
+        width: 100%;
+        max-width: none;
+        border-radius: 18px 18px 0 0;
+        --panel-horizontal-shift: 0;
+        transform: translateY(0);
+      }
+      #panel.is-hidden {
+        transform: translateY(18px);
+      }
+      #panel[data-sheet-state="compact"],
+      #panel[data-sheet-state="custom"],
+      #panel[data-sheet-state="expanded"] {
+        transform: translateY(calc(var(--sheet-offset, 0px)));
+      }
+      #panelHoverZone {
+        height: 44px;
+      }
     }
     .panel-toolbar button:hover,
     .panel-toolbar button:focus-visible {
@@ -849,11 +888,13 @@
 <div id="panelHoverZone" aria-hidden="true"></div>
 <div id="panel">
   <div class="panel-close">
-    <button id="panelClose" type="button">Panel ausblenden</button>
+    <button id="panelClose" type="button" aria-label="Panel ausblenden">
+      <span aria-hidden="true">⌄</span>
+      <span class="sr-only">Panel ausblenden</span>
+    </button>
   </div>
   <div class="panel-toolbar" role="group" aria-label="Schnellaktionen">
     <button id="panelRandom" type="button">🎲 Zufällige Szene</button>
-    <button id="panelCameraLock" type="button" aria-pressed="false">🔓 Kamera frei</button>
   </div>
   <div class="sheet-handle">
     <button id="sheetHandle" type="button" aria-expanded="false" aria-controls="panel">
@@ -4523,7 +4564,6 @@ function rebuildTiny() {
 const $ = id => document.getElementById(id);
 const panel = $('panel');
 const panelCloseBtn = $('panelClose');
-const panelLockBtn = $('panelCameraLock');
 const panelRandomBtn = $('panelRandom');
 const sheetHandleBtn = $('sheetHandle');
 const panelHoverZone = $('panelHoverZone');
@@ -4571,9 +4611,9 @@ const panelPagerState = {
   width: 0,
   captureElement: null,
 };
-const doubleTapState = { lastTime: 0, lastX: 0, lastY: 0 };
-const DOUBLE_TAP_TIMEOUT_MS = 360;
-const DOUBLE_TAP_DISTANCE_PX = 32;
+const doubleTapState = { lastTime: 0, lastX: 0, lastY: 0, blockUntil: 0 };
+const DOUBLE_TAP_TIMEOUT_MS = 420;
+const DOUBLE_TAP_DISTANCE_PX = 46;
 let hoverCloseTimer = null;
 let hoverPointerInside = false;
 let mobileHintDismissed = false;
@@ -4598,7 +4638,7 @@ function updateViewportMetrics() {
   const rootStyle = document.documentElement?.style;
   if (rootStyle) {
     rootStyle.setProperty('--app-viewport-height', `${nextHeight}px`);
-    const safeMax = Math.round(nextHeight - 24);
+    const safeMax = Math.max(0, Math.round(nextHeight - 12));
     const maxHeight = Math.min(nextHeight, Math.max(220, safeMax));
     rootStyle.setProperty('--panel-max-height', `${maxHeight}px`);
   }
@@ -4783,6 +4823,7 @@ function resetDoubleTapState() {
   doubleTapState.lastTime = 0;
   doubleTapState.lastX = 0;
   doubleTapState.lastY = 0;
+  doubleTapState.blockUntil = 0;
 }
 
 async function triggerDoubleTapAction() {
@@ -4804,7 +4845,13 @@ async function handleSceneDoubleTap(event) {
   if (pointerType === 'mouse' && typeof event.button === 'number' && event.button !== 0) {
     return;
   }
+  if (event && event.isPrimary === false) {
+    return;
+  }
   const now = performance.now();
+  if (now <= doubleTapState.blockUntil) {
+    return;
+  }
   const x = Number.isFinite(event.clientX) ? event.clientX : 0;
   const y = Number.isFinite(event.clientY) ? event.clientY : 0;
   if (doubleTapState.lastTime > 0) {
@@ -4812,6 +4859,7 @@ async function handleSceneDoubleTap(event) {
     const distance = Math.hypot(x - doubleTapState.lastX, y - doubleTapState.lastY);
     if (delta <= DOUBLE_TAP_TIMEOUT_MS && distance <= DOUBLE_TAP_DISTANCE_PX) {
       resetDoubleTapState();
+      doubleTapState.blockUntil = now + DOUBLE_TAP_TIMEOUT_MS;
       await triggerDoubleTapAction();
       return;
     }
@@ -4819,6 +4867,22 @@ async function handleSceneDoubleTap(event) {
   doubleTapState.lastTime = now;
   doubleTapState.lastX = x;
   doubleTapState.lastY = y;
+}
+
+async function handleSceneDoubleClick(event) {
+  const now = performance.now();
+  if (now <= doubleTapState.blockUntil) {
+    if (event && typeof event.preventDefault === 'function') {
+      event.preventDefault();
+    }
+    return;
+  }
+  if (event && typeof event.preventDefault === 'function') {
+    event.preventDefault();
+  }
+  resetDoubleTapState();
+  doubleTapState.blockUntil = now + DOUBLE_TAP_TIMEOUT_MS;
+  await triggerDoubleTapAction();
 }
 
 if (mobileHintDismissBtn) {
@@ -5401,20 +5465,20 @@ function recalculateSheetMetrics() {
     updateSheetHandleAria();
     return;
   }
-  const minSceneHeight = Math.max(0, Math.round(vh * 0.5));
+  const minSceneHeight = Math.max(56, Math.round(vh * 0.18));
   const allowed = Math.max(0, vh - minSceneHeight);
-  const baseCompact = Math.max(0, Math.round(vh * 0.3));
-  let compact = Math.max(baseCompact, 140);
+  const baseCompact = Math.max(0, Math.round(vh * 0.28));
+  let compact = Math.max(baseCompact, 132);
   if (allowed > 0) {
     compact = Math.min(compact, allowed);
   }
-  if (allowed < 140) {
+  if (allowed < 132) {
     compact = allowed;
   }
   compact = Math.max(0, compact);
   sheetState.compactHeight = Math.round(compact);
-  const maxAvailable = Math.max(sheetState.compactHeight, Math.max(0, Math.round(vh - 56)));
-  const proposedExpanded = Math.max(sheetState.compactHeight + 80, Math.round(vh * 0.88));
+  const maxAvailable = Math.max(sheetState.compactHeight, Math.max(0, Math.round(vh - 28)));
+  const proposedExpanded = Math.max(sheetState.compactHeight + 140, Math.round(vh * 0.96));
   sheetState.expandedHeight = Math.min(Math.max(proposedExpanded, sheetState.compactHeight), maxAvailable);
   panel.style.setProperty('--sheet-expanded-height', `${sheetState.expandedHeight}px`);
   panel.style.setProperty('--sheet-compact-height', `${sheetState.compactHeight}px`);
@@ -5502,10 +5566,6 @@ function setCameraLocked(lock) {
     controls.target.copy(clusterGroup.position);
   }
   controls.update();
-  if (panelLockBtn) {
-    panelLockBtn.textContent = lock ? '🔒 Kamera gesperrt' : '🔓 Kamera frei';
-    panelLockBtn.setAttribute('aria-pressed', lock ? 'true' : 'false');
-  }
   renderer.domElement.classList.toggle('locked', lock);
 }
 
@@ -6005,6 +6065,9 @@ renderer.domElement.addEventListener('pointermove', handleSceneGestureMove, { pa
 renderer.domElement.addEventListener('pointerup', handleSceneGestureEnd, { passive: true });
 renderer.domElement.addEventListener('pointercancel', handleSceneGestureCancel, { passive: true });
 renderer.domElement.addEventListener('pointerleave', handleSceneGestureCancel, { passive: true });
+renderer.domElement.addEventListener('dblclick', event => {
+  void handleSceneDoubleClick(event);
+}, { passive: false });
 renderer.domElement.addEventListener('pointerdown', onSpinPointerDown);
 renderer.domElement.addEventListener('pointermove', onSpinPointerMove);
 renderer.domElement.addEventListener('pointerup', onSpinPointerUp);
@@ -6580,12 +6643,6 @@ if (mobileSheetQuery.addEventListener) {
   mobileSheetQuery.addEventListener('change', handleMobileMediaChange);
 } else if (mobileSheetQuery.addListener) {
   mobileSheetQuery.addListener(handleMobileMediaChange);
-}
-
-if (panelLockBtn) {
-  panelLockBtn.addEventListener('click', () => {
-    setCameraLocked(!cameraLocked);
-  });
 }
 
 function applyScenePreset(preset, { syncUI = true } = {}) {
