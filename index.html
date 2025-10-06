@@ -10,6 +10,13 @@
       --fg: #ddd;
       --sheet-compact-height: 32vh;
       --sheet-expanded-height: 84vh;
+      --app-viewport-height: 100vh;
+      --panel-max-height: 84vh;
+    }
+    @supports (height: 100dvh) {
+      :root {
+        --app-viewport-height: 100dvh;
+      }
     }
     html, body { margin: 0; height: 100%; overflow: hidden; background: #000; color: var(--fg); font-family: system-ui, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }
     body { position: relative; }
@@ -113,16 +120,16 @@
     }
     #panel {
       position: fixed;
-      bottom: 0;
+      bottom: env(safe-area-inset-bottom, 0px);
       left: 50%;
       transform: translate(-50%, 0);
       z-index: 10;
       width: min(720px, calc(100% - 24px));
-      max-height: min(var(--sheet-expanded-height, 84vh), calc(100vh - 48px));
+      max-height: min(var(--sheet-expanded-height, 84vh), var(--panel-max-height, 84vh));
       overflow-y: auto;
       background: var(--panel);
       border-radius: 20px 20px 0 0;
-      padding: 18px 22px 26px;
+      padding: 18px 22px calc(26px + env(safe-area-inset-bottom, 0px));
       backdrop-filter: blur(8px);
       transition: opacity .25s ease, transform .35s ease;
     }
@@ -139,6 +146,7 @@
     }
     #panel[data-sheet-state="expanded"] {
       transform: translate(-50%, calc(var(--sheet-offset, 0px)));
+      height: min(var(--sheet-expanded-height, 84vh), var(--panel-max-height, 84vh));
     }
     #panel h3 { margin: .25rem 0 .5rem; font-size: .95rem; }
     .panel-close {
@@ -703,7 +711,7 @@
         gap: 0;
       }
       #panel.is-hidden {
-        transform: translateY(calc(var(--sheet-expanded-height, 80vh) + 40px));
+        transform: translateY(calc(var(--sheet-expanded-height, 80vh) + env(safe-area-inset-bottom, 0px) + 40px));
       }
       #panel.is-dragging {
         transition: none;
@@ -741,7 +749,7 @@
         outline-offset: 4px;
       }
     }
-    canvas { display: block; cursor: grab; }
+    canvas { display: block; cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none; }
     canvas:active { cursor: grabbing; }
     @media (min-width: 769px) {
       .panel-pager__indicator {
@@ -767,7 +775,7 @@
     .mobile-hint {
       position: fixed;
       left: 50%;
-      bottom: 72px;
+      bottom: calc(72px + env(safe-area-inset-bottom, 0px));
       transform: translate(-50%, 32px);
       width: min(420px, calc(100vw - 32px));
       padding: 16px 18px;
@@ -778,11 +786,16 @@
       z-index: 32;
       opacity: 0;
       pointer-events: none;
+      visibility: hidden;
       transition: opacity .3s ease, transform .3s ease;
+      user-select: none;
+      -webkit-user-select: none;
     }
     .mobile-hint[data-visible="true"] {
       opacity: 1;
       transform: translate(-50%, 0);
+      pointer-events: auto;
+      visibility: visible;
     }
     .mobile-hint__content {
       display: grid;
@@ -4527,6 +4540,9 @@ const presetStudioShuffleBtn = $('presetStudioShuffle');
 const presetStudioRestoreBtn = $('presetStudioRestore');
 const presetStudioCopyBtn = $('presetStudioCopy');
 const mobileSheetQuery = window.matchMedia('(max-width: 768px)');
+const viewportState = {
+  height: 0,
+};
 const sheetState = {
   mode: 'compact',
   expandedHeight: 0,
@@ -4562,6 +4578,34 @@ let hoverCloseTimer = null;
 let hoverPointerInside = false;
 let mobileHintDismissed = false;
 let panelVisible = true;
+
+function computeViewportHeight() {
+  if (window.visualViewport && Number.isFinite(window.visualViewport.height)) {
+    return window.visualViewport.height;
+  }
+  const doc = document.documentElement;
+  const docHeight = doc && Number.isFinite(doc.clientHeight) ? doc.clientHeight : 0;
+  const winHeight = Number.isFinite(window.innerHeight) ? window.innerHeight : 0;
+  return Math.max(docHeight, winHeight, 0);
+}
+
+function updateViewportMetrics() {
+  const nextHeight = Math.max(0, Math.round(computeViewportHeight()));
+  if (nextHeight <= 0) {
+    return viewportState.height;
+  }
+  viewportState.height = nextHeight;
+  const rootStyle = document.documentElement?.style;
+  if (rootStyle) {
+    rootStyle.setProperty('--app-viewport-height', `${nextHeight}px`);
+    const safeMax = Math.round(nextHeight - 24);
+    const maxHeight = Math.min(nextHeight, Math.max(220, safeMax));
+    rootStyle.setProperty('--panel-max-height', `${maxHeight}px`);
+  }
+  return viewportState.height;
+}
+
+updateViewportMetrics();
 
 function setMobileHintVisible(visible) {
   if (!mobileHint) return;
@@ -5342,6 +5386,10 @@ function setSheetMode(mode, options = {}) {
 }
 
 function recalculateSheetMetrics() {
+  const vh = updateViewportMetrics() || Math.max(window.innerHeight || 0, 0);
+  if (!panel) {
+    return;
+  }
   if (!isMobileSheetActive()) {
     sheetState.expandedHeight = 0;
     sheetState.compactHeight = 0;
@@ -5353,7 +5401,6 @@ function recalculateSheetMetrics() {
     updateSheetHandleAria();
     return;
   }
-  const vh = Math.max(window.innerHeight || 0, 0);
   const minSceneHeight = Math.max(0, Math.round(vh * 0.5));
   const allowed = Math.max(0, vh - minSceneHeight);
   const baseCompact = Math.max(0, Math.round(vh * 0.3));
@@ -6743,6 +6790,7 @@ function setSliders() {
 
 /* Resize handler */
 window.addEventListener('resize', () => {
+  updateViewportMetrics();
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
@@ -6755,6 +6803,7 @@ window.addEventListener('resize', () => {
 
 window.addEventListener('orientationchange', () => {
   setTimeout(() => {
+    updateViewportMetrics();
     recalculateSheetMetrics();
     if (isMobileSheetActive()) {
       applySheetOffset();
@@ -6762,6 +6811,24 @@ window.addEventListener('orientationchange', () => {
     updateMobileHintVisibility();
   }, 120);
 });
+
+let pendingViewportUpdate = null;
+
+function scheduleViewportUpdate() {
+  if (pendingViewportUpdate !== null) {
+    return;
+  }
+  pendingViewportUpdate = window.requestAnimationFrame(() => {
+    pendingViewportUpdate = null;
+    recalculateSheetMetrics();
+    updateMobileHintVisibility();
+  });
+}
+
+if (window.visualViewport) {
+  window.visualViewport.addEventListener('resize', scheduleViewportUpdate);
+  window.visualViewport.addEventListener('scroll', scheduleViewportUpdate);
+}
 
 /* Animation loop */
 let lastFrameTime = performance.now();
