@@ -279,6 +279,13 @@ export function bootstrapApp() {
     },
   ]);
 
+  const PRESET_STORAGE_KEY = 'orderlyChaos.userPresets.v1';
+  const userPresetState = {
+    items: [],
+    selected: new Set(),
+    galleryMode: 'grid',
+  };
+
   const PATTERN_DESCRIPTIONS = new Map([
     ['Aurora Drift', 'Schillernde Polarlichter mit sanften Bewegungen.'],
     ['Celestial Bloom', 'Warme Blütenfarben mit organischen Spiralen.'],
@@ -590,6 +597,323 @@ export function bootstrapApp() {
       patternUI.presetList.appendChild(button);
     });
     updatePresetButtonStates(currentPatternName);
+  }
+
+  function cloneParamsForPreset() {
+    return JSON.parse(JSON.stringify(params));
+  }
+
+  function sanitizePresetRecord(record) {
+    if (!record || typeof record !== 'object') return null;
+    const id = typeof record.id === 'string' && record.id.trim() ? record.id.trim() : null;
+    const name = typeof record.name === 'string' && record.name.trim() ? record.name.trim() : null;
+    const cfg = record.params && typeof record.params === 'object' ? record.params : null;
+    if (!id || !name || !cfg) return null;
+    const notes = typeof record.notes === 'string' ? record.notes : '';
+    const createdAt = Number.isFinite(record.createdAt) ? Number(record.createdAt) : Date.now();
+    return {
+      id,
+      name,
+      notes,
+      createdAt,
+      params: { ...cfg },
+    };
+  }
+
+  function loadUserPresetsFromStorage() {
+    if (typeof window === 'undefined' || !window.localStorage) return;
+    try {
+      const raw = window.localStorage.getItem(PRESET_STORAGE_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) return;
+      const items = parsed.map(sanitizePresetRecord).filter(Boolean);
+      items.sort((a, b) => b.createdAt - a.createdAt);
+      userPresetState.items = items;
+    } catch (error) {
+      console.warn('Konnte gespeicherte Presets nicht laden:', error);
+    }
+  }
+
+  function persistUserPresets() {
+    if (typeof window === 'undefined' || !window.localStorage) return;
+    try {
+      const payload = userPresetState.items.map(preset => ({
+        id: preset.id,
+        name: preset.name,
+        notes: preset.notes,
+        createdAt: preset.createdAt,
+        params: preset.params,
+      }));
+      window.localStorage.setItem(PRESET_STORAGE_KEY, JSON.stringify(payload));
+    } catch (error) {
+      console.warn('Konnte Presets nicht speichern:', error);
+    }
+  }
+
+  function createPresetId(name) {
+    const base = `${name}-${Date.now()}-${Math.random()}`;
+    return `preset:${hashStringList([base])}`;
+  }
+
+  function computePresetPreview(config) {
+    const hue = ((Number(config.pointHue) || 0) % 360 + 360) % 360;
+    const spread = Math.max(0, Number(config.hueSpread) || 0);
+    const saturation = clamp01(Number(config.pointSaturation) || 0);
+    const value = clamp01(Number(config.pointValue) || 0);
+    const accentHue = (hue + spread * 0.5) % 360;
+    const dimHue = (hue - spread * 0.5 + 360) % 360;
+    const base = hsvToHex(hue, saturation, value);
+    const accent = hsvToHex(accentHue, clamp01(Math.min(1, saturation + 0.2)), clamp01(Math.min(1, value + 0.15)));
+    const dim = hsvToHex(dimHue, clamp01(Math.max(0, saturation - 0.15)), clamp01(Math.max(0, value - 0.2)));
+    const gradient = `linear-gradient(135deg, ${base} 0%, ${accent} 50%, ${dim} 100%)`;
+    return { base, accent, dim, gradient };
+  }
+
+  function formatPresetTimestamp(timestamp) {
+    try {
+      return new Date(timestamp).toLocaleString('de-DE', { dateStyle: 'medium', timeStyle: 'short' });
+    } catch (error) {
+      return 'Unbekanntes Datum';
+    }
+  }
+
+  function createPresetChip(label, options = {}) {
+    const chip = document.createElement('span');
+    chip.className = 'preset-card__chip';
+    if (options.color) {
+      chip.style.setProperty('--chip-color', options.color);
+    }
+    chip.textContent = label;
+    return chip;
+  }
+
+  function updatePresetEmptyState() {
+    if (!customPresetUI.emptyState) return;
+    const hasItems = userPresetState.items.length > 0;
+    customPresetUI.emptyState.hidden = hasItems;
+  }
+
+  function updatePresetSelectionUI() {
+    if (!customPresetUI.gallery) return;
+    const cards = customPresetUI.gallery.querySelectorAll('.preset-card');
+    cards.forEach(card => {
+      const id = card.dataset.presetId;
+      const pressed = id && userPresetState.selected.has(id);
+      card.setAttribute('aria-pressed', pressed ? 'true' : 'false');
+      card.classList.toggle('is-selected', pressed);
+    });
+  }
+
+  function updatePresetRandomButton(forceDisabled = false) {
+    if (!customPresetUI.randomBtn) return;
+    const hasSelection = userPresetState.selected.size > 0;
+    const disabled = Boolean(forceDisabled || experienceState.editingMode || !hasSelection);
+    if (disabled) {
+      customPresetUI.randomBtn.disabled = true;
+      customPresetUI.randomBtn.setAttribute('aria-disabled', 'true');
+    } else {
+      customPresetUI.randomBtn.disabled = false;
+      customPresetUI.randomBtn.removeAttribute('aria-disabled');
+    }
+    const isActive = autoRandomState.enabled && autoRandomState.mode === 'presets';
+    customPresetUI.randomBtn.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+    const countText = hasSelection ? ` (${userPresetState.selected.size})` : '';
+    customPresetUI.randomBtn.textContent = isActive ? `🎲 Preset Shuffle an${countText}` : `🎲 Preset Shuffle aus${countText}`;
+  }
+
+  function renderUserPresets() {
+    if (!customPresetUI.gallery) return;
+    customPresetUI.gallery.innerHTML = '';
+    userPresetState.items.forEach(preset => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'preset-card';
+      button.dataset.presetId = preset.id;
+      button.setAttribute('aria-pressed', userPresetState.selected.has(preset.id) ? 'true' : 'false');
+      const preview = computePresetPreview(preset.params);
+      const thumb = document.createElement('div');
+      thumb.className = 'preset-card__thumb';
+      thumb.style.background = preview.gradient;
+      button.appendChild(thumb);
+
+      const nameEl = document.createElement('h4');
+      nameEl.className = 'preset-card__name';
+      nameEl.textContent = preset.name;
+      button.appendChild(nameEl);
+
+      const metaEl = document.createElement('p');
+      metaEl.className = 'preset-card__meta';
+      if (preset.notes && preset.notes.trim()) {
+        metaEl.textContent = preset.notes.trim();
+      } else {
+        metaEl.textContent = `Erstellt am ${formatPresetTimestamp(preset.createdAt)}`;
+      }
+      button.appendChild(metaEl);
+
+      const actions = document.createElement('div');
+      actions.className = 'preset-card__actions';
+
+      const chips = document.createElement('div');
+      chips.className = 'preset-card__chips';
+      const colorChip = createPresetChip(`${Math.round(Number(preset.params.hueSpread) || 0)}°`, { color: preview.base });
+      chips.appendChild(colorChip);
+      const distributionChip = createPresetChip(getDistributionLabel(preset.params.distribution));
+      chips.appendChild(distributionChip);
+      actions.appendChild(chips);
+
+      const buttonsWrap = document.createElement('div');
+      buttonsWrap.className = 'preset-card__buttons';
+
+      const applyBtn = document.createElement('button');
+      applyBtn.type = 'button';
+      applyBtn.textContent = 'Start';
+      applyBtn.addEventListener('click', event => {
+        event.stopPropagation();
+        applyUserPresetById(preset.id, { userInitiated: true });
+      });
+      buttonsWrap.appendChild(applyBtn);
+
+      const deleteBtn = document.createElement('button');
+      deleteBtn.type = 'button';
+      deleteBtn.className = 'preset-card__delete';
+      deleteBtn.setAttribute('aria-label', `Preset „${preset.name}“ löschen`);
+      deleteBtn.textContent = '🗑️';
+      deleteBtn.addEventListener('click', event => {
+        event.stopPropagation();
+        deleteUserPreset(preset.id);
+      });
+      buttonsWrap.appendChild(deleteBtn);
+
+      actions.appendChild(buttonsWrap);
+      button.appendChild(actions);
+
+      button.addEventListener('click', () => {
+        togglePresetSelection(preset.id);
+      });
+
+      customPresetUI.gallery.appendChild(button);
+    });
+    updatePresetEmptyState();
+    updatePresetSelectionUI();
+    updatePresetRandomButton();
+  }
+
+  function togglePresetSelection(id) {
+    if (!id) return;
+    if (userPresetState.selected.has(id)) {
+      userPresetState.selected.delete(id);
+    } else {
+      userPresetState.selected.add(id);
+    }
+    updatePresetSelectionUI();
+    if (autoRandomState.mode === 'presets' && autoRandomState.enabled && userPresetState.selected.size === 0) {
+      setAutoRandomEnabled(false, { mode: 'parameters' });
+    } else {
+      updatePresetRandomButton();
+    }
+  }
+
+  function setSlidersAndRebuild({ syncUI = true } = {}) {
+    enforceBounds();
+    updatePointColor();
+    rebuildStars();
+    if (syncUI) {
+      setSliders();
+    }
+  }
+
+  function applyUserPreset(preset, { syncUI = true, setPatternName = true } = {}) {
+    if (!preset) return false;
+    Object.assign(params, preset.params || {});
+    setSlidersAndRebuild({ syncUI });
+    if (setPatternName) {
+      setCurrentPattern(preset.name || 'Benutzer-Preset', preset.notes || '');
+    }
+    return true;
+  }
+
+  function applyUserPresetById(id) {
+    const preset = userPresetState.items.find(item => item.id === id);
+    if (!preset) return false;
+    const applied = applyUserPreset(preset, { syncUI: true, setPatternName: true });
+    if (applied) {
+      autoRandomState.lastPresetId = preset.id;
+    }
+    return applied;
+  }
+
+  function playRandomPresetFromSelection() {
+    if (!userPresetState.selected.size) {
+      return false;
+    }
+    const ids = Array.from(userPresetState.selected);
+    let pool = ids;
+    if (ids.length > 1 && autoRandomState.lastPresetId) {
+      const filtered = ids.filter(id => id !== autoRandomState.lastPresetId);
+      if (filtered.length) {
+        pool = filtered;
+      }
+    }
+    const choice = randomChoice(pool);
+    if (!choice) return false;
+    const applied = applyUserPresetById(choice, { userInitiated: false });
+    if (applied) {
+      autoRandomState.lastPresetId = choice;
+    }
+    return applied;
+  }
+
+  function deleteUserPreset(id) {
+    const nextItems = userPresetState.items.filter(item => item.id !== id);
+    if (nextItems.length === userPresetState.items.length) return;
+    userPresetState.items = nextItems;
+    userPresetState.selected.delete(id);
+    if (autoRandomState.mode === 'presets' && autoRandomState.enabled && userPresetState.selected.size === 0) {
+      setAutoRandomEnabled(false, { mode: 'parameters' });
+    }
+    persistUserPresets();
+    renderUserPresets();
+  }
+
+  function handlePresetFormSubmit(event) {
+    event.preventDefault();
+    if (!customPresetUI.nameInput) return;
+    const name = customPresetUI.nameInput.value.trim();
+    if (!name) {
+      if (customPresetUI.hint) {
+        customPresetUI.hint.textContent = 'Bitte gib dem Preset einen Namen.';
+      }
+      return;
+    }
+    const notes = customPresetUI.notesInput && customPresetUI.notesInput.value ? customPresetUI.notesInput.value.trim() : '';
+    const record = {
+      id: createPresetId(name),
+      name,
+      notes,
+      createdAt: Date.now(),
+      params: cloneParamsForPreset(),
+    };
+    userPresetState.items.unshift(record);
+    persistUserPresets();
+    if (customPresetUI.form) {
+      customPresetUI.form.reset();
+    }
+    if (customPresetUI.hint) {
+      customPresetUI.hint.textContent = `Preset „${name}“ gespeichert.`;
+    }
+    renderUserPresets();
+  }
+
+  function setPresetGalleryMode(mode) {
+    if (!customPresetUI.gallery) return;
+    const next = mode === 'list' ? 'list' : 'grid';
+    userPresetState.galleryMode = next;
+    customPresetUI.gallery.dataset.mode = next;
+    if (customPresetUI.galleryToggle) {
+      customPresetUI.galleryToggle.setAttribute('aria-pressed', next === 'list' ? 'true' : 'false');
+      customPresetUI.galleryToggle.textContent = next === 'list' ? '📃 Listenansicht' : '🖼️ Galerie';
+    }
   }
 
   function updateDistributionChips() {
@@ -1271,6 +1595,17 @@ export function bootstrapApp() {
     focusBtn: null
   };
 
+  const customPresetUI = {
+    form: null,
+    nameInput: null,
+    notesInput: null,
+    hint: null,
+    gallery: null,
+    emptyState: null,
+    galleryToggle: null,
+    randomBtn: null,
+  };
+
   const autoRandomState = {
     enabled: false,
     elapsed: 0,
@@ -1278,7 +1613,9 @@ export function bootstrapApp() {
     nudgeAccumulator: 0,
     minInterval: 12,
     maxInterval: 26,
-    nudgeInterval: 0.45
+    nudgeInterval: 0.45,
+    mode: 'parameters',
+    lastPresetId: null,
   };
 
   const experienceState = {
@@ -4002,6 +4339,177 @@ export function bootstrapApp() {
   patternUI.randomPresetBtn = $('patternRandomPreset');
   patternUI.focusBtn = $('patternFocus');
 
+  customPresetUI.form = $('presetCreateForm');
+  customPresetUI.nameInput = $('presetName');
+  customPresetUI.notesInput = $('presetNotes');
+  customPresetUI.hint = $('presetFormHint');
+  customPresetUI.gallery = $('userPresetGallery');
+  customPresetUI.emptyState = $('userPresetEmpty');
+  customPresetUI.galleryToggle = $('presetGalleryToggle');
+  customPresetUI.randomBtn = $('presetRandomPlayback');
+  if (customPresetUI.gallery) {
+    customPresetUI.gallery.dataset.mode = userPresetState.galleryMode;
+  }
+
+  const controlPanelRegistry = new Map();
+  const controlPanelTabs = new Map();
+  const desktopPanelState = new Map();
+  let mobileActivePanel = 'presets';
+  let lastExpandedPanel = 'presets';
+
+  document.querySelectorAll('.control-panel[data-panel]').forEach(panelEl => {
+    const key = panelEl.dataset.panel;
+    if (!key) return;
+    const toggle = panelEl.querySelector('[data-panel-toggle]');
+    const expanded = !panelEl.classList.contains('is-collapsed');
+    controlPanelRegistry.set(key, { el: panelEl, toggle, expanded });
+    desktopPanelState.set(key, expanded);
+    updatePanelToggleLabel(controlPanelRegistry.get(key), expanded);
+    if (expanded) {
+      lastExpandedPanel = key;
+    }
+    if (toggle) {
+      toggle.addEventListener('click', () => {
+        const entry = controlPanelRegistry.get(key);
+        if (!entry) return;
+        if (entry.expanded) {
+          collapseControlPanel(key);
+        } else {
+          expandControlPanel(key);
+        }
+      });
+    }
+  });
+
+  document.querySelectorAll('[data-panel-tab]').forEach(tab => {
+    const key = tab.dataset.panelTab;
+    if (!key) return;
+    controlPanelTabs.set(key, tab);
+    tab.addEventListener('click', () => {
+      if (mobileSheetQuery.matches) {
+        expandControlPanel(key, { fromTab: true });
+        return;
+      }
+      const entry = controlPanelRegistry.get(key);
+      if (!entry) return;
+      if (entry.expanded && lastExpandedPanel === key) {
+        collapseControlPanel(key);
+      } else {
+        expandControlPanel(key, { fromTab: true });
+      }
+    });
+  });
+
+  function updatePanelToggleLabel(entry, expanded) {
+    if (!entry || !entry.toggle) return;
+    entry.toggle.textContent = expanded ? 'Panel ausblenden' : 'Panel einblenden';
+  }
+
+  function syncPanelTabs(activeKey) {
+    controlPanelTabs.forEach((tab, key) => {
+      const active = Boolean(activeKey && key === activeKey);
+      tab.classList.toggle('is-active', active);
+      tab.setAttribute('aria-pressed', active ? 'true' : 'false');
+    });
+  }
+
+  function collapseControlPanel(key, { skipTab = false, preserveDesktop = false } = {}) {
+    const entry = controlPanelRegistry.get(key);
+    if (!entry || !entry.expanded) {
+      if (!skipTab && mobileSheetQuery.matches) {
+        syncPanelTabs(mobileActivePanel);
+      }
+      return;
+    }
+    entry.expanded = false;
+    entry.el.classList.add('is-collapsed');
+    entry.el.setAttribute('aria-hidden', 'true');
+    if (entry.toggle) {
+      entry.toggle.setAttribute('aria-expanded', 'false');
+    }
+    updatePanelToggleLabel(entry, false);
+    if (!preserveDesktop && !mobileSheetQuery.matches) {
+      desktopPanelState.set(key, false);
+    }
+    if (mobileSheetQuery.matches) {
+      if (!skipTab) {
+        syncPanelTabs(mobileActivePanel);
+      }
+    } else if (!skipTab) {
+      if (lastExpandedPanel === key) {
+        const fallback = Array.from(controlPanelRegistry.entries()).find(([, value]) => value.expanded);
+        lastExpandedPanel = fallback ? fallback[0] : null;
+      }
+      syncPanelTabs(lastExpandedPanel);
+    }
+  }
+
+  function expandControlPanel(key, { fromTab = false, preserveDesktop = false } = {}) {
+    const entry = controlPanelRegistry.get(key);
+    if (!entry) return;
+    if (entry.expanded && !mobileSheetQuery.matches) {
+      if (fromTab) {
+        lastExpandedPanel = key;
+        syncPanelTabs(lastExpandedPanel);
+      }
+      return;
+    }
+    entry.expanded = true;
+    entry.el.classList.remove('is-collapsed');
+    entry.el.setAttribute('aria-hidden', 'false');
+    if (entry.toggle) {
+      entry.toggle.setAttribute('aria-expanded', 'true');
+    }
+    updatePanelToggleLabel(entry, true);
+    if (!preserveDesktop && !mobileSheetQuery.matches) {
+      desktopPanelState.set(key, true);
+    }
+    if (mobileSheetQuery.matches) {
+      mobileActivePanel = key;
+      controlPanelRegistry.forEach((otherEntry, otherKey) => {
+        if (otherKey !== key) {
+          collapseControlPanel(otherKey, { skipTab: true, preserveDesktop: true });
+        }
+      });
+      syncPanelTabs(key);
+    } else {
+      lastExpandedPanel = key;
+      syncPanelTabs(key);
+    }
+  }
+
+  function initializeControlPanels() {
+    if (mobileSheetQuery.matches) {
+      if (!controlPanelRegistry.has(mobileActivePanel)) {
+        mobileActivePanel = 'presets';
+      }
+      expandControlPanel(mobileActivePanel, { fromTab: true, preserveDesktop: true });
+    } else {
+      controlPanelRegistry.forEach((entry, key) => {
+        const shouldExpand = desktopPanelState.get(key);
+        if (shouldExpand) {
+          expandControlPanel(key, { fromTab: key === lastExpandedPanel, preserveDesktop: true });
+        } else {
+          collapseControlPanel(key, { preserveDesktop: true });
+        }
+      });
+      const fallback = Array.from(controlPanelRegistry.entries()).find(([, value]) => value.expanded);
+      lastExpandedPanel = fallback ? fallback[0] : null;
+      syncPanelTabs(lastExpandedPanel);
+    }
+  }
+
+  mobileSheetQuery.addEventListener('change', () => {
+    if (!mobileSheetQuery.matches) {
+      mobileActivePanel = 'presets';
+    } else if (!controlPanelRegistry.get(mobileActivePanel)?.expanded) {
+      mobileActivePanel = 'presets';
+    }
+    initializeControlPanels();
+  });
+
+  initializeControlPanels();
+
   audioUI.panel = $('audioPanel');
   audioUI.body = $('audioPanelBody');
   audioUI.toggle = $('audioPanelToggle');
@@ -4026,6 +4534,30 @@ export function bootstrapApp() {
   renderPatternPresets();
   renderDistributionChips();
   setCurrentPattern(currentPatternName);
+
+  loadUserPresetsFromStorage();
+  setPresetGalleryMode(userPresetState.galleryMode);
+  renderUserPresets();
+
+  if (customPresetUI.form) {
+    customPresetUI.form.addEventListener('submit', handlePresetFormSubmit);
+  }
+  if (customPresetUI.galleryToggle) {
+    customPresetUI.galleryToggle.addEventListener('click', () => {
+      const next = userPresetState.galleryMode === 'grid' ? 'list' : 'grid';
+      setPresetGalleryMode(next);
+    });
+  }
+  if (customPresetUI.randomBtn) {
+    customPresetUI.randomBtn.addEventListener('click', () => {
+      if (userPresetState.selected.size === 0) {
+        return;
+      }
+      const active = autoRandomState.enabled && autoRandomState.mode === 'presets';
+      setAutoRandomEnabled(!active || autoRandomState.mode !== 'presets', { mode: 'presets' });
+    });
+    updatePresetRandomButton();
+  }
 
   const barState = {
     visible: bar ? bar.classList.contains('is-visible') : false,
@@ -4240,8 +4772,9 @@ export function bootstrapApp() {
       audioUI.autoRandomBtn.disabled = false;
       audioUI.autoRandomBtn.removeAttribute('aria-disabled');
     }
-    audioUI.autoRandomBtn.setAttribute('aria-pressed', autoRandomState.enabled ? 'true' : 'false');
-    audioUI.autoRandomBtn.textContent = autoRandomState.enabled ? '🔀 Random-Modus an' : '🔀 Random-Modus aus';
+    const active = autoRandomState.enabled && autoRandomState.mode === 'parameters';
+    audioUI.autoRandomBtn.setAttribute('aria-pressed', active ? 'true' : 'false');
+    audioUI.autoRandomBtn.textContent = active ? '🔀 Komplett Random an' : '🔀 Komplett Random aus';
   }
 
   function scheduleNextAutoRandom() {
@@ -4255,13 +4788,22 @@ export function bootstrapApp() {
     autoRandomState.nextTrigger = autoRandomState.elapsed + interval;
   }
 
-  function setAutoRandomEnabled(enabled) {
-    const next = experienceState.editingMode ? false : Boolean(enabled);
-    if (autoRandomState.enabled === next) {
+  function setAutoRandomEnabled(enabled, { mode = autoRandomState.mode } = {}) {
+    const desiredMode = mode === 'presets' ? 'presets' : 'parameters';
+    const allow = !experienceState.editingMode && Boolean(enabled);
+    const modeChanged = autoRandomState.mode !== desiredMode;
+    const shouldEnable = allow && (desiredMode === 'parameters' || userPresetState.selected.size > 0);
+    if (desiredMode === 'presets' && allow && userPresetState.selected.size === 0 && customPresetUI.hint) {
+      customPresetUI.hint.textContent = 'Bitte wähle mindestens ein Preset für den Shuffle aus.';
+    }
+    const statusChanged = autoRandomState.enabled !== shouldEnable || modeChanged;
+    autoRandomState.mode = desiredMode;
+    if (!statusChanged) {
       updateAutoRandomButton();
+      updatePresetRandomButton();
       return;
     }
-    autoRandomState.enabled = next;
+    autoRandomState.enabled = shouldEnable;
     autoRandomState.nudgeAccumulator = 0;
     if (autoRandomState.enabled) {
       autoRandomState.elapsed = 0;
@@ -4269,7 +4811,11 @@ export function bootstrapApp() {
     } else {
       autoRandomState.nextTrigger = Infinity;
     }
+    if (desiredMode !== 'presets' || !autoRandomState.enabled) {
+      autoRandomState.lastPresetId = null;
+    }
     updateAutoRandomButton();
+    updatePresetRandomButton();
   }
 
   function isUserInteractingWithControls() {
@@ -4364,16 +4910,26 @@ export function bootstrapApp() {
     if (!autoRandomState.enabled) {
       return;
     }
+    if (autoRandomState.mode === 'presets' && userPresetState.selected.size === 0) {
+      setAutoRandomEnabled(false, { mode: 'parameters' });
+      return;
+    }
     const playing = audioState.playing || audioState.usingMic;
     if (autoRandomState.elapsed >= autoRandomState.nextTrigger) {
       if (playing) {
-        randomizeParameters({ syncUI: true });
+        if (autoRandomState.mode === 'presets') {
+          playRandomPresetFromSelection();
+        } else {
+          randomizeParameters({ syncUI: true });
+        }
       }
       scheduleNextAutoRandom();
     }
-    const nudged = applyAudioDrivenTweaks(delta, playing);
-    if (nudged) {
-      setSliders();
+    if (autoRandomState.mode === 'parameters') {
+      const nudged = applyAudioDrivenTweaks(delta, playing);
+      if (nudged) {
+        setSliders();
+      }
     }
   }
 
@@ -4390,7 +4946,8 @@ export function bootstrapApp() {
 
   if (audioUI.autoRandomBtn) {
     audioUI.autoRandomBtn.addEventListener('click', () => {
-      setAutoRandomEnabled(!autoRandomState.enabled);
+      const active = autoRandomState.enabled && autoRandomState.mode === 'parameters';
+      setAutoRandomEnabled(!active || autoRandomState.mode !== 'parameters', { mode: 'parameters' });
     });
     updateAutoRandomButton(false);
   }
@@ -4758,6 +5315,8 @@ export function bootstrapApp() {
       }
       updateAudioOverlayVisibility();
     }
+    updateAutoRandomButton();
+    updatePresetRandomButton();
   }
 
   function getDefaultPanelVisibility() {
@@ -5890,8 +6449,12 @@ export function bootstrapApp() {
     }
   }
 
-  $('random').addEventListener('click', () => {
-    randomizeParameters({ syncUI: true });
+  ['random', 'patternRandomParameters'].forEach(id => {
+    const button = $(id);
+    if (!button) return;
+    button.addEventListener('click', () => {
+      randomizeParameters({ syncUI: true });
+    });
   });
 
   /* Update slider displays */
