@@ -194,6 +194,126 @@
       background: rgba(90, 190, 255, 0.22);
       color: #0f172a;
     }
+    .panel-pager {
+      display: flex;
+      flex-direction: column;
+      gap: .85rem;
+    }
+    .panel-pager__indicator {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: .45rem;
+    }
+    .panel-pager__dot {
+      appearance: none;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      border: 1px solid rgba(255, 255, 255, 0.35);
+      background: transparent;
+      padding: 0;
+      cursor: pointer;
+      transition: transform .2s ease, background .2s ease, border-color .2s ease;
+    }
+    .panel-pager__dot.is-active {
+      background: rgba(255, 255, 255, 0.9);
+      border-color: rgba(255, 255, 255, 0.9);
+      transform: scale(1.15);
+    }
+    .panel-pager__dot:focus-visible {
+      outline: 2px solid rgba(90, 190, 255, 0.9);
+      outline-offset: 2px;
+    }
+    .panel-pager__viewport {
+      position: relative;
+      overflow: hidden;
+    }
+    .panel-pager__track {
+      display: flex;
+      width: 100%;
+      transition: transform .35s cubic-bezier(.22, .61, .36, 1);
+      will-change: transform;
+      touch-action: pan-y;
+    }
+    .panel-pager__page {
+      flex: 0 0 100%;
+      padding-bottom: .5rem;
+    }
+    .panel-pager__page[aria-hidden="true"] {
+      visibility: hidden;
+      pointer-events: none;
+    }
+    .panel-pager__page h3:first-child {
+      margin-top: .15rem;
+    }
+    .preset-studio {
+      display: grid;
+      gap: .85rem;
+      background: rgba(20, 20, 20, 0.45);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 12px;
+      padding: .85rem .95rem 1.15rem;
+    }
+    .preset-studio__intro {
+      margin: 0;
+      font-size: .85rem;
+      opacity: .85;
+      line-height: 1.5;
+    }
+    .preset-studio__actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: .6rem;
+    }
+    .preset-studio__actions button {
+      flex: 1 1 160px;
+      padding: .65rem .75rem;
+      border-radius: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      background: rgba(255, 255, 255, 0.08);
+      color: inherit;
+      font-weight: 600;
+      font-size: .85rem;
+      letter-spacing: .01em;
+      cursor: pointer;
+      transition: background .2s ease, border-color .2s ease, transform .2s ease;
+    }
+    .preset-studio__actions button:hover,
+    .preset-studio__actions button:focus-visible {
+      background: rgba(90, 190, 255, 0.18);
+      border-color: rgba(90, 190, 255, 0.55);
+      outline: none;
+    }
+    .preset-studio__status {
+      font-size: .8rem;
+      line-height: 1.4;
+      border-radius: 8px;
+      padding: .45rem .55rem;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid transparent;
+    }
+    .preset-studio__status[data-state="success"] {
+      border-color: rgba(120, 220, 180, 0.65);
+      color: #9ff0cf;
+      background: rgba(40, 120, 90, 0.28);
+    }
+    .preset-studio__status[data-state="error"] {
+      border-color: rgba(255, 180, 160, 0.65);
+      color: #ffc7bd;
+      background: rgba(150, 60, 40, 0.28);
+    }
+    .preset-studio__status[data-state="info"] {
+      border-color: rgba(90, 190, 255, 0.45);
+      color: #b7e3ff;
+      background: rgba(40, 120, 180, 0.22);
+    }
+    .preset-studio__note {
+      font-size: .78rem;
+      opacity: .75;
+      line-height: 1.5;
+      margin: 0;
+    }
     .accordion {
       background: rgba(20, 20, 20, 0.45);
       border: 1px solid rgba(255, 255, 255, 0.08);
@@ -554,8 +674,33 @@
         right: auto;
         width: 100%;
         max-width: none;
-        margin-top: 18px;
+        margin-top: 0;
+        padding: .35rem 0 0;
+        background: transparent;
         box-shadow: none;
+        backdrop-filter: none;
+      }
+      #audioPanel .panel-header {
+        padding: .55rem .75rem;
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+      }
+      #audioPanel .panel-body {
+        margin-top: .65rem;
+        padding: .75rem;
+        border-radius: 12px;
+        background: rgba(0, 0, 0, 0.35);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+      }
+      .panel-pager__page {
+        padding-bottom: 1.1rem;
+      }
+      .panel-pager__page[aria-hidden="true"] {
+        display: none;
+      }
+      .panel-pager__track {
+        gap: 0;
       }
       #panel.is-hidden {
         transform: translateY(calc(var(--sheet-expanded-height, 80vh) + 40px));
@@ -598,6 +743,25 @@
     }
     canvas { display: block; cursor: grab; }
     canvas:active { cursor: grabbing; }
+    @media (min-width: 769px) {
+      .panel-pager__indicator {
+        display: none;
+      }
+      .panel-pager__viewport {
+        overflow: visible;
+      }
+      .panel-pager__track {
+        display: grid;
+        gap: 1.2rem;
+        transform: none !important;
+      }
+      .panel-pager__page {
+        flex: none;
+        width: 100%;
+        visibility: visible !important;
+        pointer-events: auto;
+      }
+    }
     canvas.locked { cursor: not-allowed; }
     canvas.locked:active { cursor: not-allowed; }
     .mobile-hint {
@@ -684,7 +848,16 @@
       <span class="sheet-handle-label">Panel vergrößern</span>
     </button>
   </div>
-  <h3>Parameter</h3>
+  <div id="panelPager" class="panel-pager" data-active-index="0">
+    <div class="panel-pager__indicator" id="panelPagerIndicator" role="tablist" aria-label="Panel-Seiten">
+      <button type="button" class="panel-pager__dot is-active" data-page-index="0" aria-label="Parameter" title="Parameter" aria-pressed="true"></button>
+      <button type="button" class="panel-pager__dot" data-page-index="1" aria-label="Media-Player-Konfiguration" title="Media-Player-Konfiguration" aria-pressed="false"></button>
+      <button type="button" class="panel-pager__dot" data-page-index="2" aria-label="Preset-Studio" title="Preset-Studio" aria-pressed="false"></button>
+    </div>
+    <div class="panel-pager__viewport">
+      <div class="panel-pager__track" id="panelPagerTrack">
+        <section class="panel-pager__page" data-page="parameters" aria-hidden="false">
+          <h3>Parameter</h3>
   <section class="accordion" id="acc-points">
     <button type="button" class="accordion__trigger" id="acc-points-trigger" aria-expanded="true" aria-controls="acc-points-panel">
       Punkte
@@ -1138,121 +1311,140 @@
       <p class="hint">Tipp: Wähle mehrere STL-Dateien gleichzeitig aus, um sie zu einem Körper zu verschmelzen. Mit „Entfernen“ setzt du den Zustand zurück.</p>
     </div>
   </section>
-</div>
-<div id="audioPanel" role="complementary" aria-label="Audio-Steuerung">
-  <div class="panel-header">
-    <h3>Audio-Reaktivität</h3>
-    <button type="button" id="audioPanelToggle" aria-expanded="true" aria-controls="audioPanelBody" aria-label="Audio-Bedienfeld ein- oder ausblenden" title="Audio-Bedienfeld ein- oder ausblenden">▾</button>
-  </div>
-  <div class="panel-body" id="audioPanelBody">
-    <div class="row file-row">
-      <label for="audioFile">Audio-Dateien</label>
-      <input id="audioFile" type="file" accept="audio/*" multiple />
-      <div class="file-meta" id="audioFileMeta">Keine Auswahl</div>
-      <div class="playlist-meta" id="audioPlaylistMeta">Keine Playlist geladen</div>
-    </div>
-    <div class="row">
-      <div class="audio-controls audio-controls--primary">
-        <button type="button" id="audioPrev" disabled>⏮️ Zurück</button>
-        <button type="button" id="audioPlay" disabled>▶️ Abspielen</button>
-        <button type="button" id="audioStop" disabled>⏹️ Stop</button>
-        <button type="button" id="audioNext" disabled>⏭️ Weiter</button>
+        </section>
+        <section class="panel-pager__page" data-page="media" aria-hidden="true">
+          <div id="audioPanel" role="complementary" aria-label="Audio-Steuerung">
+            <div class="panel-header">
+              <h3>Audio-Reaktivität</h3>
+              <button type="button" id="audioPanelToggle" aria-expanded="true" aria-controls="audioPanelBody" aria-label="Audio-Bedienfeld ein- oder ausblenden" title="Audio-Bedienfeld ein- oder ausblenden">▾</button>
+            </div>
+            <div class="panel-body" id="audioPanelBody">
+              <div class="row file-row">
+                <label for="audioFile">Audio-Dateien</label>
+                <input id="audioFile" type="file" accept="audio/*" multiple />
+                <div class="file-meta" id="audioFileMeta">Keine Auswahl</div>
+                <div class="playlist-meta" id="audioPlaylistMeta">Keine Playlist geladen</div>
+              </div>
+              <div class="row">
+                <div class="audio-controls audio-controls--primary">
+                  <button type="button" id="audioPrev" disabled>⏮️ Zurück</button>
+                  <button type="button" id="audioPlay" disabled>▶️ Abspielen</button>
+                  <button type="button" id="audioStop" disabled>⏹️ Stop</button>
+                  <button type="button" id="audioNext" disabled>⏭️ Weiter</button>
+                </div>
+              </div>
+              <div class="row">
+                <div class="audio-controls audio-controls--secondary">
+                  <button type="button" id="audioRepeat" aria-pressed="false" disabled>🔁 Repeat aus</button>
+                </div>
+              </div>
+              <div class="row">
+                <label for="audioMicStart">Mikrofon</label>
+                <div class="audio-controls">
+                  <button type="button" id="audioMicStart">🎙️ Start</button>
+                  <button type="button" id="audioMicStop" disabled>⏹️ Stop</button>
+                </div>
+              </div>
+              <div class="row">
+                <label>Audio-Reaktionsziele</label>
+                <div class="modifier-grid" id="audioModifierGrid">
+                  <button type="button" class="modifier-toggle" data-modifier="motion" aria-pressed="true">Rotation</button>
+                  <button type="button" class="modifier-toggle" data-modifier="scale" aria-pressed="true">Skalierung</button>
+                  <button type="button" class="modifier-toggle" data-modifier="size" aria-pressed="true">Punktgröße</button>
+                  <button type="button" class="modifier-toggle" data-modifier="hue" aria-pressed="true">Farbton</button>
+                  <button type="button" class="modifier-toggle" data-modifier="saturation" aria-pressed="true">Sättigung</button>
+                  <button type="button" class="modifier-toggle" data-modifier="brightness" aria-pressed="true">Helligkeit</button>
+                  <button type="button" class="modifier-toggle" data-modifier="alpha" aria-pressed="true">Transparenz</button>
+                </div>
+              </div>
+              <div class="row">
+                <label>Reaktionsstärke</label>
+                <div class="intensity-grid">
+                  <div class="wrap" data-intensity-row="motion">
+                    <span class="tag">Rotation</span>
+                    <input class="intensity-limit" type="number" min="5" max="200" step="5" value="20" data-intensity-limit="motion" aria-label="Maximale Reaktionsstärke für Rotation in Prozent" />
+                    <input type="range" min="0" max="100" step="5" value="50" data-intensity-target="motion" />
+                    <div class="val" data-intensity-value="motion">50%</div>
+                  </div>
+                  <div class="wrap" data-intensity-row="scale">
+                    <span class="tag">Skalierung</span>
+                    <input class="intensity-limit" type="number" min="5" max="200" step="5" value="100" data-intensity-limit="scale" aria-label="Maximale Reaktionsstärke für Skalierung in Prozent" />
+                    <input type="range" min="0" max="100" step="5" value="100" data-intensity-target="scale" />
+                    <div class="val" data-intensity-value="scale">100%</div>
+                  </div>
+                  <div class="wrap" data-intensity-row="size">
+                    <span class="tag">Punktgröße</span>
+                    <input class="intensity-limit" type="number" min="5" max="200" step="5" value="100" data-intensity-limit="size" aria-label="Maximale Reaktionsstärke für Punktgröße in Prozent" />
+                    <input type="range" min="0" max="100" step="5" value="100" data-intensity-target="size" />
+                    <div class="val" data-intensity-value="size">100%</div>
+                  </div>
+                  <div class="wrap" data-intensity-row="hue">
+                    <span class="tag">Farbton</span>
+                    <input class="intensity-limit" type="number" min="5" max="200" step="5" value="100" data-intensity-limit="hue" aria-label="Maximale Reaktionsstärke für Farbton in Prozent" />
+                    <input type="range" min="0" max="100" step="5" value="100" data-intensity-target="hue" />
+                    <div class="val" data-intensity-value="hue">100%</div>
+                  </div>
+                  <div class="wrap" data-intensity-row="saturation">
+                    <span class="tag">Sättigung</span>
+                    <input class="intensity-limit" type="number" min="5" max="200" step="5" value="100" data-intensity-limit="saturation" aria-label="Maximale Reaktionsstärke für Sättigung in Prozent" />
+                    <input type="range" min="0" max="100" step="5" value="100" data-intensity-target="saturation" />
+                    <div class="val" data-intensity-value="saturation">100%</div>
+                  </div>
+                  <div class="wrap" data-intensity-row="brightness">
+                    <span class="tag">Helligkeit</span>
+                    <input class="intensity-limit" type="number" min="5" max="200" step="5" value="100" data-intensity-limit="brightness" aria-label="Maximale Reaktionsstärke für Helligkeit in Prozent" />
+                    <input type="range" min="0" max="100" step="5" value="100" data-intensity-target="brightness" />
+                    <div class="val" data-intensity-value="brightness">100%</div>
+                  </div>
+                  <div class="wrap" data-intensity-row="alpha">
+                    <span class="tag">Transparenz</span>
+                    <input class="intensity-limit" type="number" min="5" max="200" step="5" value="100" data-intensity-limit="alpha" aria-label="Maximale Reaktionsstärke für Transparenz in Prozent" />
+                    <input type="range" min="0" max="100" step="5" value="100" data-intensity-target="alpha" />
+                    <div class="val" data-intensity-value="alpha">100%</div>
+                  </div>
+                </div>
+              </div>
+              <div class="row">
+                <label for="brightnessAdaptationToggle">Helligkeitsadaption</label>
+                <div class="wrap">
+                  <button type="button" id="brightnessAdaptationToggle" aria-pressed="true">🌗 Adaption an</button>
+                </div>
+              </div>
+              <div class="row">
+                <label for="audioRandomMode">Random-Modus</label>
+                <div class="audio-controls">
+                  <button type="button" id="audioRandomMode" aria-pressed="false">🔀 Random-Modus aus</button>
+                </div>
+              </div>
+              <div class="row status-row" role="status" aria-live="polite">
+                <span class="status-indicator" id="audioStatusDot" data-state="idle" aria-hidden="true"></span>
+                <span class="status-text" id="audioStatus" data-state="idle">Audio-Reaktivität inaktiv</span>
+              </div>
+              <div class="panel-footnote" id="audioSupportNotice">Nutze eine Datei oder das Mikrofon, um die Punktfarben an Audio zu koppeln.</div>
+            </div>
+          </div>
+        </section>
+        <section class="panel-pager__page" data-page="preset-studio" aria-hidden="true">
+          <div class="preset-studio" id="presetStudio">
+            <h3>Preset-Studio</h3>
+            <p class="preset-studio__intro">Erstelle schnelle Mixe oder exportiere deine aktuelle Szene als Preset.</p>
+            <div class="preset-studio__actions">
+              <button type="button" id="presetStudioShuffle">🎲 Zufälliger Mix</button>
+              <button type="button" id="presetStudioRestore">🔁 Ausgangsszene</button>
+              <button type="button" id="presetStudioCopy">📋 Preset kopieren</button>
+            </div>
+            <div class="preset-studio__status" id="presetStudioStatus" data-state="info">Tipp: Kopiere dein aktuelles Preset, um es zu teilen oder später erneut zu laden.</div>
+            <p class="preset-studio__note">Weitere Preset-Funktionen folgen – swipe nach links oder rechts, um zwischen den Bereichen zu wechseln.</p>
+          </div>
+        </section>
       </div>
     </div>
-    <div class="row">
-      <div class="audio-controls audio-controls--secondary">
-        <button type="button" id="audioRepeat" aria-pressed="false" disabled>🔁 Repeat aus</button>
-      </div>
-    </div>
-    <div class="row">
-      <label for="audioMicStart">Mikrofon</label>
-      <div class="audio-controls">
-        <button type="button" id="audioMicStart">🎙️ Start</button>
-        <button type="button" id="audioMicStop" disabled>⏹️ Stop</button>
-      </div>
-    </div>
-    <div class="row">
-      <label>Audio-Reaktionsziele</label>
-      <div class="modifier-grid" id="audioModifierGrid">
-        <button type="button" class="modifier-toggle" data-modifier="motion" aria-pressed="true">Rotation</button>
-        <button type="button" class="modifier-toggle" data-modifier="scale" aria-pressed="true">Skalierung</button>
-        <button type="button" class="modifier-toggle" data-modifier="size" aria-pressed="true">Punktgröße</button>
-        <button type="button" class="modifier-toggle" data-modifier="hue" aria-pressed="true">Farbton</button>
-        <button type="button" class="modifier-toggle" data-modifier="saturation" aria-pressed="true">Sättigung</button>
-        <button type="button" class="modifier-toggle" data-modifier="brightness" aria-pressed="true">Helligkeit</button>
-        <button type="button" class="modifier-toggle" data-modifier="alpha" aria-pressed="true">Transparenz</button>
-      </div>
-    </div>
-    <div class="row">
-      <label>Reaktionsstärke</label>
-      <div class="intensity-grid">
-        <div class="wrap" data-intensity-row="motion">
-          <span class="tag">Rotation</span>
-          <input class="intensity-limit" type="number" min="5" max="200" step="5" value="20" data-intensity-limit="motion" aria-label="Maximale Reaktionsstärke für Rotation in Prozent" />
-          <input type="range" min="0" max="100" step="5" value="50" data-intensity-target="motion" />
-          <div class="val" data-intensity-value="motion">50%</div>
-        </div>
-        <div class="wrap" data-intensity-row="scale">
-          <span class="tag">Skalierung</span>
-          <input class="intensity-limit" type="number" min="5" max="200" step="5" value="100" data-intensity-limit="scale" aria-label="Maximale Reaktionsstärke für Skalierung in Prozent" />
-          <input type="range" min="0" max="100" step="5" value="100" data-intensity-target="scale" />
-          <div class="val" data-intensity-value="scale">100%</div>
-        </div>
-        <div class="wrap" data-intensity-row="size">
-          <span class="tag">Punktgröße</span>
-          <input class="intensity-limit" type="number" min="5" max="200" step="5" value="100" data-intensity-limit="size" aria-label="Maximale Reaktionsstärke für Punktgröße in Prozent" />
-          <input type="range" min="0" max="100" step="5" value="100" data-intensity-target="size" />
-          <div class="val" data-intensity-value="size">100%</div>
-        </div>
-        <div class="wrap" data-intensity-row="hue">
-          <span class="tag">Farbton</span>
-          <input class="intensity-limit" type="number" min="5" max="200" step="5" value="100" data-intensity-limit="hue" aria-label="Maximale Reaktionsstärke für Farbton in Prozent" />
-          <input type="range" min="0" max="100" step="5" value="100" data-intensity-target="hue" />
-          <div class="val" data-intensity-value="hue">100%</div>
-        </div>
-        <div class="wrap" data-intensity-row="saturation">
-          <span class="tag">Sättigung</span>
-          <input class="intensity-limit" type="number" min="5" max="200" step="5" value="100" data-intensity-limit="saturation" aria-label="Maximale Reaktionsstärke für Sättigung in Prozent" />
-          <input type="range" min="0" max="100" step="5" value="100" data-intensity-target="saturation" />
-          <div class="val" data-intensity-value="saturation">100%</div>
-        </div>
-        <div class="wrap" data-intensity-row="brightness">
-          <span class="tag">Helligkeit</span>
-          <input class="intensity-limit" type="number" min="5" max="200" step="5" value="100" data-intensity-limit="brightness" aria-label="Maximale Reaktionsstärke für Helligkeit in Prozent" />
-          <input type="range" min="0" max="100" step="5" value="100" data-intensity-target="brightness" />
-          <div class="val" data-intensity-value="brightness">100%</div>
-        </div>
-        <div class="wrap" data-intensity-row="alpha">
-          <span class="tag">Transparenz</span>
-          <input class="intensity-limit" type="number" min="5" max="200" step="5" value="100" data-intensity-limit="alpha" aria-label="Maximale Reaktionsstärke für Transparenz in Prozent" />
-          <input type="range" min="0" max="100" step="5" value="100" data-intensity-target="alpha" />
-          <div class="val" data-intensity-value="alpha">100%</div>
-        </div>
-      </div>
-    </div>
-    <div class="row">
-      <label for="brightnessAdaptationToggle">Helligkeitsadaption</label>
-      <div class="wrap">
-        <button type="button" id="brightnessAdaptationToggle" aria-pressed="true">🌗 Adaption an</button>
-      </div>
-    </div>
-    <div class="row">
-      <label for="audioRandomMode">Random-Modus</label>
-      <div class="audio-controls">
-        <button type="button" id="audioRandomMode" aria-pressed="false">🔀 Random-Modus aus</button>
-      </div>
-    </div>
-    <div class="row status-row" role="status" aria-live="polite">
-      <span class="status-indicator" id="audioStatusDot" data-state="idle" aria-hidden="true"></span>
-      <span class="status-text" id="audioStatus" data-state="idle">Audio-Reaktivität inaktiv</span>
-    </div>
-    <div class="panel-footnote" id="audioSupportNotice">Nutze eine Datei oder das Mikrofon, um die Punktfarben an Audio zu koppeln.</div>
   </div>
 </div>
 <div id="mobileHint" class="mobile-hint" data-visible="false" aria-hidden="true" role="status">
   <div class="mobile-hint__content">
     <h3 class="mobile-hint__title">Steuerung öffnen</h3>
-    <p class="mobile-hint__text">Halte den Bildschirm gedrückt, um das Panel einzublenden und Einstellungen vorzunehmen.</p>
+    <p class="mobile-hint__text">Halte den Bildschirm gedrückt, um das Panel einzublenden, oder tippe doppelt für eine zufällige Szene mit zufälligem Lead.</p>
     <button type="button" id="mobileHintDismiss" class="mobile-hint__dismiss">Alles klar</button>
   </div>
 </div>
@@ -2969,6 +3161,26 @@ async function startInitialPlaylistPlayback() {
   return true;
 }
 
+async function startRandomPresetPlayback() {
+  try {
+    await ensurePresetPlaylistInitialized();
+  } catch (error) {
+    console.warn('Preset-Playlist konnte nicht initialisiert werden:', error);
+  }
+  const total = getPlaylistLength();
+  if (total <= 0) {
+    setAudioStatus('Keine Preset-Playlist verfügbar.', 'warning');
+    refreshAudioUI();
+    return false;
+  }
+  const randomIndex = Math.floor(Math.random() * total);
+  if (!setCurrentTrack(randomIndex)) {
+    return false;
+  }
+  await playSelectedFile();
+  return true;
+}
+
 function playNextTrack({ wrap = false } = {}) {
   const total = getPlaylistLength();
   if (total <= 0) {
@@ -4304,6 +4516,16 @@ const sheetHandleBtn = $('sheetHandle');
 const panelHoverZone = $('panelHoverZone');
 const mobileHint = $('mobileHint');
 const mobileHintDismissBtn = $('mobileHintDismiss');
+const panelPager = $('panelPager');
+const panelPagerTrack = $('panelPagerTrack');
+const panelPagerViewport = panelPager ? panelPager.querySelector('.panel-pager__viewport') : null;
+const panelPagerDots = panelPager ? Array.from(panelPager.querySelectorAll('.panel-pager__dot')) : [];
+const panelPagerPages = panelPager ? Array.from(panelPager.querySelectorAll('.panel-pager__page')) : [];
+const presetStudio = $('presetStudio');
+const presetStudioStatus = $('presetStudioStatus');
+const presetStudioShuffleBtn = $('presetStudioShuffle');
+const presetStudioRestoreBtn = $('presetStudioRestore');
+const presetStudioCopyBtn = $('presetStudioCopy');
 const mobileSheetQuery = window.matchMedia('(max-width: 768px)');
 const sheetState = {
   mode: 'compact',
@@ -4323,6 +4545,19 @@ const panelGestureState = {
   startX: 0,
   startY: 0,
 };
+const panelPagerState = {
+  index: 0,
+  pointerId: null,
+  startX: 0,
+  startY: 0,
+  deltaX: 0,
+  dragging: false,
+  width: 0,
+  captureElement: null,
+};
+const doubleTapState = { lastTime: 0, lastX: 0, lastY: 0 };
+const DOUBLE_TAP_TIMEOUT_MS = 360;
+const DOUBLE_TAP_DISTANCE_PX = 32;
 let hoverCloseTimer = null;
 let hoverPointerInside = false;
 let mobileHintDismissed = false;
@@ -4347,11 +4582,229 @@ function updateMobileHintVisibility() {
   setMobileHintVisible(shouldShow);
 }
 
+function setPresetStudioStatus(message, state = 'info') {
+  if (!presetStudioStatus) return;
+  presetStudioStatus.textContent = message;
+  presetStudioStatus.dataset.state = state;
+}
+
+function restorePanelPagerPosition({ animate = true } = {}) {
+  if (!panelPagerTrack) return;
+  if (!animate) {
+    panelPagerTrack.style.transition = 'none';
+    panelPagerTrack.style.transform = `translateX(${-panelPagerState.index * 100}%)`;
+    requestAnimationFrame(() => {
+      panelPagerTrack.style.transition = '';
+    });
+    return;
+  }
+  panelPagerTrack.style.transition = '';
+  panelPagerTrack.style.transform = `translateX(${-panelPagerState.index * 100}%)`;
+}
+
+function setActivePanelPage(index, { animate = true } = {}) {
+  if (!panelPagerTrack || !panelPagerPages.length) return;
+  const total = panelPagerPages.length;
+  const next = Math.max(0, Math.min(total - 1, Number(index) || 0));
+  const indexChanged = panelPagerState.index !== next;
+  if (panelPager) {
+    panelPager.dataset.activeIndex = String(next);
+  }
+  if (indexChanged) {
+    panelPagerState.index = next;
+    if (!animate) {
+      panelPagerTrack.style.transition = 'none';
+      panelPagerTrack.style.transform = `translateX(${-next * 100}%)`;
+      requestAnimationFrame(() => {
+        panelPagerTrack.style.transition = '';
+      });
+    } else {
+      panelPagerTrack.style.transition = '';
+      panelPagerTrack.style.transform = `translateX(${-next * 100}%)`;
+    }
+  } else {
+    restorePanelPagerPosition({ animate });
+  }
+  if (isMobileSheetActive()) {
+    panelPagerPages.forEach((page, idx) => {
+      const active = idx === next;
+      page.setAttribute('aria-hidden', active ? 'false' : 'true');
+    });
+  } else {
+    panelPagerPages.forEach(page => page.setAttribute('aria-hidden', 'false'));
+  }
+  panelPagerDots.forEach((dot, idx) => {
+    const active = idx === next;
+    dot.classList.toggle('is-active', active);
+    dot.setAttribute('aria-pressed', active ? 'true' : 'false');
+  });
+  if (isMobileSheetActive()) {
+    window.requestAnimationFrame(() => {
+      recalculateSheetMetrics();
+    });
+  }
+}
+
+function shouldIgnorePagerGesture(target) {
+  if (!target) return false;
+  const interactive = target.closest('button, input, select, textarea, label, a, [data-prevent-pager-drag]');
+  return Boolean(interactive);
+}
+
+function finishPanelPagerPointer(event, { cancel = false } = {}) {
+  if (!panelPagerTrack) return;
+  const pointerId = panelPagerState.pointerId;
+  if (pointerId !== null) {
+    const captureTarget = panelPagerState.captureElement;
+    if (captureTarget && captureTarget.releasePointerCapture) {
+      try { captureTarget.releasePointerCapture(pointerId); } catch (err) { /* noop */ }
+    }
+  }
+  const dragged = panelPagerState.dragging;
+  const deltaX = panelPagerState.deltaX;
+  panelPagerState.pointerId = null;
+  panelPagerState.dragging = false;
+  panelPagerState.deltaX = 0;
+  panelPagerState.width = 0;
+  panelPagerState.captureElement = null;
+  if (!dragged || cancel) {
+    restorePanelPagerPosition({ animate: !cancel });
+    return;
+  }
+  const width = Math.max(1, panelPagerViewport ? panelPagerViewport.clientWidth : (panelPager ? panelPager.clientWidth : 1));
+  const threshold = Math.max(24, width * 0.18);
+  let next = panelPagerState.index;
+  if (deltaX > threshold) {
+    next = Math.max(0, panelPagerState.index - 1);
+  } else if (deltaX < -threshold) {
+    next = Math.min(panelPagerPages.length - 1, panelPagerState.index + 1);
+  }
+  setActivePanelPage(next);
+}
+
+function handlePanelPagerPointerDown(event) {
+  if (!panelPagerTrack || panelPagerState.pointerId !== null || panelPagerPages.length <= 1) return;
+  const pointerType = event.pointerType || '';
+  if (pointerType && pointerType !== 'touch' && pointerType !== 'pen') {
+    return;
+  }
+  if (shouldIgnorePagerGesture(event.target)) {
+    return;
+  }
+  panelPagerState.pointerId = event.pointerId;
+  panelPagerState.startX = event.clientX;
+  panelPagerState.startY = event.clientY;
+  panelPagerState.deltaX = 0;
+  panelPagerState.dragging = false;
+  panelPagerState.width = Math.max(1, panelPagerViewport ? panelPagerViewport.clientWidth : panelPager.clientWidth);
+  const captureTarget = panelPagerViewport || panelPagerTrack;
+  panelPagerState.captureElement = captureTarget;
+  if (captureTarget && captureTarget.setPointerCapture) {
+    try { captureTarget.setPointerCapture(event.pointerId); } catch (err) { /* noop */ }
+  }
+  panelPagerTrack.style.transition = 'none';
+}
+
+function handlePanelPagerPointerMove(event) {
+  if (panelPagerState.pointerId === null || event.pointerId !== panelPagerState.pointerId) return;
+  const dx = event.clientX - panelPagerState.startX;
+  const dy = event.clientY - panelPagerState.startY;
+  if (!panelPagerState.dragging) {
+    if (Math.abs(dy) > Math.abs(dx) && Math.abs(dy) > 16) {
+      finishPanelPagerPointer(event, { cancel: true });
+      return;
+    }
+    if (Math.abs(dx) > 12) {
+      panelPagerState.dragging = true;
+    }
+  }
+  if (!panelPagerState.dragging) {
+    return;
+  }
+  panelPagerState.deltaX = dx;
+  const width = panelPagerState.width || Math.max(1, panelPagerViewport ? panelPagerViewport.clientWidth : panelPager.clientWidth);
+  const ratio = width > 0 ? dx / width : 0;
+  const offset = -(panelPagerState.index + ratio) * 100;
+  panelPagerTrack.style.transform = `translateX(${offset}%)`;
+}
+
+function handlePanelPagerPointerUp(event, options = {}) {
+  if (panelPagerState.pointerId === null || event.pointerId !== panelPagerState.pointerId) {
+    return;
+  }
+  finishPanelPagerPointer(event, options);
+}
+
+function resetDoubleTapState() {
+  doubleTapState.lastTime = 0;
+  doubleTapState.lastX = 0;
+  doubleTapState.lastY = 0;
+}
+
+async function triggerDoubleTapAction() {
+  dismissMobileHint();
+  randomizeParameters({ syncUI: true });
+  try {
+    const started = await startRandomPresetPlayback();
+    if (!started) {
+      setAudioStatus('Preset-Playlist nicht verfügbar – zufällige Szene ohne Musik.', 'warning');
+      refreshAudioUI();
+    }
+  } catch (error) {
+    console.warn('Doppeltipp-Aktion fehlgeschlagen:', error);
+  }
+}
+
+async function handleSceneDoubleTap(event) {
+  const pointerType = event.pointerType || '';
+  if (pointerType === 'mouse' && typeof event.button === 'number' && event.button !== 0) {
+    return;
+  }
+  const now = performance.now();
+  const x = Number.isFinite(event.clientX) ? event.clientX : 0;
+  const y = Number.isFinite(event.clientY) ? event.clientY : 0;
+  if (doubleTapState.lastTime > 0) {
+    const delta = now - doubleTapState.lastTime;
+    const distance = Math.hypot(x - doubleTapState.lastX, y - doubleTapState.lastY);
+    if (delta <= DOUBLE_TAP_TIMEOUT_MS && distance <= DOUBLE_TAP_DISTANCE_PX) {
+      resetDoubleTapState();
+      await triggerDoubleTapAction();
+      return;
+    }
+  }
+  doubleTapState.lastTime = now;
+  doubleTapState.lastX = x;
+  doubleTapState.lastY = y;
+}
+
 if (mobileHintDismissBtn) {
   mobileHintDismissBtn.addEventListener('click', () => {
     dismissMobileHint();
     updateMobileHintVisibility();
   });
+}
+
+if (panelPager) {
+  setActivePanelPage(panelPagerState.index, { animate: false });
+  if (panelPagerDots.length) {
+    panelPagerDots.forEach((dot, index) => {
+      dot.addEventListener('click', () => {
+        setActivePanelPage(index);
+      });
+    });
+  }
+  const pagerPointerTarget = panelPagerViewport || panelPager;
+  if (pagerPointerTarget && panelPagerPages.length > 1) {
+    pagerPointerTarget.addEventListener('pointerdown', handlePanelPagerPointerDown);
+    pagerPointerTarget.addEventListener('pointermove', handlePanelPagerPointerMove);
+    pagerPointerTarget.addEventListener('pointerup', handlePanelPagerPointerUp);
+    pagerPointerTarget.addEventListener('pointercancel', event => handlePanelPagerPointerUp(event, { cancel: true }));
+    pagerPointerTarget.addEventListener('pointerleave', event => {
+      if (panelPagerState.pointerId !== null && event.pointerId === panelPagerState.pointerId) {
+        handlePanelPagerPointerUp(event, { cancel: true });
+      }
+    });
+  }
 }
 
 modelUI.fileInput = $('modelFile');
@@ -4411,6 +4864,39 @@ if (modelUI.focusBtn) {
   modelUI.focusBtn.addEventListener('click', () => {
     if (uploadedModelState.loading) return;
     focusCameraOnUploadedModel();
+  });
+}
+
+if (presetStudioStatus && !presetStudioStatus.dataset.state) {
+  presetStudioStatus.dataset.state = 'info';
+}
+
+if (presetStudioShuffleBtn) {
+  presetStudioShuffleBtn.addEventListener('click', () => {
+    randomizeParameters({ syncUI: true });
+    setPresetStudioStatus('Zufällige Szene aktiviert.', 'success');
+  });
+}
+
+if (presetStudioRestoreBtn) {
+  presetStudioRestoreBtn.addEventListener('click', () => {
+    const applied = applyScenePreset(INITIAL_SCENE_PRESET, { syncUI: true });
+    if (applied) {
+      setPresetStudioStatus('Ausgangsszene wiederhergestellt.', 'success');
+    } else {
+      setPresetStudioStatus('Ausgangsszene konnte nicht geladen werden.', 'error');
+    }
+  });
+}
+
+if (presetStudioCopyBtn) {
+  presetStudioCopyBtn.addEventListener('click', async () => {
+    const copied = await copyCurrentPresetToClipboard();
+    if (copied) {
+      setPresetStudioStatus('Preset in die Zwischenablage kopiert.', 'success');
+    } else {
+      setPresetStudioStatus('Preset konnte nicht kopiert werden.', 'error');
+    }
   });
 }
 
@@ -4917,6 +5403,9 @@ function handleMobileMediaChange() {
     setSheetMode('compact', { force: true });
   }
   recalculateSheetMetrics();
+  if (panelPager) {
+    setActivePanelPage(panelPagerState.index, { animate: false });
+  }
   updateMobileHintVisibility();
 }
 
@@ -5069,6 +5558,7 @@ function handleSceneGestureEnd(event) {
     clearTimeout(panelGestureState.longPressTimer);
     panelGestureState.longPressTimer = null;
   }
+  void handleSceneDoubleTap(event);
 }
 
 function handleSceneGestureCancel(event) {
@@ -5079,6 +5569,7 @@ function handleSceneGestureCancel(event) {
     clearTimeout(panelGestureState.longPressTimer);
     panelGestureState.longPressTimer = null;
   }
+  resetDoubleTapState();
 }
 
 function handleSceneGestureMove(event) {
@@ -6131,6 +6622,34 @@ function randomizeParameters({ syncUI = true } = {}) {
   rebuildStars();
   if (syncUI) {
     setSliders();
+  }
+}
+
+async function copyCurrentPresetToClipboard() {
+  try {
+    const preset = JSON.stringify(params, null, 2);
+    if (!preset) {
+      return false;
+    }
+    if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+      await navigator.clipboard.writeText(preset);
+      return true;
+    }
+    const textarea = document.createElement('textarea');
+    textarea.value = preset;
+    textarea.setAttribute('readonly', '');
+    textarea.style.position = 'absolute';
+    textarea.style.left = '-9999px';
+    textarea.style.top = '0';
+    document.body.appendChild(textarea);
+    textarea.focus();
+    textarea.select();
+    const result = document.execCommand ? document.execCommand('copy') : false;
+    document.body.removeChild(textarea);
+    return Boolean(result);
+  } catch (error) {
+    console.warn('Preset copy failed:', error);
+    return false;
   }
 }
 
