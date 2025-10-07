@@ -25,6 +25,7 @@ export function bootstrapApp() {
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
   document.body.appendChild(renderer.domElement);
+  renderer.domElement.setAttribute('tabindex', '-1');
 
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0x000000);
@@ -4384,7 +4385,6 @@ export function bootstrapApp() {
   const $ = id => document.getElementById(id);
   const panel = $('panel');
   const panelCloseBtn = $('panelClose');
-  const panelLauncherBtn = $('panelLauncher');
   const editModeBtn = $('editMode');
   const lockBtn = $('lock');
   const sheetHandleBtn = $('sheetHandle');
@@ -4604,10 +4604,9 @@ export function bootstrapApp() {
     const pointerType = event.pointerType || '';
     if (pointerType === 'mouse') return;
     const target = event.target;
-    const inTabs = target ? target.closest('.control-panel-tabs') : null;
     if (target) {
       if (target.closest('.sheet-handle')) return;
-      if (!inTabs && target.closest('button, input, select, textarea, a, [data-no-swipe]')) return;
+      if (target.closest('button, input, select, textarea, a, [data-no-swipe]')) return;
     }
     panelSwipeState.pointerId = event.pointerId;
     panelSwipeState.startX = Number.isFinite(event.clientX) ? event.clientX : 0;
@@ -4668,11 +4667,8 @@ export function bootstrapApp() {
     if (expanded) {
       lastExpandedPanel = key;
     }
-    if (mobileSheetQuery.matches && !expanded) {
-      panelEl.hidden = true;
-    } else {
-      panelEl.hidden = false;
-    }
+    panelEl.hidden = !expanded;
+    panelEl.setAttribute('aria-hidden', expanded ? 'false' : 'true');
     if (toggle) {
       toggle.addEventListener('click', () => {
         const entry = controlPanelRegistry.get(key);
@@ -4692,17 +4688,7 @@ export function bootstrapApp() {
     controlPanelTabs.set(key, tab);
     tab.addEventListener('click', () => {
       closeActiveInfoPopover();
-      if (mobileSheetQuery.matches) {
-        expandControlPanel(key, { fromTab: true });
-        return;
-      }
-      const entry = controlPanelRegistry.get(key);
-      if (!entry) return;
-      if (entry.expanded && lastExpandedPanel === key) {
-        collapseControlPanel(key);
-      } else {
-        expandControlPanel(key, { fromTab: true });
-      }
+      expandControlPanel(key, { fromTab: true });
     });
   });
 
@@ -4735,16 +4721,12 @@ export function bootstrapApp() {
     if (entry.toggle) {
       entry.toggle.setAttribute('aria-expanded', 'false');
     }
-    if (mobileSheetQuery.matches) {
-      entry.el.hidden = true;
-    } else {
-      entry.el.hidden = false;
-    }
+    entry.el.hidden = true;
     if (infoPopoverState.popover && entry.el.contains(infoPopoverState.popover)) {
       closeActiveInfoPopover();
     }
     updatePanelToggleLabel(entry, false);
-    if (!preserveDesktop && !mobileSheetQuery.matches) {
+    if (!preserveDesktop) {
       desktopPanelState.set(key, false);
     }
     if (mobileSheetQuery.matches) {
@@ -4779,41 +4761,48 @@ export function bootstrapApp() {
       entry.toggle.setAttribute('aria-expanded', 'true');
     }
     updatePanelToggleLabel(entry, true);
-    if (!preserveDesktop && !mobileSheetQuery.matches) {
-      desktopPanelState.set(key, true);
+    if (!preserveDesktop) {
+      desktopPanelState.forEach((_, otherKey) => {
+        desktopPanelState.set(otherKey, otherKey === key);
+      });
     }
+    controlPanelRegistry.forEach((otherEntry, otherKey) => {
+      if (otherKey !== key) {
+        collapseControlPanel(otherKey, { skipTab: true, preserveDesktop: true });
+      }
+    });
     if (mobileSheetQuery.matches) {
       mobileActivePanel = key;
-      controlPanelRegistry.forEach((otherEntry, otherKey) => {
-        if (otherKey !== key) {
-          collapseControlPanel(otherKey, { skipTab: true, preserveDesktop: true });
-        }
-      });
-      syncPanelTabs(key);
-    } else {
-      lastExpandedPanel = key;
-      syncPanelTabs(key);
     }
+    lastExpandedPanel = key;
+    syncPanelTabs(key);
   }
 
   function initializeControlPanels() {
+    const availablePanels = PANEL_ORDER.filter(key => controlPanelRegistry.has(key));
+    const fallback = availablePanels[0] || null;
+    const initiallyExpanded = availablePanels.find(key => controlPanelRegistry.get(key)?.expanded) || fallback;
     if (mobileSheetQuery.matches) {
-      if (!controlPanelRegistry.has(mobileActivePanel)) {
-        mobileActivePanel = 'presets';
+      if (!availablePanels.includes(mobileActivePanel)) {
+        mobileActivePanel = initiallyExpanded || fallback;
       }
-      expandControlPanel(mobileActivePanel, { fromTab: true, preserveDesktop: true });
+      if (mobileActivePanel) {
+        expandControlPanel(mobileActivePanel, { fromTab: true, preserveDesktop: true });
+      }
     } else {
-      controlPanelRegistry.forEach((entry, key) => {
-        const shouldExpand = desktopPanelState.get(key);
-        if (shouldExpand) {
-          expandControlPanel(key, { fromTab: key === lastExpandedPanel, preserveDesktop: true });
-        } else {
-          collapseControlPanel(key, { preserveDesktop: true });
-        }
-      });
-      const fallback = Array.from(controlPanelRegistry.entries()).find(([, value]) => value.expanded);
-      lastExpandedPanel = fallback ? fallback[0] : null;
-      syncPanelTabs(lastExpandedPanel);
+      let target = null;
+      if (availablePanels.includes(lastExpandedPanel)) {
+        target = lastExpandedPanel;
+      }
+      if (!target) {
+        target = availablePanels.find(key => desktopPanelState.get(key));
+      }
+      if (!target) {
+        target = initiallyExpanded;
+      }
+      if (target) {
+        expandControlPanel(target, { fromTab: true, preserveDesktop: true });
+      }
     }
   }
 
@@ -5467,10 +5456,10 @@ export function bootstrapApp() {
 
   function setPanelVisible(show) {
     panelVisible = !!show;
-    if (panelLauncherBtn) {
-      panelLauncherBtn.hidden = panelVisible;
-      panelLauncherBtn.setAttribute('aria-hidden', panelVisible ? 'true' : 'false');
-      panelLauncherBtn.setAttribute('aria-expanded', panelVisible ? 'true' : 'false');
+    if (panelCloseBtn) {
+      panelCloseBtn.hidden = !panelVisible;
+      panelCloseBtn.setAttribute('aria-expanded', panelVisible ? 'true' : 'false');
+      panelCloseBtn.setAttribute('aria-hidden', panelVisible ? 'false' : 'true');
     }
     if (!panel) {
       setAudioPanelVisible(panelVisible);
@@ -5480,9 +5469,6 @@ export function bootstrapApp() {
     cancelPanelSwipe();
     panel.classList.toggle('is-hidden', !panelVisible);
     panel.setAttribute('aria-hidden', panelVisible ? 'false' : 'true');
-    if (panelCloseBtn) {
-      panelCloseBtn.setAttribute('aria-expanded', panelVisible ? 'true' : 'false');
-    }
     if (isMobileSheetActive()) {
       if (panelVisible) {
         setSheetMode('compact', { force: true });
@@ -6773,30 +6759,24 @@ export function bootstrapApp() {
   if (panelCloseBtn) {
     panelCloseBtn.addEventListener('click', () => {
       setPanelVisible(false);
-      if (panelLauncherBtn) {
-        try {
-          panelLauncherBtn.focus({ preventScroll: true });
-        } catch (err) {
-          panelLauncherBtn.focus();
-        }
+      try {
+        renderer.domElement.focus({ preventScroll: true });
+      } catch (err) {
+        renderer.domElement.focus();
       }
     });
   }
 
-  if (panelLauncherBtn) {
-    panelLauncherBtn.addEventListener('click', () => {
-      setPanelVisible(true);
-    });
+  if (panel) {
+    panel.addEventListener('pointermove', handleSheetDragMove);
+    panel.addEventListener('pointerup', finishSheetDrag);
+    panel.addEventListener('pointercancel', finishSheetDrag);
+
+    panel.addEventListener('pointerdown', startPanelSwipe);
+    panel.addEventListener('pointermove', handlePanelSwipeMove);
+    panel.addEventListener('pointerup', finishPanelSwipe);
+    panel.addEventListener('pointercancel', cancelPanelSwipe);
   }
-
-  panel.addEventListener('pointermove', handleSheetDragMove);
-  panel.addEventListener('pointerup', finishSheetDrag);
-  panel.addEventListener('pointercancel', finishSheetDrag);
-
-  panel.addEventListener('pointerdown', startPanelSwipe);
-  panel.addEventListener('pointermove', handlePanelSwipeMove);
-  panel.addEventListener('pointerup', finishPanelSwipe);
-  panel.addEventListener('pointercancel', cancelPanelSwipe);
 
   if (mobileSheetQuery.addEventListener) {
     mobileSheetQuery.addEventListener('change', handleMobileMediaChange);
