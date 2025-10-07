@@ -15,42 +15,118 @@
     </button>
   </div>
   <nav class="control-panel-tabs" aria-label="Panel-Navigation">
-    <button type="button" class="control-panel-tab" data-panel-tab="media" aria-controls="audioPanel" aria-pressed="false">
-      🎧 Media Player
+    <button
+      type="button"
+      class="control-panel-tab"
+      data-panel-tab="media"
+      aria-controls="audioPanel"
+      aria-pressed="false"
+      aria-label="Media Player Panel öffnen"
+    >
+      <span class="control-panel-tab__dot" aria-hidden="true"></span>
+      <span class="sr-only">Media Player</span>
     </button>
-    <button type="button" class="control-panel-tab is-active" data-panel-tab="presets" aria-controls="visualPresetsPanel" aria-pressed="true">
-      🎨 Visual Presets
+    <button
+      type="button"
+      class="control-panel-tab is-active"
+      data-panel-tab="presets"
+      aria-controls="visualPresetsPanel"
+      aria-pressed="true"
+      aria-label="Visual-Presets-Panel öffnen"
+    >
+      <span class="control-panel-tab__dot" aria-hidden="true"></span>
+      <span class="sr-only">Visual Presets</span>
     </button>
-    <button type="button" class="control-panel-tab" data-panel-tab="config" aria-controls="configPanel" aria-pressed="false">
-      🛠️ Config
+    <button
+      type="button"
+      class="control-panel-tab"
+      data-panel-tab="config"
+      aria-controls="configPanel"
+      aria-pressed="false"
+      aria-label="Config-Panel öffnen"
+    >
+      <span class="control-panel-tab__dot" aria-hidden="true"></span>
+      <span class="sr-only">Config</span>
     </button>
   </nav>
   <section class="control-panel control-panel--presets" id="visualPresetsPanel" data-panel="presets" aria-labelledby="visualPresetsHeading">
     <header class="control-panel__header">
       <div class="control-panel__title">
-        <h2 id="visualPresetsHeading">Visual Presets</h2>
-        <p class="control-panel__subtitle">Kuratiere Presets, speichere Favoriten und stelle Zufallssets zusammen.</p>
+        <div class="heading-with-info" data-info-size="medium">
+          <h2 id="visualPresetsHeading">Visual Presets</h2>
+          <button
+            type="button"
+            class="info-trigger"
+            data-info-target="infoVisualPresets"
+            aria-label="Hinweis zu Visual Presets anzeigen"
+            aria-expanded="false"
+            aria-controls="infoVisualPresets"
+          >
+            <span aria-hidden="true">?</span>
+          </button>
+          <div class="info-popover" id="infoVisualPresets" role="dialog" hidden>
+            <p class="control-panel__subtitle">Kuratiere Presets, speichere Favoriten und stelle Zufallssets zusammen.</p>
+          </div>
+        </div>
       </div>
       <button type="button" class="control-panel__toggle" data-panel-toggle aria-expanded="true" aria-label="Panel einklappen">⬇️</button>
     </header>
     <div class="control-panel__body">
       <section class="panel-card panel-card--studio" id="patternStudio" aria-labelledby="patternStudioTitle">
         <header class="panel-card__header">
-          <div>
+          <div class="heading-with-info" data-info-size="wide">
             <h3 id="patternStudioTitle">Pattern-Studio</h3>
-            <p class="panel-card__subtitle">Starte mit kuratierten Presets oder forme deine eigene Ordnung aus dem Chaos.</p>
+            <button
+              type="button"
+              class="info-trigger"
+              data-info-target="infoPatternStudio"
+              aria-label="Hinweis zum Pattern-Studio anzeigen"
+              aria-expanded="false"
+              aria-controls="infoPatternStudio"
+            >
+              <span aria-hidden="true">?</span>
+            </button>
+            <div class="info-popover" id="infoPatternStudio" role="dialog" hidden>
+              <p class="panel-card__subtitle">Starte mit kuratierten Presets oder forme deine eigene Ordnung aus dem Chaos.</p>
+            </div>
           </div>
           <button type="button" class="panel-card__action" id="patternFocus" aria-label="Kamera auf Mittelpunkt ausrichten">📌 Fokus</button>
         </header>
         <div class="pattern-quick" id="patternPresetList" role="list" aria-label="Empfohlene Muster"></div>
         <div class="pattern-active">
-          <span class="pattern-active__label" id="patternActiveName">Aktives Muster: Freestyle</span>
-          <p class="pattern-active__description" id="patternActiveDescription">Nutze Presets oder die Regler unten, um dein persönliches Sternenfeld zu gestalten.</p>
+          <div class="pattern-active__header heading-with-info" data-info-size="compact">
+            <span class="pattern-active__label" id="patternActiveName">Aktives Muster: Freestyle</span>
+            <button
+              type="button"
+              class="info-trigger"
+              data-info-target="infoPatternActive"
+              aria-label="Beschreibung zum aktiven Muster anzeigen"
+              aria-expanded="false"
+              aria-controls="infoPatternActive"
+            >
+              <span aria-hidden="true">?</span>
+            </button>
+            <div class="info-popover" id="infoPatternActive" role="dialog" hidden>
+              <p class="pattern-active__description" id="patternActiveDescription">Nutze Presets oder die Regler unten, um dein persönliches Sternenfeld zu gestalten.</p>
+            </div>
+          </div>
         </div>
         <div class="pattern-formations">
-          <div class="pattern-formations__head">
+          <div class="pattern-formations__head heading-with-info" data-info-size="compact" data-info-align="start">
             <h4 id="patternFormationTitle">Formationen</h4>
-            <p class="pattern-formations__hint">Wechsle schnell zwischen geometrischen Anordnungen. STL-Importe erscheinen hier automatisch.</p>
+            <button
+              type="button"
+              class="info-trigger"
+              data-info-target="infoPatternFormations"
+              aria-label="Hinweis zu Formationen anzeigen"
+              aria-expanded="false"
+              aria-controls="infoPatternFormations"
+            >
+              <span aria-hidden="true">?</span>
+            </button>
+            <div class="info-popover" id="infoPatternFormations" role="dialog" hidden>
+              <p class="pattern-formations__hint">Wechsle schnell zwischen geometrischen Anordnungen. STL-Importe erscheinen hier automatisch.</p>
+            </div>
           </div>
           <div class="chip-group" id="patternDistributionChips" role="group" aria-labelledby="patternFormationTitle"></div>
         </div>
@@ -61,9 +137,22 @@
       </section>
       <section class="panel-card panel-card--studio" id="presetStudio" aria-labelledby="presetStudioTitle">
         <header class="panel-card__header">
-          <div>
+          <div class="heading-with-info" data-info-size="wide">
             <h3 id="presetStudioTitle">Preset-Studio</h3>
-            <p class="panel-card__subtitle">Kopiere deine aktuelle Szene, kehre zum Ausgangspunkt zurück oder starte einen Mix.</p>
+            <button
+              type="button"
+              class="info-trigger"
+              data-info-target="infoPresetStudio"
+              aria-label="Hinweis zum Preset-Studio anzeigen"
+              aria-expanded="false"
+              aria-controls="infoPresetStudio"
+            >
+              <span aria-hidden="true">?</span>
+            </button>
+            <div class="info-popover" id="infoPresetStudio" role="dialog" hidden>
+              <p class="panel-card__subtitle">Kopiere deine aktuelle Szene, kehre zum Ausgangspunkt zurück oder starte einen Mix.</p>
+              <p class="preset-studio__note">Nutze das Config-Panel, um eigene Presets zu speichern und sie anschließend hier oder in der Galerie auszuwählen.</p>
+            </div>
           </div>
         </header>
         <div class="preset-studio__actions">
@@ -74,13 +163,24 @@
         <div class="preset-studio__status" id="presetStudioStatus" data-state="info" role="status" aria-live="polite">
           Tipp: Kopiere dein aktuelles Preset, um es zu teilen oder später erneut zu laden.
         </div>
-        <p class="preset-studio__note">Nutze das Config-Panel, um eigene Presets zu speichern und sie anschließend hier oder in der Galerie auszuwählen.</p>
       </section>
       <section class="panel-card panel-card--presets" aria-labelledby="userPresetTitle">
         <header class="panel-card__header">
-          <div>
+          <div class="heading-with-info" data-info-size="wide">
             <h3 id="userPresetTitle">Gespeicherte Presets</h3>
-            <p class="panel-card__subtitle">Wähle mehrere Presets für die Galerie oder starte die zufällige Wiedergabe.</p>
+            <button
+              type="button"
+              class="info-trigger"
+              data-info-target="infoUserPresets"
+              aria-label="Hinweis zu gespeicherten Presets anzeigen"
+              aria-expanded="false"
+              aria-controls="infoUserPresets"
+            >
+              <span aria-hidden="true">?</span>
+            </button>
+            <div class="info-popover" id="infoUserPresets" role="dialog" hidden>
+              <p class="panel-card__subtitle">Wähle mehrere Presets für die Galerie oder starte die zufällige Wiedergabe.</p>
+            </div>
           </div>
           <div class="panel-card__action-group">
             <button type="button" class="panel-card__action" id="presetGalleryToggle" aria-pressed="false">🖼️ Galerie</button>
