@@ -4383,6 +4383,8 @@ export function bootstrapApp() {
   /* Bind UI elements */
   const $ = id => document.getElementById(id);
   const panel = $('panel');
+  const panelCloseBtn = $('panelClose');
+  const panelLauncherBtn = $('panelLauncher');
   const editModeBtn = $('editMode');
   const lockBtn = $('lock');
   const sheetHandleBtn = $('sheetHandle');
@@ -4602,9 +4604,10 @@ export function bootstrapApp() {
     const pointerType = event.pointerType || '';
     if (pointerType === 'mouse') return;
     const target = event.target;
+    const inTabs = target ? target.closest('.control-panel-tabs') : null;
     if (target) {
       if (target.closest('.sheet-handle')) return;
-      if (target.closest('button, input, select, textarea, a, [data-no-swipe]')) return;
+      if (!inTabs && target.closest('button, input, select, textarea, a, [data-no-swipe]')) return;
     }
     panelSwipeState.pointerId = event.pointerId;
     panelSwipeState.startX = Number.isFinite(event.clientX) ? event.clientX : 0;
@@ -5464,6 +5467,11 @@ export function bootstrapApp() {
 
   function setPanelVisible(show) {
     panelVisible = !!show;
+    if (panelLauncherBtn) {
+      panelLauncherBtn.hidden = panelVisible;
+      panelLauncherBtn.setAttribute('aria-hidden', panelVisible ? 'true' : 'false');
+      panelLauncherBtn.setAttribute('aria-expanded', panelVisible ? 'true' : 'false');
+    }
     if (!panel) {
       setAudioPanelVisible(panelVisible);
       return;
@@ -5472,6 +5480,9 @@ export function bootstrapApp() {
     cancelPanelSwipe();
     panel.classList.toggle('is-hidden', !panelVisible);
     panel.setAttribute('aria-hidden', panelVisible ? 'false' : 'true');
+    if (panelCloseBtn) {
+      panelCloseBtn.setAttribute('aria-expanded', panelVisible ? 'true' : 'false');
+    }
     if (isMobileSheetActive()) {
       if (panelVisible) {
         setSheetMode('compact', { force: true });
@@ -6756,6 +6767,25 @@ export function bootstrapApp() {
       }
       const next = sheetState.mode === 'expanded' ? 'compact' : 'expanded';
       setSheetMode(next, { force: true });
+    });
+  }
+
+  if (panelCloseBtn) {
+    panelCloseBtn.addEventListener('click', () => {
+      setPanelVisible(false);
+      if (panelLauncherBtn) {
+        try {
+          panelLauncherBtn.focus({ preventScroll: true });
+        } catch (err) {
+          panelLauncherBtn.focus();
+        }
+      }
+    });
+  }
+
+  if (panelLauncherBtn) {
+    panelLauncherBtn.addEventListener('click', () => {
+      setPanelVisible(true);
     });
   }
 

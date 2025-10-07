@@ -14,41 +14,53 @@
       <span class="sheet-handle-label">Panel vergrößern</span>
     </button>
   </div>
-  <nav class="control-panel-tabs" aria-label="Panel-Navigation">
+  <div class="panel-top">
+    <nav class="control-panel-tabs" aria-label="Panel-Navigation">
+      <button
+        type="button"
+        class="control-panel-tab"
+        data-panel-tab="media"
+        aria-controls="audioPanel"
+        aria-pressed="false"
+        aria-label="Media Player Panel öffnen"
+      >
+        <span class="control-panel-tab__dot" aria-hidden="true"></span>
+        <span class="sr-only">Media Player</span>
+      </button>
+      <button
+        type="button"
+        class="control-panel-tab is-active"
+        data-panel-tab="presets"
+        aria-controls="visualPresetsPanel"
+        aria-pressed="true"
+        aria-label="Visual-Presets-Panel öffnen"
+      >
+        <span class="control-panel-tab__dot" aria-hidden="true"></span>
+        <span class="sr-only">Visual Presets</span>
+      </button>
+      <button
+        type="button"
+        class="control-panel-tab"
+        data-panel-tab="config"
+        aria-controls="configPanel"
+        aria-pressed="false"
+        aria-label="Config-Panel öffnen"
+      >
+        <span class="control-panel-tab__dot" aria-hidden="true"></span>
+        <span class="sr-only">Config</span>
+      </button>
+    </nav>
     <button
+      id="panelClose"
       type="button"
-      class="control-panel-tab"
-      data-panel-tab="media"
-      aria-controls="audioPanel"
-      aria-pressed="false"
-      aria-label="Media Player Panel öffnen"
+      class="panel-close"
+      data-no-swipe
+      aria-label="Panel schließen"
+      aria-controls="panel"
     >
-      <span class="control-panel-tab__dot" aria-hidden="true"></span>
-      <span class="sr-only">Media Player</span>
+      ✕
     </button>
-    <button
-      type="button"
-      class="control-panel-tab is-active"
-      data-panel-tab="presets"
-      aria-controls="visualPresetsPanel"
-      aria-pressed="true"
-      aria-label="Visual-Presets-Panel öffnen"
-    >
-      <span class="control-panel-tab__dot" aria-hidden="true"></span>
-      <span class="sr-only">Visual Presets</span>
-    </button>
-    <button
-      type="button"
-      class="control-panel-tab"
-      data-panel-tab="config"
-      aria-controls="configPanel"
-      aria-pressed="false"
-      aria-label="Config-Panel öffnen"
-    >
-      <span class="control-panel-tab__dot" aria-hidden="true"></span>
-      <span class="sr-only">Config</span>
-    </button>
-  </nav>
+  </div>
   <section class="control-panel control-panel--presets" id="visualPresetsPanel" data-panel="presets" aria-labelledby="visualPresetsHeading">
     <header class="control-panel__header">
       <div class="control-panel__title">
@@ -811,6 +823,16 @@
   </div>
   </section>
 </div>
+<button
+  id="panelLauncher"
+  type="button"
+  class="panel-launcher"
+  aria-controls="panel"
+  aria-expanded="false"
+  aria-label="Panel anzeigen"
+>
+  🎛️ Panel anzeigen
+</button>
 <div id="audioOverlay" data-visible="false" aria-hidden="true">
   <button type="button" id="audioOverlayButton" aria-label="Musik und Visualisierung starten">
     ▶️ Play – Musik & Visualisierung starten

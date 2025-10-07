@@ -152,8 +152,8 @@ body {
   );
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-l);
-  padding: var(--spacing-l);
+  gap: var(--spacing-m);
+  padding: var(--spacing-m) var(--spacing-l);
   padding-bottom: calc(var(--spacing-l) + env(safe-area-inset-bottom, 0px));
   background: var(--color-surface);
   border: 1px solid var(--color-border);
@@ -250,6 +250,105 @@ body {
   );
   backdrop-filter: blur(10px);
   padding-bottom: var(--spacing-s);
+}
+
+.panel-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-m);
+}
+
+.panel-top .control-panel-tabs {
+  flex: 1;
+  padding-bottom: var(--spacing-xs);
+}
+
+.panel-close {
+  appearance: none;
+  border: 1px solid var(--color-border);
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--color-text-primary);
+  border-radius: 999px;
+  width: 2.25rem;
+  height: 2.25rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease,
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
+  touch-action: manipulation;
+}
+
+.panel-close:hover,
+.panel-close:focus-visible {
+  background: rgba(79, 140, 255, 0.18);
+  border-color: rgba(79, 140, 255, 0.6);
+  box-shadow: 0 6px 18px rgba(20, 60, 120, 0.35);
+  transform: translateY(-1px);
+  outline: none;
+}
+
+.panel-close:focus-visible {
+  box-shadow:
+    0 0 0 3px rgba(79, 140, 255, 0.35),
+    0 6px 18px rgba(20, 60, 120, 0.35);
+}
+
+.panel-close:active {
+  transform: translateY(0);
+}
+
+.panel-launcher {
+  position: fixed;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 1.25rem);
+  left: 50%;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.2rem;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(6, 12, 20, 0.88);
+  color: var(--color-text-primary);
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
+  z-index: 11;
+  transition:
+    transform 0.25s ease,
+    box-shadow 0.25s ease,
+    border-color 0.25s ease,
+    background 0.25s ease;
+  touch-action: manipulation;
+}
+
+.panel-launcher:hover,
+.panel-launcher:focus-visible {
+  transform: translateX(-50%) scale(1.03);
+  border-color: rgba(79, 140, 255, 0.65);
+  background: rgba(16, 36, 70, 0.92);
+  box-shadow:
+    0 0 0 3px rgba(79, 140, 255, 0.32),
+    0 20px 44px rgba(16, 36, 70, 0.42);
+  outline: none;
+}
+
+.panel-launcher:active {
+  transform: translateX(-50%) scale(0.98);
+}
+
+.panel-launcher[hidden] {
+  display: none;
 }
 
 .control-panel-tab {
