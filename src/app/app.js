@@ -5644,8 +5644,11 @@ export function bootstrapApp() {
     if (!Number.isFinite(next)) next = 0;
     const hideLimit = maxOffset + SHEET_EXTRA_DRAG_PX;
     if (next > maxOffset) {
-      const overshoot = Math.min(hideLimit - maxOffset, next - maxOffset);
-      next = maxOffset + overshoot * 0.6;
+      const maxOvershoot = hideLimit - maxOffset;
+      const overshoot = Math.min(maxOvershoot, next - maxOffset);
+      const progress = maxOvershoot > 0 ? overshoot / maxOvershoot : 0;
+      const easedOvershoot = overshoot * (0.55 + 0.45 * progress);
+      next = maxOffset + easedOvershoot;
     }
     next = Math.max(0, Math.min(hideLimit, next));
     if (Math.abs(delta) > 6) {
