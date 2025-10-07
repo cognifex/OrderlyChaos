@@ -4399,6 +4399,8 @@ export function bootstrapApp() {
     moved: false,
     preventClick: false,
   };
+  const SHEET_EXTRA_DRAG_PX = 140;
+  const SHEET_HIDE_TRIGGER_PX = 90;
   const doubleTapState = { lastTime: 0, lastX: 0, lastY: 0, blockUntil: 0 };
   const DOUBLE_TAP_TIMEOUT_MS = 420;
   const DOUBLE_TAP_DISTANCE_PX = 46;
@@ -4437,6 +4439,9 @@ export function bootstrapApp() {
   const controlPanelRegistry = new Map();
   const controlPanelTabs = new Map();
   const desktopPanelState = new Map();
+  const PANEL_ORDER = ['media', 'presets', 'config'];
+  const infoPopoverState = { trigger: null, popover: null, hideTimeoutId: null };
+  let infoDocumentListenersReady = false;
   let mobileActivePanel = 'presets';
   let lastExpandedPanel = 'presets';
 
@@ -4468,6 +4473,187 @@ export function bootstrapApp() {
 
   updateViewportMetrics();
 
+  function closeActiveInfoPopover() {
+    if (!infoPopoverState.trigger || !infoPopoverState.popover) {
+      return;
+    }
+    const { trigger, popover } = infoPopoverState;
+    if (infoPopoverState.hideTimeoutId !== null) {
+      clearTimeout(infoPopoverState.hideTimeoutId);
+      infoPopoverState.hideTimeoutId = null;
+    }
+    trigger.setAttribute('aria-expanded', 'false');
+    popover.classList.remove('is-visible');
+    popover.setAttribute('aria-hidden', 'true');
+    const timeoutId = window.setTimeout(() => {
+      if (!popover.classList.contains('is-visible')) {
+        popover.hidden = true;
+      }
+      if (infoPopoverState.hideTimeoutId === timeoutId) {
+        infoPopoverState.hideTimeoutId = null;
+      }
+    }, 220);
+    infoPopoverState.trigger = null;
+    infoPopoverState.popover = null;
+    infoPopoverState.hideTimeoutId = timeoutId;
+  }
+
+  function openInfoPopover(trigger, popover) {
+    if (!trigger || !popover) {
+      return;
+    }
+    if (infoPopoverState.trigger === trigger) {
+      closeActiveInfoPopover();
+      return;
+    }
+    closeActiveInfoPopover();
+    if (infoPopoverState.hideTimeoutId !== null) {
+      clearTimeout(infoPopoverState.hideTimeoutId);
+      infoPopoverState.hideTimeoutId = null;
+    }
+    popover.hidden = false;
+    popover.setAttribute('aria-hidden', 'false');
+    requestAnimationFrame(() => {
+      popover.classList.add('is-visible');
+    });
+    trigger.setAttribute('aria-expanded', 'true');
+    infoPopoverState.trigger = trigger;
+    infoPopoverState.popover = popover;
+  }
+
+  function ensureInfoDocumentListeners() {
+    if (infoDocumentListenersReady) {
+      return;
+    }
+    infoDocumentListenersReady = true;
+    document.addEventListener('click', event => {
+      if (!infoPopoverState.trigger || !infoPopoverState.popover) {
+        return;
+      }
+      const target = event.target;
+      if (!target) return;
+      if (infoPopoverState.popover.contains(target)) return;
+      if (infoPopoverState.trigger.contains(target)) return;
+      closeActiveInfoPopover();
+    });
+    document.addEventListener('keydown', event => {
+      if (event.key === 'Escape' && infoPopoverState.trigger) {
+        closeActiveInfoPopover();
+      }
+    });
+  }
+
+  function setupInfoPopovers() {
+    ensureInfoDocumentListeners();
+    document.querySelectorAll('[data-info-target]').forEach(trigger => {
+      if (!trigger || trigger.dataset.infoInitialized === 'true') {
+        return;
+      }
+      const targetId = trigger.dataset.infoTarget;
+      if (!targetId) return;
+      const popover = document.getElementById(targetId);
+      if (!popover) return;
+      trigger.dataset.infoInitialized = 'true';
+      trigger.setAttribute('aria-expanded', 'false');
+      popover.hidden = true;
+      popover.setAttribute('aria-hidden', 'true');
+      trigger.addEventListener('click', event => {
+        event.preventDefault();
+        openInfoPopover(trigger, popover);
+      });
+    });
+  }
+
+  const panelSwipeState = {
+    pointerId: null,
+    startX: 0,
+    startY: 0,
+    startTime: 0,
+    active: false,
+  };
+
+  function resetPanelSwipeState() {
+    panelSwipeState.pointerId = null;
+    panelSwipeState.startX = 0;
+    panelSwipeState.startY = 0;
+    panelSwipeState.startTime = 0;
+    panelSwipeState.active = false;
+  }
+
+  function movePanelBySwipe(direction) {
+    if (!isMobileSheetActive()) return false;
+    const order = PANEL_ORDER.filter(key => controlPanelRegistry.has(key));
+    if (order.length === 0) return false;
+    const currentKey = order.includes(mobileActivePanel) ? mobileActivePanel : order[0];
+    const currentIndex = order.indexOf(currentKey);
+    const nextIndex = currentIndex + direction;
+    if (nextIndex < 0 || nextIndex >= order.length) {
+      return false;
+    }
+    const nextKey = order[nextIndex];
+    expandControlPanel(nextKey, { fromTab: true });
+    return true;
+  }
+
+  function startPanelSwipe(event) {
+    if (!isMobileSheetActive() || !panelVisible) return;
+    if (!event || !event.isPrimary) return;
+    if (sheetState.pointerId !== null) return;
+    const pointerType = event.pointerType || '';
+    if (pointerType === 'mouse') return;
+    const target = event.target;
+    if (target) {
+      if (target.closest('.sheet-handle')) return;
+      if (target.closest('button, input, select, textarea, a, [data-no-swipe]')) return;
+    }
+    panelSwipeState.pointerId = event.pointerId;
+    panelSwipeState.startX = Number.isFinite(event.clientX) ? event.clientX : 0;
+    panelSwipeState.startY = Number.isFinite(event.clientY) ? event.clientY : 0;
+    panelSwipeState.startTime = performance.now();
+    panelSwipeState.active = true;
+  }
+
+  function handlePanelSwipeMove(event) {
+    if (!panelSwipeState.active || !event || event.pointerId !== panelSwipeState.pointerId) {
+      return;
+    }
+    const dx = Number.isFinite(event.clientX) ? event.clientX - panelSwipeState.startX : 0;
+    const dy = Number.isFinite(event.clientY) ? event.clientY - panelSwipeState.startY : 0;
+    if (Math.abs(dy) > Math.abs(dx) * 1.4) {
+      resetPanelSwipeState();
+    }
+  }
+
+  function finishPanelSwipe(event) {
+    if (!panelSwipeState.active || !event || event.pointerId !== panelSwipeState.pointerId) {
+      return;
+    }
+    const dx = Number.isFinite(event.clientX) ? event.clientX - panelSwipeState.startX : 0;
+    const dy = Number.isFinite(event.clientY) ? event.clientY - panelSwipeState.startY : 0;
+    const elapsed = performance.now() - panelSwipeState.startTime;
+    resetPanelSwipeState();
+    if (Math.abs(dy) > Math.abs(dx) * 1.2) {
+      return;
+    }
+    const absX = Math.abs(dx);
+    const quickSwipe = absX > 28 && elapsed < 220;
+    if (!quickSwipe && absX < 50) {
+      return;
+    }
+    const direction = dx < 0 ? 1 : -1;
+    movePanelBySwipe(direction);
+  }
+
+  function cancelPanelSwipe(event) {
+    if (!panelSwipeState.active) {
+      return;
+    }
+    if (event && panelSwipeState.pointerId !== null && event.pointerId !== panelSwipeState.pointerId) {
+      return;
+    }
+    resetPanelSwipeState();
+  }
+
   document.querySelectorAll('.control-panel[data-panel]').forEach(panelEl => {
     const key = panelEl.dataset.panel;
     if (!key) return;
@@ -4478,6 +4664,11 @@ export function bootstrapApp() {
     updatePanelToggleLabel(controlPanelRegistry.get(key), expanded);
     if (expanded) {
       lastExpandedPanel = key;
+    }
+    if (mobileSheetQuery.matches && !expanded) {
+      panelEl.hidden = true;
+    } else {
+      panelEl.hidden = false;
     }
     if (toggle) {
       toggle.addEventListener('click', () => {
@@ -4540,6 +4731,14 @@ export function bootstrapApp() {
     if (entry.toggle) {
       entry.toggle.setAttribute('aria-expanded', 'false');
     }
+    if (mobileSheetQuery.matches) {
+      entry.el.hidden = true;
+    } else {
+      entry.el.hidden = false;
+    }
+    if (infoPopoverState.popover && entry.el.contains(infoPopoverState.popover)) {
+      closeActiveInfoPopover();
+    }
     updatePanelToggleLabel(entry, false);
     if (!preserveDesktop && !mobileSheetQuery.matches) {
       desktopPanelState.set(key, false);
@@ -4558,6 +4757,7 @@ export function bootstrapApp() {
   }
 
   function expandControlPanel(key, { fromTab = false, preserveDesktop = false } = {}) {
+    closeActiveInfoPopover();
     const entry = controlPanelRegistry.get(key);
     if (!entry) return;
     if (entry.expanded && !mobileSheetQuery.matches) {
@@ -4570,6 +4770,7 @@ export function bootstrapApp() {
     entry.expanded = true;
     entry.el.classList.remove('is-collapsed');
     entry.el.setAttribute('aria-hidden', 'false');
+    entry.el.hidden = false;
     if (entry.toggle) {
       entry.toggle.setAttribute('aria-expanded', 'true');
     }
@@ -4619,9 +4820,12 @@ export function bootstrapApp() {
       mobileActivePanel = 'presets';
     }
     initializeControlPanels();
+    setupInfoPopovers();
+    closeActiveInfoPopover();
   });
 
   initializeControlPanels();
+  setupInfoPopovers();
 
   audioUI.panel = $('audioPanel');
   audioUI.body = $('audioPanelBody');
@@ -5262,6 +5466,8 @@ export function bootstrapApp() {
       setAudioPanelVisible(panelVisible);
       return;
     }
+    closeActiveInfoPopover();
+    cancelPanelSwipe();
     panel.classList.toggle('is-hidden', !panelVisible);
     panel.setAttribute('aria-hidden', panelVisible ? 'false' : 'true');
     if (isMobileSheetActive()) {
@@ -5274,6 +5480,8 @@ export function bootstrapApp() {
     }
     setAudioPanelVisible(panelVisible);
     if (!panelVisible) {
+      sheetState.mode = 'compact';
+      panel.removeAttribute('data-sheet-state');
       if (sheetState.pointerId !== null && panel.releasePointerCapture) {
         try { panel.releasePointerCapture(sheetState.pointerId); } catch (err) { /* noop */ }
       }
@@ -5281,6 +5489,8 @@ export function bootstrapApp() {
       sheetState.moved = false;
       sheetState.preventClick = false;
       panel.classList.remove('is-dragging');
+      sheetState.lastOffset = getSheetCompactOffset();
+      applySheetOffset();
     }
     updateSheetHandleAria();
   }
@@ -5432,7 +5642,15 @@ export function bootstrapApp() {
     const maxOffset = getSheetCompactOffset();
     let next = sheetState.startOffset + delta;
     if (!Number.isFinite(next)) next = 0;
-    next = Math.max(0, Math.min(maxOffset, next));
+    const hideLimit = maxOffset + SHEET_EXTRA_DRAG_PX;
+    if (next > maxOffset) {
+      const maxOvershoot = hideLimit - maxOffset;
+      const overshoot = Math.min(maxOvershoot, next - maxOffset);
+      const progress = maxOvershoot > 0 ? overshoot / maxOvershoot : 0;
+      const easedOvershoot = overshoot * (0.55 + 0.45 * progress);
+      next = maxOffset + easedOvershoot;
+    }
+    next = Math.max(0, Math.min(hideLimit, next));
     if (Math.abs(delta) > 6) {
       sheetState.moved = true;
     }
@@ -5451,6 +5669,12 @@ export function bootstrapApp() {
     sheetState.pointerId = null;
     sheetState.moved = false;
     const maxOffset = getSheetCompactOffset();
+    const hideThreshold = maxOffset + SHEET_HIDE_TRIGGER_PX;
+    if (lastOffset >= hideThreshold) {
+      setPanelVisible(false);
+      sheetState.preventClick = true;
+      return;
+    }
     if (moved) {
       const threshold = maxOffset * 0.45;
       const nextState = lastOffset > threshold ? 'compact' : 'expanded';
@@ -5784,6 +6008,10 @@ export function bootstrapApp() {
   }
 
   async function triggerDoubleTapAction() {
+    if (!panelVisible && isMobileSheetActive()) {
+      setPanelVisible(true);
+      return;
+    }
     randomizeParameters({ syncUI: true });
     try {
       const started = await requestPlaybackStart({ preferCurrent: false });
@@ -6521,6 +6749,11 @@ export function bootstrapApp() {
   panel.addEventListener('pointermove', handleSheetDragMove);
   panel.addEventListener('pointerup', finishSheetDrag);
   panel.addEventListener('pointercancel', finishSheetDrag);
+
+  panel.addEventListener('pointerdown', startPanelSwipe);
+  panel.addEventListener('pointermove', handlePanelSwipeMove);
+  panel.addEventListener('pointerup', finishPanelSwipe);
+  panel.addEventListener('pointercancel', cancelPanelSwipe);
 
   if (mobileSheetQuery.addEventListener) {
     mobileSheetQuery.addEventListener('change', handleMobileMediaChange);
