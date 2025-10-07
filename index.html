@@ -15,21 +15,55 @@
     </button>
   </div>
   <nav class="control-panel-tabs" aria-label="Panel-Navigation">
-    <button type="button" class="control-panel-tab" data-panel-tab="media" aria-controls="audioPanel" aria-pressed="false">
-      🎧 Media Player
+    <button
+      type="button"
+      class="control-panel-tab"
+      data-panel-tab="media"
+      aria-controls="audioPanel"
+      aria-pressed="false"
+      aria-label="Media Player"
+    >
+      <span class="control-panel-tab__dot" aria-hidden="true"></span>
+      <span class="sr-only">Media Player</span>
     </button>
-    <button type="button" class="control-panel-tab is-active" data-panel-tab="presets" aria-controls="visualPresetsPanel" aria-pressed="true">
-      🎨 Visual Presets
+    <button
+      type="button"
+      class="control-panel-tab is-active"
+      data-panel-tab="presets"
+      aria-controls="visualPresetsPanel"
+      aria-pressed="true"
+      aria-label="Visual Presets"
+    >
+      <span class="control-panel-tab__dot" aria-hidden="true"></span>
+      <span class="sr-only">Visual Presets</span>
     </button>
-    <button type="button" class="control-panel-tab" data-panel-tab="config" aria-controls="configPanel" aria-pressed="false">
-      🛠️ Config
+    <button
+      type="button"
+      class="control-panel-tab"
+      data-panel-tab="config"
+      aria-controls="configPanel"
+      aria-pressed="false"
+      aria-label="Config"
+    >
+      <span class="control-panel-tab__dot" aria-hidden="true"></span>
+      <span class="sr-only">Config</span>
     </button>
   </nav>
   <section class="control-panel control-panel--presets" id="visualPresetsPanel" data-panel="presets" aria-labelledby="visualPresetsHeading">
     <header class="control-panel__header">
       <div class="control-panel__title">
         <h2 id="visualPresetsHeading">Visual Presets</h2>
-        <p class="control-panel__subtitle">Kuratiere Presets, speichere Favoriten und stelle Zufallssets zusammen.</p>
+        <p class="control-panel__subtitle info-source" id="visualPresetsInfo">Kuratiere Presets, speichere Favoriten und stelle Zufallssets zusammen.</p>
+        <button
+          type="button"
+          class="info-badge"
+          data-info-popup
+          data-info-target="visualPresetsInfo"
+          aria-label="Hinweis zu Visual Presets"
+          aria-expanded="false"
+        >
+          <span aria-hidden="true">?</span>
+        </button>
       </div>
       <button type="button" class="control-panel__toggle" data-panel-toggle aria-expanded="true" aria-label="Panel einklappen">⬇️</button>
     </header>
@@ -38,19 +72,49 @@
         <header class="panel-card__header">
           <div>
             <h3 id="patternStudioTitle">Pattern-Studio</h3>
-            <p class="panel-card__subtitle">Starte mit kuratierten Presets oder forme deine eigene Ordnung aus dem Chaos.</p>
+            <p class="panel-card__subtitle info-source" id="patternStudioInfo">Starte mit kuratierten Presets oder forme deine eigene Ordnung aus dem Chaos.</p>
+            <button
+              type="button"
+              class="info-badge"
+              data-info-popup
+              data-info-target="patternStudioInfo"
+              aria-label="Hinweis zum Pattern-Studio"
+              aria-expanded="false"
+            >
+              <span aria-hidden="true">?</span>
+            </button>
           </div>
           <button type="button" class="panel-card__action" id="patternFocus" aria-label="Kamera auf Mittelpunkt ausrichten">📌 Fokus</button>
         </header>
         <div class="pattern-quick" id="patternPresetList" role="list" aria-label="Empfohlene Muster"></div>
         <div class="pattern-active">
           <span class="pattern-active__label" id="patternActiveName">Aktives Muster: Freestyle</span>
-          <p class="pattern-active__description" id="patternActiveDescription">Nutze Presets oder die Regler unten, um dein persönliches Sternenfeld zu gestalten.</p>
+          <p class="pattern-active__description info-source" id="patternActiveDescription">Nutze Presets oder die Regler unten, um dein persönliches Sternenfeld zu gestalten.</p>
+          <button
+            type="button"
+            class="info-badge info-badge--inline"
+            data-info-popup
+            data-info-target="patternActiveDescription"
+            aria-label="Hinweis zum aktiven Muster"
+            aria-expanded="false"
+          >
+            <span aria-hidden="true">?</span>
+          </button>
         </div>
         <div class="pattern-formations">
           <div class="pattern-formations__head">
             <h4 id="patternFormationTitle">Formationen</h4>
-            <p class="pattern-formations__hint">Wechsle schnell zwischen geometrischen Anordnungen. STL-Importe erscheinen hier automatisch.</p>
+            <p class="pattern-formations__hint info-source" id="patternFormationHint">Wechsle schnell zwischen geometrischen Anordnungen. STL-Importe erscheinen hier automatisch.</p>
+            <button
+              type="button"
+              class="info-badge info-badge--inline"
+              data-info-popup
+              data-info-target="patternFormationHint"
+              aria-label="Hinweis zu Formationen"
+              aria-expanded="false"
+            >
+              <span aria-hidden="true">?</span>
+            </button>
           </div>
           <div class="chip-group" id="patternDistributionChips" role="group" aria-labelledby="patternFormationTitle"></div>
         </div>
@@ -63,7 +127,17 @@
         <header class="panel-card__header">
           <div>
             <h3 id="presetStudioTitle">Preset-Studio</h3>
-            <p class="panel-card__subtitle">Kopiere deine aktuelle Szene, kehre zum Ausgangspunkt zurück oder starte einen Mix.</p>
+            <p class="panel-card__subtitle info-source" id="presetStudioInfo">Kopiere deine aktuelle Szene, kehre zum Ausgangspunkt zurück oder starte einen Mix.</p>
+            <button
+              type="button"
+              class="info-badge"
+              data-info-popup
+              data-info-target="presetStudioInfo"
+              aria-label="Hinweis zum Preset-Studio"
+              aria-expanded="false"
+            >
+              <span aria-hidden="true">?</span>
+            </button>
           </div>
         </header>
         <div class="preset-studio__actions">
@@ -74,13 +148,33 @@
         <div class="preset-studio__status" id="presetStudioStatus" data-state="info" role="status" aria-live="polite">
           Tipp: Kopiere dein aktuelles Preset, um es zu teilen oder später erneut zu laden.
         </div>
-        <p class="preset-studio__note">Nutze das Config-Panel, um eigene Presets zu speichern und sie anschließend hier oder in der Galerie auszuwählen.</p>
+        <p class="preset-studio__note info-source" id="presetStudioNote">Nutze das Config-Panel, um eigene Presets zu speichern und sie anschließend hier oder in der Galerie auszuwählen.</p>
+        <button
+          type="button"
+          class="info-badge info-badge--block"
+          data-info-popup
+          data-info-target="presetStudioNote"
+          aria-label="Hinweis zur Nutzung eigener Presets"
+          aria-expanded="false"
+        >
+          <span aria-hidden="true">?</span>
+        </button>
       </section>
       <section class="panel-card panel-card--presets" aria-labelledby="userPresetTitle">
         <header class="panel-card__header">
           <div>
             <h3 id="userPresetTitle">Gespeicherte Presets</h3>
-            <p class="panel-card__subtitle">Wähle mehrere Presets für die Galerie oder starte die zufällige Wiedergabe.</p>
+            <p class="panel-card__subtitle info-source" id="userPresetInfo">Wähle mehrere Presets für die Galerie oder starte die zufällige Wiedergabe.</p>
+            <button
+              type="button"
+              class="info-badge"
+              data-info-popup
+              data-info-target="userPresetInfo"
+              aria-label="Hinweis zu gespeicherten Presets"
+              aria-expanded="false"
+            >
+              <span aria-hidden="true">?</span>
+            </button>
           </div>
           <div class="panel-card__action-group">
             <button type="button" class="panel-card__action" id="presetGalleryToggle" aria-pressed="false">🖼️ Galerie</button>
@@ -88,7 +182,17 @@
           </div>
         </header>
         <div class="preset-gallery" id="userPresetGallery" role="list" aria-label="Eigene Presets"></div>
-        <p class="preset-gallery__empty" id="userPresetEmpty">Noch keine Presets gespeichert. Erstelle im Config-Panel deine ersten Favoriten.</p>
+        <p class="preset-gallery__empty info-source" id="userPresetEmpty">Noch keine Presets gespeichert. Erstelle im Config-Panel deine ersten Favoriten.</p>
+        <button
+          type="button"
+          class="info-badge info-badge--block"
+          data-info-popup
+          data-info-target="userPresetEmpty"
+          aria-label="Hinweis zu fehlenden Presets"
+          aria-expanded="false"
+        >
+          <span aria-hidden="true">?</span>
+        </button>
       </section>
     </div>
   </section>
@@ -96,7 +200,17 @@
     <header class="control-panel__header">
       <div class="control-panel__title">
         <h2 id="configPanelHeading">Config</h2>
-        <p class="control-panel__subtitle">Speichere deine Einstellungen als Preset oder passe jeden Parameter fein an.</p>
+        <p class="control-panel__subtitle info-source" id="configPanelInfo">Speichere deine Einstellungen als Preset oder passe jeden Parameter fein an.</p>
+        <button
+          type="button"
+          class="info-badge"
+          data-info-popup
+          data-info-target="configPanelInfo"
+          aria-label="Hinweis zum Config-Panel"
+          aria-expanded="false"
+        >
+          <span aria-hidden="true">?</span>
+        </button>
       </div>
       <button type="button" class="control-panel__toggle" data-panel-toggle aria-expanded="false" aria-label="Panel einblenden">⬆️</button>
     </header>
@@ -105,7 +219,17 @@
         <header class="panel-card__header">
           <div>
             <h3 id="presetCreateTitle">Visuelles Preset speichern</h3>
-            <p class="panel-card__subtitle">Nutze den aktuellen Stand als neues Preset inklusive Vorschaubild.</p>
+            <p class="panel-card__subtitle info-source" id="presetCreateInfo">Nutze den aktuellen Stand als neues Preset inklusive Vorschaubild.</p>
+            <button
+              type="button"
+              class="info-badge"
+              data-info-popup
+              data-info-target="presetCreateInfo"
+              aria-label="Hinweis zum Speichern eines Presets"
+              aria-expanded="false"
+            >
+              <span aria-hidden="true">?</span>
+            </button>
           </div>
         </header>
         <form class="preset-form" id="presetCreateForm">
@@ -121,7 +245,17 @@
             <button type="submit" id="presetSaveButton">💾 Preset speichern</button>
           </div>
         </form>
-        <p class="preset-form__hint" id="presetFormHint">Deine Presets werden lokal gespeichert und stehen in der Galerie bereit.</p>
+        <p class="preset-form__hint info-source" id="presetFormHint">Deine Presets werden lokal gespeichert und stehen in der Galerie bereit.</p>
+        <button
+          type="button"
+          class="info-badge info-badge--block"
+          data-info-popup
+          data-info-target="presetFormHint"
+          aria-label="Hinweis zur Preset-Speicherung"
+          aria-expanded="false"
+        >
+          <span aria-hidden="true">?</span>
+        </button>
       </section>
       <h3>Parameter</h3>
   <section class="accordion" id="acc-points">
@@ -583,7 +717,17 @@
     <header class="control-panel__header">
       <div class="control-panel__title">
         <h2 id="mediaPanelHeading">Media Player</h2>
-        <p class="control-panel__subtitle">Steuere Wiedergabe, Mikrofon und Audio-Reaktivität.</p>
+        <p class="control-panel__subtitle info-source" id="mediaPanelInfo">Steuere Wiedergabe, Mikrofon und Audio-Reaktivität.</p>
+        <button
+          type="button"
+          class="info-badge"
+          data-info-popup
+          data-info-target="mediaPanelInfo"
+          aria-label="Hinweis zum Media Player"
+          aria-expanded="false"
+        >
+          <span aria-hidden="true">?</span>
+        </button>
       </div>
       <button type="button" class="control-panel__toggle" data-panel-toggle aria-expanded="false">Panel einblenden</button>
     </header>
@@ -593,7 +737,17 @@
         <div class="audio-player-head__meta">
           <span class="audio-player-head__label">Jetzt läuft</span>
           <h4 class="audio-player-head__title" id="audioCurrentTitle">Keine Auswahl</h4>
-          <p class="audio-player-head__description" id="audioCurrentDetails">Lade eigene Songs oder nutze die Preset-Playlist.</p>
+          <p class="audio-player-head__description info-source" id="audioCurrentDetails">Lade eigene Songs oder nutze die Preset-Playlist.</p>
+          <button
+            type="button"
+            class="info-badge info-badge--inline"
+            data-info-popup
+            data-info-target="audioCurrentDetails"
+            aria-label="Hinweis zur Playlist"
+            aria-expanded="false"
+          >
+            <span aria-hidden="true">?</span>
+          </button>
         </div>
         <div class="audio-player-head__status" role="status" aria-live="polite">
           <span class="status-indicator" id="audioStatusDot" data-state="idle" aria-hidden="true"></span>
@@ -618,14 +772,24 @@
           <div class="file-meta" id="audioFileMeta">Keine Auswahl</div>
         </div>
       </div>
-      <div class="audio-playlist" aria-live="polite">
+        <div class="audio-playlist" aria-live="polite">
         <div class="audio-playlist__head">
           <h4 id="audioPlaylistTitle">Playlist</h4>
           <div class="playlist-meta" id="audioPlaylistMeta">Keine Playlist geladen</div>
         </div>
-        <div class="audio-playlist__list" id="audioPlaylist" role="listbox" aria-label="Wiedergabeliste"></div>
-        <p class="audio-playlist__empty" id="audioPlaylistEmpty">Keine Titel vorhanden. Lade deine Lieblingstracks oder nutze die Presets.</p>
-      </div>
+          <div class="audio-playlist__list" id="audioPlaylist" role="listbox" aria-label="Wiedergabeliste"></div>
+          <p class="audio-playlist__empty info-source" id="audioPlaylistEmpty">Keine Titel vorhanden. Lade deine Lieblingstracks oder nutze die Presets.</p>
+          <button
+            type="button"
+            class="info-badge info-badge--block"
+            data-info-popup
+            data-info-target="audioPlaylistEmpty"
+            aria-label="Hinweis zur leeren Playlist"
+            aria-expanded="false"
+          >
+            <span aria-hidden="true">?</span>
+          </button>
+        </div>
     </section>
     <section class="audio-section audio-section--reactivity">
       <div class="row">
