@@ -232,16 +232,16 @@ body {
   justify-content: flex-end;
 }
 
-.control-panel-tabs {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.75rem;
-  margin: 0;
-  padding: 0;
+.panel-top {
   position: sticky;
   top: 0;
   z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-m);
+  flex-wrap: wrap;
+  padding: var(--spacing-xs) var(--spacing-m) var(--spacing-s);
   background: linear-gradient(
     180deg,
     rgba(5, 7, 13, 0.92) 0%,
@@ -249,7 +249,18 @@ body {
     transparent 100%
   );
   backdrop-filter: blur(10px);
-  padding-bottom: var(--spacing-s);
+}
+
+.control-panel-tabs {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-s);
+  margin: 0;
+  padding: 0;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  justify-content: center;
+  list-style: none;
 }
 
 .panel-top {
@@ -353,48 +364,89 @@ body {
 
 .control-panel-tab {
   appearance: none;
-  background: transparent;
-  border: 0;
-  border-radius: 999px;
-  width: 0.75rem;
-  height: 0.75rem;
-  padding: 0;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid transparent;
+  border-radius: var(--radius-l);
+  padding: 0.45rem 1.1rem;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: transform 0.25s ease;
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    color 0.2s ease,
+    transform 0.2s ease;
+  color: var(--color-text-secondary);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  min-width: 0;
   touch-action: manipulation;
 }
 
-.control-panel-tab__dot {
-  width: 100%;
-  height: 100%;
-  border-radius: inherit;
-  background: rgba(255, 255, 255, 0.24);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.22);
-  transition:
-    transform 0.25s ease,
-    background 0.25s ease,
-    box-shadow 0.25s ease;
+.control-panel-tab__label {
+  pointer-events: none;
+  white-space: nowrap;
 }
 
-.control-panel-tab.is-active .control-panel-tab__dot,
-.control-panel-tab[aria-pressed='true'] .control-panel-tab__dot {
-  background: rgba(79, 140, 255, 0.95);
-  box-shadow: 0 0 0 4px rgba(79, 140, 255, 0.18);
-  transform: scale(1.3);
+.control-panel-tab.is-active,
+.control-panel-tab[aria-pressed='true'] {
+  color: var(--color-text-primary);
+  background: rgba(79, 140, 255, 0.22);
+  border-color: rgba(79, 140, 255, 0.45);
+  box-shadow: 0 0 0 1px rgba(79, 140, 255, 0.28);
+  transform: translateY(-1px);
 }
 
-.control-panel-tab:hover .control-panel-tab__dot,
-.control-panel-tab:focus-visible .control-panel-tab__dot {
-  background: rgba(79, 140, 255, 0.7);
-  box-shadow: 0 0 0 4px rgba(79, 140, 255, 0.24);
+.control-panel-tab:hover,
+.control-panel-tab:focus-visible {
+  background: rgba(79, 140, 255, 0.18);
+  border-color: rgba(79, 140, 255, 0.45);
+  color: var(--color-text-primary);
 }
 
 .control-panel-tab:focus-visible {
   outline: none;
-  transform: translateY(-1px);
+  box-shadow: 0 0 0 3px rgba(79, 140, 255, 0.3);
+}
+
+.panel-close {
+  appearance: none;
+  border: 1px solid var(--color-border);
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--color-text-primary);
+  border-radius: 999px;
+  width: 2.25rem;
+  height: 2.25rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: auto;
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease,
+    transform 0.2s ease;
+}
+
+.panel-close:hover,
+.panel-close:focus-visible {
+  background: rgba(255, 255, 255, 0.16);
+  border-color: rgba(255, 255, 255, 0.36);
+}
+
+.panel-close:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(79, 140, 255, 0.3);
+}
+
+.panel-close:active {
+  transform: scale(0.96);
 }
 
 .control-panel {
@@ -408,6 +460,10 @@ body {
   gap: var(--spacing-m);
   backdrop-filter: blur(12px);
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.02);
+}
+
+.control-panel.is-collapsed {
+  display: none;
 }
 
 .control-panel__header {
@@ -589,6 +645,10 @@ body {
 .control-panel.is-collapsed .control-panel__toggle {
   background: rgba(255, 255, 255, 0.05);
   border-color: rgba(255, 255, 255, 0.18);
+}
+
+.control-panel.is-collapsed {
+  display: none;
 }
 
 .preset-form {
@@ -1640,12 +1700,15 @@ select {
   #panel.is-hidden {
     transform: translate3d(-50%, -12px, 0);
   }
-  .control-panel-tabs {
+  .panel-top {
     position: static;
     background: transparent;
     backdrop-filter: none;
-    margin-bottom: var(--spacing-m);
-    padding-bottom: 0;
+    padding: 0 0 var(--spacing-m);
+  }
+
+  .control-panel-tabs {
+    justify-content: flex-start;
   }
   .control-panel {
     margin-bottom: var(--spacing-l);

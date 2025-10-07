@@ -22,10 +22,9 @@
         data-panel-tab="media"
         aria-controls="audioPanel"
         aria-pressed="false"
-        aria-label="Media Player Panel öffnen"
+        aria-label="Media-Player-Reiter öffnen"
       >
-        <span class="control-panel-tab__dot" aria-hidden="true"></span>
-        <span class="sr-only">Media Player</span>
+        <span class="control-panel-tab__label">Media Player</span>
       </button>
       <button
         type="button"
@@ -33,10 +32,9 @@
         data-panel-tab="presets"
         aria-controls="visualPresetsPanel"
         aria-pressed="true"
-        aria-label="Visual-Presets-Panel öffnen"
+        aria-label="Visual-Presets-Reiter öffnen"
       >
-        <span class="control-panel-tab__dot" aria-hidden="true"></span>
-        <span class="sr-only">Visual Presets</span>
+        <span class="control-panel-tab__label">Visual Presets</span>
       </button>
       <button
         type="button"
@@ -44,20 +42,12 @@
         data-panel-tab="config"
         aria-controls="configPanel"
         aria-pressed="false"
-        aria-label="Config-Panel öffnen"
+        aria-label="Config-Reiter öffnen"
       >
-        <span class="control-panel-tab__dot" aria-hidden="true"></span>
-        <span class="sr-only">Config</span>
+        <span class="control-panel-tab__label">Config</span>
       </button>
     </nav>
-    <button
-      id="panelClose"
-      type="button"
-      class="panel-close"
-      data-no-swipe
-      aria-label="Panel schließen"
-      aria-controls="panel"
-    >
+    <button id="panelClose" type="button" class="panel-close" data-no-swipe aria-label="Panel schließen" aria-controls="panel">
       ✕
     </button>
   </div>
@@ -81,7 +71,6 @@
           </div>
         </div>
       </div>
-      <button type="button" class="control-panel__toggle" data-panel-toggle aria-expanded="true" aria-label="Panel einklappen">⬇️</button>
     </header>
     <div class="control-panel__body">
       <section class="panel-card panel-card--studio" id="patternStudio" aria-labelledby="patternStudioTitle">
@@ -210,7 +199,6 @@
         <h2 id="configPanelHeading">Config</h2>
         <p class="control-panel__subtitle">Speichere deine Einstellungen als Preset oder passe jeden Parameter fein an.</p>
       </div>
-      <button type="button" class="control-panel__toggle" data-panel-toggle aria-expanded="false" aria-label="Panel einblenden">⬆️</button>
     </header>
     <div class="control-panel__body">
       <section class="panel-card panel-card--config" aria-labelledby="presetCreateTitle">
@@ -697,7 +685,6 @@
         <h2 id="mediaPanelHeading">Media Player</h2>
         <p class="control-panel__subtitle">Steuere Wiedergabe, Mikrofon und Audio-Reaktivität.</p>
       </div>
-      <button type="button" class="control-panel__toggle" data-panel-toggle aria-expanded="false">Panel einblenden</button>
     </header>
     <div class="control-panel__body" id="audioPanelBody">
     <section class="audio-section audio-section--player" aria-labelledby="audioPlaylistTitle">
@@ -823,16 +810,6 @@
   </div>
   </section>
 </div>
-<button
-  id="panelLauncher"
-  type="button"
-  class="panel-launcher"
-  aria-controls="panel"
-  aria-expanded="false"
-  aria-label="Panel anzeigen"
->
-  🎛️ Panel anzeigen
-</button>
 <div id="audioOverlay" data-visible="false" aria-hidden="true">
   <button type="button" id="audioOverlayButton" aria-label="Musik und Visualisierung starten">
     ▶️ Play – Musik & Visualisierung starten
