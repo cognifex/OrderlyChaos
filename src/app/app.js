@@ -4604,9 +4604,10 @@ export function bootstrapApp() {
     const pointerType = event.pointerType || '';
     if (pointerType === 'mouse') return;
     const target = event.target;
+    const inTabs = target ? target.closest('.control-panel-tabs') : null;
     if (target) {
       if (target.closest('.sheet-handle')) return;
-      if (target.closest('button, input, select, textarea, a, [data-no-swipe]')) return;
+      if (!inTabs && target.closest('button, input, select, textarea, a, [data-no-swipe]')) return;
     }
     panelSwipeState.pointerId = event.pointerId;
     panelSwipeState.startX = Number.isFinite(event.clientX) ? event.clientX : 0;
@@ -5469,6 +5470,9 @@ export function bootstrapApp() {
     cancelPanelSwipe();
     panel.classList.toggle('is-hidden', !panelVisible);
     panel.setAttribute('aria-hidden', panelVisible ? 'false' : 'true');
+    if (panelCloseBtn) {
+      panelCloseBtn.setAttribute('aria-expanded', panelVisible ? 'true' : 'false');
+    }
     if (isMobileSheetActive()) {
       if (panelVisible) {
         setSheetMode('compact', { force: true });
@@ -6759,10 +6763,12 @@ export function bootstrapApp() {
   if (panelCloseBtn) {
     panelCloseBtn.addEventListener('click', () => {
       setPanelVisible(false);
-      try {
-        renderer.domElement.focus({ preventScroll: true });
-      } catch (err) {
-        renderer.domElement.focus();
+      if (renderer && renderer.domElement && typeof renderer.domElement.focus === 'function') {
+        try {
+          renderer.domElement.focus({ preventScroll: true });
+        } catch (err) {
+          renderer.domElement.focus();
+        }
       }
     });
   }
