@@ -26,6 +26,7 @@ export function bootstrapApp() {
   renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
   document.body.appendChild(renderer.domElement);
   renderer.domElement.setAttribute('tabindex', '-1');
+  renderer.domElement.setAttribute('aria-label', 'Chaos-Kugel Visualisierung');
 
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0x000000);
@@ -4440,7 +4441,6 @@ export function bootstrapApp() {
 
   const controlPanelRegistry = new Map();
   const controlPanelTabs = new Map();
-  const desktopPanelState = new Map();
   const PANEL_ORDER = ['media', 'presets', 'config'];
   const infoPopoverState = { trigger: null, popover: null, hideTimeoutId: null };
   let infoDocumentListenersReady = false;
@@ -4663,7 +4663,6 @@ export function bootstrapApp() {
     const toggle = panelEl.querySelector('[data-panel-toggle]');
     const expanded = !panelEl.classList.contains('is-collapsed');
     controlPanelRegistry.set(key, { el: panelEl, toggle, expanded });
-    desktopPanelState.set(key, expanded);
     updatePanelToggleLabel(controlPanelRegistry.get(key), expanded);
     if (expanded) {
       lastExpandedPanel = key;
@@ -4689,6 +4688,12 @@ export function bootstrapApp() {
     controlPanelTabs.set(key, tab);
     tab.addEventListener('click', () => {
       closeActiveInfoPopover();
+      const entry = controlPanelRegistry.get(key);
+      if (!entry) return;
+      if (mobileSheetQuery.matches) {
+        expandControlPanel(key, { fromTab: true });
+        return;
+      }
       expandControlPanel(key, { fromTab: true });
     });
   });
@@ -4708,7 +4713,7 @@ export function bootstrapApp() {
     });
   }
 
-  function collapseControlPanel(key, { skipTab = false, preserveDesktop = false } = {}) {
+  function collapseControlPanel(key, { skipTab = false } = {}) {
     const entry = controlPanelRegistry.get(key);
     if (!entry || !entry.expanded) {
       if (!skipTab && mobileSheetQuery.matches) {
@@ -4727,9 +4732,6 @@ export function bootstrapApp() {
       closeActiveInfoPopover();
     }
     updatePanelToggleLabel(entry, false);
-    if (!preserveDesktop) {
-      desktopPanelState.set(key, false);
-    }
     if (mobileSheetQuery.matches) {
       if (!skipTab) {
         syncPanelTabs(mobileActivePanel);
@@ -4743,7 +4745,7 @@ export function bootstrapApp() {
     }
   }
 
-  function expandControlPanel(key, { fromTab = false, preserveDesktop = false } = {}) {
+  function expandControlPanel(key, { fromTab = false } = {}) {
     closeActiveInfoPopover();
     const entry = controlPanelRegistry.get(key);
     if (!entry) return;
@@ -4762,48 +4764,40 @@ export function bootstrapApp() {
       entry.toggle.setAttribute('aria-expanded', 'true');
     }
     updatePanelToggleLabel(entry, true);
-    if (!preserveDesktop) {
-      desktopPanelState.forEach((_, otherKey) => {
-        desktopPanelState.set(otherKey, otherKey === key);
-      });
-    }
+    lastExpandedPanel = key;
     controlPanelRegistry.forEach((otherEntry, otherKey) => {
       if (otherKey !== key) {
-        collapseControlPanel(otherKey, { skipTab: true, preserveDesktop: true });
+        collapseControlPanel(otherKey, { skipTab: true });
       }
     });
     if (mobileSheetQuery.matches) {
       mobileActivePanel = key;
     }
-    lastExpandedPanel = key;
     syncPanelTabs(key);
   }
 
   function initializeControlPanels() {
-    const availablePanels = PANEL_ORDER.filter(key => controlPanelRegistry.has(key));
-    const fallback = availablePanels[0] || null;
-    const initiallyExpanded = availablePanels.find(key => controlPanelRegistry.get(key)?.expanded) || fallback;
+    const availablePanels = PANEL_ORDER.filter(panelKey => controlPanelRegistry.has(panelKey));
     if (mobileSheetQuery.matches) {
-      if (!availablePanels.includes(mobileActivePanel)) {
-        mobileActivePanel = initiallyExpanded || fallback;
+      if (!controlPanelRegistry.has(mobileActivePanel)) {
+        mobileActivePanel = availablePanels[0] || null;
       }
       if (mobileActivePanel) {
-        expandControlPanel(mobileActivePanel, { fromTab: true, preserveDesktop: true });
+        expandControlPanel(mobileActivePanel, { fromTab: true });
       }
     } else {
-      let target = null;
-      if (availablePanels.includes(lastExpandedPanel)) {
-        target = lastExpandedPanel;
+      if (!controlPanelRegistry.has(lastExpandedPanel)) {
+        lastExpandedPanel = availablePanels[0] || null;
       }
-      if (!target) {
-        target = availablePanels.find(key => desktopPanelState.get(key));
+      if (lastExpandedPanel) {
+        expandControlPanel(lastExpandedPanel, { fromTab: true });
       }
-      if (!target) {
-        target = initiallyExpanded;
-      }
-      if (target) {
-        expandControlPanel(target, { fromTab: true, preserveDesktop: true });
-      }
+      controlPanelRegistry.forEach((entry, key) => {
+        if (key !== lastExpandedPanel) {
+          collapseControlPanel(key, { skipTab: true });
+        }
+      });
+      syncPanelTabs(lastExpandedPanel);
     }
   }
 
