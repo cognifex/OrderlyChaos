@@ -1695,11 +1695,9 @@ export function bootstrapApp() {
     started: false,
     panelsHiddenForPlayback: false,
     previousPanelVisible: null,
-    previousBarVisible: null,
     pendingOverlayStart: false,
     editingMode: false,
     editingPreviousPanel: null,
-    editingPreviousBar: null,
   };
 
   function clampIntensityPercent(value, fallback = 100, max = 200) {
@@ -4385,13 +4383,9 @@ export function bootstrapApp() {
   /* Bind UI elements */
   const $ = id => document.getElementById(id);
   const panel = $('panel');
-  const toggleBtn = $('toggle');
   const editModeBtn = $('editMode');
   const lockBtn = $('lock');
   const sheetHandleBtn = $('sheetHandle');
-  const bar = $('bar');
-  const barHotspot = $('barHotspot');
-  const barButtons = bar ? Array.from(bar.querySelectorAll('button')) : [];
   const viewportState = { height: 0 };
   const mobileSheetQuery = window.matchMedia('(max-width: 768px)');
   const sheetState = {
@@ -4408,6 +4402,9 @@ export function bootstrapApp() {
   const doubleTapState = { lastTime: 0, lastX: 0, lastY: 0, blockUntil: 0 };
   const DOUBLE_TAP_TIMEOUT_MS = 420;
   const DOUBLE_TAP_DISTANCE_PX = 46;
+  const longPressState = { timerId: null, pointerId: null, startX: 0, startY: 0, triggered: false };
+  const LONG_PRESS_DURATION_MS = 600;
+  const LONG_PRESS_DISTANCE_PX = 28;
 
   patternUI.presetList = $('patternPresetList');
   patternUI.activeName = $('patternActiveName');
@@ -4675,127 +4672,8 @@ export function bootstrapApp() {
     updatePresetRandomButton();
   }
 
-  const barState = {
-    visible: bar ? bar.classList.contains('is-visible') : false,
-    hideTimeout: null,
-  };
-
-  if (barButtons.length) {
-    barButtons.forEach(button => {
-      const existing = button.getAttribute('tabindex');
-      button.dataset.barDefaultTabindex = existing === null ? '' : existing;
-    });
-    if (!barState.visible) {
-      barButtons.forEach(button => {
-        button.setAttribute('tabindex', '-1');
-      });
-    }
-  }
-
-  function setBarFocusability(hidden) {
-    if (!barButtons.length) return;
-    barButtons.forEach(button => {
-      if (hidden) {
-        button.setAttribute('tabindex', '-1');
-      } else {
-        const stored = button.dataset.barDefaultTabindex;
-        if (typeof stored === 'string') {
-          if (stored.length) {
-            button.setAttribute('tabindex', stored);
-          } else {
-            button.removeAttribute('tabindex');
-          }
-        }
-      }
-    });
-  }
-
-  function setBarVisible(show) {
-    if (!bar) return;
-    const next = !!show;
-    if (barState.visible === next) return;
-    barState.visible = next;
-    bar.classList.toggle('is-visible', next);
-    bar.setAttribute('aria-hidden', next ? 'false' : 'true');
-    setBarFocusability(!next);
-  }
-
-  function scheduleBarHide(delay) {
-    if (!bar) return;
-    if (barState.hideTimeout !== null) {
-      clearTimeout(barState.hideTimeout);
-      barState.hideTimeout = null;
-    }
-    if (delay == null) return;
-    const timeout = Math.max(0, Number(delay) || 0);
-    barState.hideTimeout = window.setTimeout(() => {
-      barState.hideTimeout = null;
-      if (bar && bar.contains(document.activeElement)) {
-        scheduleBarHide(timeout);
-        return;
-      }
-      setBarVisible(false);
-    }, timeout);
-  }
-
-  function showBar(options = {}) {
-    if (!bar) return;
-    const { autoHideDelay = null } = options;
-    setBarVisible(true);
-    if (autoHideDelay !== undefined) {
-      scheduleBarHide(autoHideDelay);
-    }
-  }
-
-  function hideBar(options = {}) {
-    if (!bar) return;
-    const { immediate = false, delay = 900 } = options;
-    if (immediate) {
-      scheduleBarHide(null);
-      setBarVisible(false);
-      return;
-    }
-    scheduleBarHide(delay);
-  }
-
-  function initializeBarReveal({ initialReveal = true } = {}) {
-    if (!bar) return;
-    if (initialReveal) {
-      showBar({ autoHideDelay: 2800 });
-    } else {
-      setBarVisible(false);
-      scheduleBarHide(null);
-    }
-    const reveal = () => showBar({ autoHideDelay: 4200 });
-    const deferHide = () => hideBar({ delay: 1000 });
-    if (barHotspot) {
-      const pointerEvents = ['pointerenter', 'pointerdown', 'pointermove'];
-      pointerEvents.forEach(eventName => {
-        barHotspot.addEventListener(eventName, reveal, { passive: true });
-      });
-      barHotspot.addEventListener('touchstart', reveal, { passive: true });
-      barHotspot.addEventListener('pointerleave', deferHide);
-      barHotspot.addEventListener('touchend', deferHide);
-      barHotspot.addEventListener('touchcancel', deferHide);
-    }
-    bar.addEventListener('pointerenter', () => showBar({ autoHideDelay: null }));
-    bar.addEventListener('pointerleave', () => hideBar({ delay: 1000 }));
-    bar.addEventListener('focusin', () => showBar({ autoHideDelay: null }));
-    bar.addEventListener('focusout', () => {
-      window.requestAnimationFrame(() => {
-        if (!bar.contains(document.activeElement)) {
-          hideBar({ delay: 800 });
-        }
-      });
-    });
-    document.addEventListener('keydown', event => {
-      if (event.key === 'Escape') {
-        hideBar({ immediate: true });
-      }
-    });
-  }
-
-  initializeBarReveal({ initialReveal: false });
+  audioUI.intensityControls = new Map();
+  audioUI.supportNotice = $('audioSupportNotice');
   audioUI.intensityControls = new Map();
   audioUI.supportNotice = $('audioSupportNotice');
   audioUI.autoRandomBtn = $('audioRandomMode');
@@ -5404,12 +5282,6 @@ export function bootstrapApp() {
       sheetState.preventClick = false;
       panel.classList.remove('is-dragging');
     }
-    if (toggleBtn) {
-      const toggleLabel = panelVisible ? 'Panel einklappen' : 'Panel anzeigen';
-      toggleBtn.textContent = panelVisible ? '⬇️ Panel einklappen' : '⬆️ Panel anzeigen';
-      toggleBtn.setAttribute('aria-expanded', panelVisible ? 'true' : 'false');
-      toggleBtn.setAttribute('aria-label', toggleLabel);
-    }
     updateSheetHandleAria();
   }
 
@@ -5434,9 +5306,7 @@ export function bootstrapApp() {
     updateEditModeButton();
     if (next) {
       experienceState.editingPreviousPanel = panelVisible;
-      experienceState.editingPreviousBar = barState.visible;
       setPanelVisible(true);
-      showBar({ autoHideDelay: 4200 });
       setAutoRandomEnabled(false);
       if (!skipStop) {
         stopAudioFromUser();
@@ -5449,19 +5319,10 @@ export function bootstrapApp() {
       updateAudioOverlayVisibility();
     } else {
       const prevPanel = experienceState.editingPreviousPanel;
-      const prevBar = experienceState.editingPreviousBar;
       experienceState.editingPreviousPanel = null;
-      experienceState.editingPreviousBar = null;
       if (!skipPanelRestore) {
         if (prevPanel !== null) {
           setPanelVisible(prevPanel);
-        }
-        if (typeof prevBar === 'boolean') {
-          if (prevBar) {
-            showBar({ autoHideDelay: 3200 });
-          } else {
-            hideBar({ immediate: true });
-          }
         }
       }
       updateAudioOverlayVisibility();
@@ -5484,12 +5345,8 @@ export function bootstrapApp() {
       if (experienceState.previousPanelVisible === null) {
         experienceState.previousPanelVisible = panelVisible;
       }
-      if (experienceState.previousBarVisible === null) {
-        experienceState.previousBarVisible = barState.visible;
-      }
     }
     setPanelVisible(false);
-    hideBar({ immediate: true });
     experienceState.panelsHiddenForPlayback = true;
   }
 
@@ -5497,24 +5354,15 @@ export function bootstrapApp() {
     if (!experienceState.panelsHiddenForPlayback) return;
     if (experienceState.editingMode) {
       setPanelVisible(true);
-      showBar({ autoHideDelay: 3200 });
       experienceState.panelsHiddenForPlayback = false;
       experienceState.previousPanelVisible = null;
-      experienceState.previousBarVisible = null;
       return;
     }
     const desiredPanel = experienceState.previousPanelVisible;
     const shouldShowPanel = (desiredPanel === null) ? getDefaultPanelVisibility() : desiredPanel;
     setPanelVisible(shouldShowPanel);
-    const previousBar = experienceState.previousBarVisible;
-    if (previousBar) {
-      showBar({ autoHideDelay: 3200 });
-    } else {
-      hideBar({ immediate: true });
-    }
     experienceState.panelsHiddenForPlayback = false;
     experienceState.previousPanelVisible = null;
-    experienceState.previousBarVisible = null;
   }
 
   function notifyPlaybackStarted() {
@@ -5537,7 +5385,6 @@ export function bootstrapApp() {
     }
     if (!experienceState.started && experienceState.previousPanelVisible === null) {
       experienceState.previousPanelVisible = getDefaultPanelVisibility();
-      experienceState.previousBarVisible = barState.visible;
     }
     const presetName = generateRandomBiome({ syncUI: true, repositionCamera: true });
     if (presetName) {
@@ -5865,6 +5712,77 @@ export function bootstrapApp() {
     doubleTapState.blockUntil = 0;
   }
 
+  function clearLongPressState() {
+    if (longPressState.timerId !== null) {
+      clearTimeout(longPressState.timerId);
+      longPressState.timerId = null;
+    }
+    longPressState.pointerId = null;
+    longPressState.startX = 0;
+    longPressState.startY = 0;
+    longPressState.triggered = false;
+  }
+
+  function triggerLongPressAction() {
+    const now = performance.now();
+    resetDoubleTapState();
+    doubleTapState.blockUntil = now + DOUBLE_TAP_TIMEOUT_MS;
+    setPanelVisible(true);
+    if (isMobileSheetActive()) {
+      setSheetMode('expanded', { force: true });
+    }
+  }
+
+  function scheduleLongPress(event) {
+    if (!event || event.isPrimary === false) {
+      clearLongPressState();
+      return;
+    }
+    const pointerType = typeof event.pointerType === 'string' ? event.pointerType : '';
+    if (pointerType !== 'touch' && pointerType !== 'pen') {
+      clearLongPressState();
+      return;
+    }
+    clearLongPressState();
+    longPressState.pointerId = event.pointerId;
+    longPressState.startX = Number.isFinite(event.clientX) ? event.clientX : 0;
+    longPressState.startY = Number.isFinite(event.clientY) ? event.clientY : 0;
+    longPressState.timerId = window.setTimeout(() => {
+      longPressState.timerId = null;
+      if (longPressState.pointerId === null) {
+        return;
+      }
+      longPressState.triggered = true;
+      triggerLongPressAction();
+    }, LONG_PRESS_DURATION_MS);
+  }
+
+  function handleLongPressMove(event) {
+    if (longPressState.pointerId === null || event.pointerId !== longPressState.pointerId) {
+      return;
+    }
+    if (longPressState.triggered) {
+      return;
+    }
+    const x = Number.isFinite(event.clientX) ? event.clientX : 0;
+    const y = Number.isFinite(event.clientY) ? event.clientY : 0;
+    const distance = Math.hypot(x - longPressState.startX, y - longPressState.startY);
+    if (distance > LONG_PRESS_DISTANCE_PX) {
+      clearLongPressState();
+    }
+  }
+
+  function handleLongPressEnd(event) {
+    if (longPressState.pointerId === null || event.pointerId !== longPressState.pointerId) {
+      return;
+    }
+    const triggered = longPressState.triggered;
+    clearLongPressState();
+    if (triggered && event && typeof event.preventDefault === 'function') {
+      event.preventDefault();
+    }
+  }
+
   async function triggerDoubleTapAction() {
     randomizeParameters({ syncUI: true });
     try {
@@ -6024,6 +5942,11 @@ export function bootstrapApp() {
       onSpinPointerUp(e);
     }
   });
+  renderer.domElement.addEventListener('pointerdown', scheduleLongPress);
+  renderer.domElement.addEventListener('pointermove', handleLongPressMove);
+  renderer.domElement.addEventListener('pointerup', handleLongPressEnd);
+  renderer.domElement.addEventListener('pointercancel', handleLongPressEnd);
+  renderer.domElement.addEventListener('pointerleave', handleLongPressEnd);
   renderer.domElement.addEventListener('pointercancel', resetDoubleTapState);
   renderer.domElement.addEventListener('pointerup', handleScenePointerTap);
   renderer.domElement.addEventListener('dblclick', handleSceneDoubleClick);
@@ -6572,10 +6495,6 @@ export function bootstrapApp() {
     });
   });
 
-  /* Toggle panel, lock camera & random button */
-  toggleBtn.addEventListener('click', () => {
-    setPanelVisible(!panelVisible);
-  });
   if (editModeBtn) {
     editModeBtn.addEventListener('click', () => {
       setEditingMode(!experienceState.editingMode);

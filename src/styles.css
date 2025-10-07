@@ -423,8 +423,8 @@ body {
 
 .preset-gallery {
   display: grid;
-  gap: 0.75rem;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.6rem;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
 }
 
 .preset-gallery[data-mode='grid'] {
@@ -443,7 +443,7 @@ body {
 
 .preset-card {
   position: relative;
-  padding: 0.75rem;
+  padding: 0.65rem;
   border-radius: 14px;
   border: 1px solid rgba(255, 255, 255, 0.15);
   background: rgba(0, 0, 0, 0.35);
@@ -1269,69 +1269,6 @@ input[type='number'] {
 select {
   flex: 1;
 }
-#barHotspot {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  width: 100%;
-  height: clamp(72px, 18vh, 140px);
-  z-index: 14;
-  pointer-events: auto;
-  background: transparent;
-  touch-action: manipulation;
-}
-#bar {
-  position: fixed;
-  bottom: calc(env(safe-area-inset-bottom, 0px) + var(--spacing-s));
-  left: 50%;
-  z-index: 16;
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--spacing-s);
-  width: min(calc(100% - 2 * var(--spacing-m)), var(--nav-max-width));
-  padding: var(--spacing-s);
-  border-radius: 999px;
-  background: rgba(6, 12, 20, 0.92);
-  border: 1px solid var(--color-border);
-  box-shadow: var(--shadow-overlay);
-  backdrop-filter: blur(18px);
-  opacity: 0;
-  pointer-events: none;
-  transform: translate3d(-50%, 110%, 0);
-  transition:
-    transform 0.35s ease,
-    opacity 0.35s ease;
-  will-change: transform, opacity;
-}
-#bar.is-visible {
-  opacity: 1;
-  pointer-events: auto;
-  transform: translate3d(-50%, 0, 0);
-  transition-timing-function: cubic-bezier(0.25, 0.1, 0.25, 1);
-}
-#bar button {
-  padding: 0.55rem 0.75rem;
-  font-size: 0.85rem;
-  background: transparent;
-  color: inherit;
-  border: 1px solid transparent;
-  border-radius: var(--radius-s);
-  cursor: pointer;
-  transition:
-    background 0.2s ease,
-    border-color 0.2s ease,
-    transform 0.2s ease;
-}
-#bar button:focus-visible {
-  outline: 2px solid var(--color-primary);
-  outline-offset: 2px;
-}
-#bar button[aria-pressed='true'] {
-  background: rgba(79, 140, 255, 0.22);
-  border-color: var(--color-primary);
-  color: #fff;
-  transform: translateY(-1px);
-}
 #audioPanel {
   margin-bottom: 0;
 }
@@ -1366,12 +1303,6 @@ select {
 #audioPanel .panel-footnote[data-state='error'] {
   color: #ffb0a8;
   opacity: 1;
-}
-@media (hover: hover) {
-  #bar button:hover {
-    background: rgba(79, 140, 255, 0.18);
-    border-color: var(--color-primary);
-  }
 }
 .sheet-handle {
   display: flex;
@@ -1497,41 +1428,12 @@ select {
   .sheet-handle {
     display: none;
   }
-  #barHotspot {
-    top: 0;
-    bottom: auto;
-    width: clamp(56px, 12vw, 120px);
-    height: clamp(72px, 18vh, 160px);
-  }
-  #bar {
-    top: calc(var(--spacing-l) + env(safe-area-inset-top, 0px));
-    bottom: auto;
-    left: var(--spacing-l);
-    transform: translate3d(-110%, 0, 0);
-    width: auto;
-    max-width: none;
-    display: flex;
-    align-items: center;
-    gap: var(--spacing-s);
-    padding: var(--spacing-s) var(--spacing-m);
-  }
-  #bar.is-visible {
-    transform: translate3d(0, 0, 0);
-  }
-  #bar button {
-    flex: 0 0 auto;
-    min-width: 0;
-    text-align: left;
-  }
 }
 
 @media (min-width: 75rem) {
   #panel {
     width: min(var(--container-desktop, 75rem), calc(100% - 2 * var(--spacing-xxl)));
     padding: var(--spacing-xl) var(--spacing-xxl);
-  }
-  #bar {
-    left: calc(50% - var(--container-desktop, 75rem) / 2);
   }
 }
 canvas {
