@@ -1,0 +1,31 @@
+{
+  "name": "orderlychaos",
+  "version": "1.0.0",
+  "description": "Audio-reactive Chaos-Kugel Visualisierung",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "lint": "eslint .",
+    "format": "prettier --check ."
+  },
+  "keywords": [
+    "threejs",
+    "visualization",
+    "audio-reactive"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@eslint/js": "^8.57.1",
+    "eslint": "^8.57.1",
+    "globals": "^16.4.0",
+    "prettier": "^3.6.2",
+    "vite": "^4.5.3"
+  },
+  "dependencies": {
+    "three": "^0.180.0"
+  }
+}
