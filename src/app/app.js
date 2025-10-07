@@ -4383,6 +4383,8 @@ export function bootstrapApp() {
   /* Bind UI elements */
   const $ = id => document.getElementById(id);
   const panel = $('panel');
+  const panelCloseBtn = $('panelClose');
+  const panelLauncherBtn = $('panelLauncher');
   const editModeBtn = $('editMode');
   const lockBtn = $('lock');
   const sheetHandleBtn = $('sheetHandle');
@@ -4404,9 +4406,6 @@ export function bootstrapApp() {
   const doubleTapState = { lastTime: 0, lastX: 0, lastY: 0, blockUntil: 0 };
   const DOUBLE_TAP_TIMEOUT_MS = 420;
   const DOUBLE_TAP_DISTANCE_PX = 46;
-  const panelSwipeState = { pointerId: null, startX: 0, startY: 0, active: false };
-  const PANEL_SWIPE_MIN_DISTANCE_PX = 60;
-  const PANEL_SWIPE_VERTICAL_TOLERANCE_PX = 42;
   const longPressState = { timerId: null, pointerId: null, startX: 0, startY: 0, triggered: false };
   const LONG_PRESS_DURATION_MS = 600;
   const LONG_PRESS_DISTANCE_PX = 28;
@@ -4442,8 +4441,9 @@ export function bootstrapApp() {
   const controlPanelRegistry = new Map();
   const controlPanelTabs = new Map();
   const desktopPanelState = new Map();
-  const mobilePanelOrder = ['media', 'presets', 'config'];
-  const infoPopoverState = { el: null, trigger: null };
+  const PANEL_ORDER = ['media', 'presets', 'config'];
+  const infoPopoverState = { trigger: null, popover: null, hideTimeoutId: null };
+  let infoDocumentListenersReady = false;
   let mobileActivePanel = 'presets';
   let lastExpandedPanel = 'presets';
 
@@ -4604,9 +4604,10 @@ export function bootstrapApp() {
     const pointerType = event.pointerType || '';
     if (pointerType === 'mouse') return;
     const target = event.target;
+    const inTabs = target ? target.closest('.control-panel-tabs') : null;
     if (target) {
       if (target.closest('.sheet-handle')) return;
-      if (target.closest('button, input, select, textarea, a, [data-no-swipe]')) return;
+      if (!inTabs && target.closest('button, input, select, textarea, a, [data-no-swipe]')) return;
     }
     panelSwipeState.pointerId = event.pointerId;
     panelSwipeState.startX = Number.isFinite(event.clientX) ? event.clientX : 0;
@@ -4690,18 +4691,16 @@ export function bootstrapApp() {
     if (!key) return;
     controlPanelTabs.set(key, tab);
     tab.addEventListener('click', () => {
+      closeActiveInfoPopover();
       if (mobileSheetQuery.matches) {
-        closeInfoPopover();
         expandControlPanel(key, { fromTab: true });
         return;
       }
       const entry = controlPanelRegistry.get(key);
       if (!entry) return;
       if (entry.expanded && lastExpandedPanel === key) {
-        closeInfoPopover();
         collapseControlPanel(key);
       } else {
-        closeInfoPopover();
         expandControlPanel(key, { fromTab: true });
       }
     });
@@ -4831,140 +4830,6 @@ export function bootstrapApp() {
 
   initializeControlPanels();
   setupInfoPopovers();
-
-  function ensureInfoPopoverElement() {
-    if (infoPopoverState.el) {
-      return infoPopoverState.el;
-    }
-    const popover = document.createElement('div');
-    popover.className = 'info-popover';
-    popover.id = 'infoPopover';
-    popover.setAttribute('role', 'tooltip');
-    popover.setAttribute('aria-hidden', 'true');
-    document.body.appendChild(popover);
-    infoPopoverState.el = popover;
-    return popover;
-  }
-
-  function getInfoContentFromTrigger(trigger) {
-    if (!trigger) return '';
-    const targetId = trigger.dataset.infoTarget;
-    if (targetId) {
-      const target = document.getElementById(targetId);
-      if (target) {
-        return String(target.textContent || '').trim();
-      }
-    }
-    const inline = trigger.dataset.infoContent;
-    if (inline) {
-      return String(inline).trim();
-    }
-    return '';
-  }
-
-  function positionInfoPopover(popover, trigger) {
-    if (!popover || !trigger) return;
-    const rect = trigger.getBoundingClientRect();
-    const popRect = popover.getBoundingClientRect();
-    const centerX = rect.left + rect.width / 2;
-    let top = rect.top - 12;
-    let placement = 'top';
-    if (top - popRect.height < 16) {
-      top = rect.bottom + 12;
-      placement = 'bottom';
-    }
-    const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0;
-    const clampedLeft = Math.min(Math.max(centerX, 16), viewportWidth - 16);
-    popover.style.left = `${Math.round(clampedLeft)}px`;
-    popover.style.top = `${Math.round(top)}px`;
-    popover.dataset.placement = placement;
-  }
-
-  function closeInfoPopover({ focusTrigger = false } = {}) {
-    const trigger = infoPopoverState.trigger;
-    const popover = infoPopoverState.el;
-    if (popover) {
-      popover.removeAttribute('data-visible');
-      popover.setAttribute('aria-hidden', 'true');
-      popover.removeAttribute('data-placement');
-    }
-    if (trigger) {
-      trigger.setAttribute('aria-expanded', 'false');
-      trigger.removeAttribute('aria-controls');
-      if (focusTrigger && typeof trigger.focus === 'function') {
-        trigger.focus();
-      }
-    }
-    infoPopoverState.trigger = null;
-  }
-
-  function openInfoPopover(trigger) {
-    if (!trigger) return;
-    const content = getInfoContentFromTrigger(trigger);
-    if (!content) {
-      closeInfoPopover();
-      return;
-    }
-    const popover = ensureInfoPopoverElement();
-    popover.textContent = content;
-    popover.setAttribute('aria-hidden', 'false');
-    trigger.setAttribute('aria-expanded', 'true');
-    trigger.setAttribute('aria-controls', popover.id);
-    infoPopoverState.trigger = trigger;
-    positionInfoPopover(popover, trigger);
-    popover.dataset.visible = 'true';
-  }
-
-  function toggleInfoPopover(trigger) {
-    if (!trigger) return;
-    if (infoPopoverState.trigger === trigger) {
-      closeInfoPopover();
-    } else {
-      openInfoPopover(trigger);
-    }
-  }
-
-  function initializeInfoPopovers() {
-    const triggers = Array.from(document.querySelectorAll('[data-info-popup]'));
-    triggers.forEach(trigger => {
-      if (!trigger.hasAttribute('aria-haspopup')) {
-        trigger.setAttribute('aria-haspopup', 'dialog');
-      }
-      if (!trigger.hasAttribute('aria-expanded')) {
-        trigger.setAttribute('aria-expanded', 'false');
-      }
-    });
-    document.addEventListener('click', event => {
-      const trigger = event.target instanceof Element ? event.target.closest('[data-info-popup]') : null;
-      if (trigger) {
-        event.preventDefault();
-        toggleInfoPopover(trigger);
-        return;
-      }
-      const popover = infoPopoverState.el;
-      if (popover && event.target instanceof Element && popover.contains(event.target)) {
-        return;
-      }
-      closeInfoPopover();
-    });
-    document.addEventListener('keydown', event => {
-      if (event.key === 'Escape') {
-        closeInfoPopover({ focusTrigger: true });
-      }
-    });
-    window.addEventListener('resize', () => {
-      if (infoPopoverState.trigger) {
-        closeInfoPopover();
-      }
-    });
-    window.addEventListener('scroll', () => {
-      if (infoPopoverState.trigger) {
-        closeInfoPopover();
-      }
-    }, true);
-  }
-
-  initializeInfoPopovers();
 
   audioUI.panel = $('audioPanel');
   audioUI.body = $('audioPanelBody');
@@ -5590,7 +5455,7 @@ export function bootstrapApp() {
     sheetState.moved = false;
     sheetState.preventClick = false;
     panel.classList.remove('is-dragging');
-    closeInfoPopover();
+    closeActiveInfoPopover();
     if (!isMobileSheetActive()) {
       sheetState.mode = 'compact';
       panel.removeAttribute('data-sheet-state');
@@ -5602,6 +5467,11 @@ export function bootstrapApp() {
 
   function setPanelVisible(show) {
     panelVisible = !!show;
+    if (panelLauncherBtn) {
+      panelLauncherBtn.hidden = panelVisible;
+      panelLauncherBtn.setAttribute('aria-hidden', panelVisible ? 'true' : 'false');
+      panelLauncherBtn.setAttribute('aria-expanded', panelVisible ? 'true' : 'false');
+    }
     if (!panel) {
       setAudioPanelVisible(panelVisible);
       return;
@@ -5610,6 +5480,9 @@ export function bootstrapApp() {
     cancelPanelSwipe();
     panel.classList.toggle('is-hidden', !panelVisible);
     panel.setAttribute('aria-hidden', panelVisible ? 'false' : 'true');
+    if (panelCloseBtn) {
+      panelCloseBtn.setAttribute('aria-expanded', panelVisible ? 'true' : 'false');
+    }
     if (isMobileSheetActive()) {
       if (panelVisible) {
         setSheetMode('compact', { force: true });
@@ -5629,113 +5502,10 @@ export function bootstrapApp() {
       sheetState.moved = false;
       sheetState.preventClick = false;
       panel.classList.remove('is-dragging');
-      closeInfoPopover();
-      cancelPanelSwipe();
+      sheetState.lastOffset = getSheetCompactOffset();
+      applySheetOffset();
     }
     updateSheetHandleAria();
-  }
-
-  function navigatePanel(direction) {
-    if (!mobileSheetQuery.matches) return;
-    if (!panelVisible) return;
-    const currentIndex = mobilePanelOrder.indexOf(mobileActivePanel);
-    if (currentIndex === -1) return;
-    const nextIndex = currentIndex + direction;
-    if (nextIndex < 0 || nextIndex >= mobilePanelOrder.length) return;
-    const nextKey = mobilePanelOrder[nextIndex];
-    closeInfoPopover();
-    expandControlPanel(nextKey, { fromTab: true, preserveDesktop: true });
-  }
-
-  function cancelPanelSwipe() {
-    panelSwipeState.pointerId = null;
-    panelSwipeState.startX = 0;
-    panelSwipeState.startY = 0;
-    panelSwipeState.active = false;
-  }
-
-  function handlePanelSwipeStart(event) {
-    if (!panel || !mobileSheetQuery.matches || !panelVisible) {
-      return;
-    }
-    if (panelSwipeState.pointerId !== null || sheetState.pointerId !== null) {
-      return;
-    }
-    if (event.isPrimary === false) {
-      return;
-    }
-    const pointerType = typeof event.pointerType === 'string' ? event.pointerType : '';
-    if (pointerType && pointerType !== 'touch' && pointerType !== 'pen') {
-      return;
-    }
-    if (event.target && event.target.closest('.sheet-handle')) {
-      return;
-    }
-    if (event.target && event.target.closest('button, a, input, select, textarea, label, [role="slider"], [data-no-panel-swipe]')) {
-      return;
-    }
-    panelSwipeState.pointerId = event.pointerId;
-    panelSwipeState.startX = Number.isFinite(event.clientX) ? event.clientX : 0;
-    panelSwipeState.startY = Number.isFinite(event.clientY) ? event.clientY : 0;
-    panelSwipeState.active = false;
-  }
-
-  function handlePanelSwipeMove(event) {
-    if (panelSwipeState.pointerId === null || event.pointerId !== panelSwipeState.pointerId) {
-      return;
-    }
-    if (!mobileSheetQuery.matches) {
-      cancelPanelSwipe();
-      return;
-    }
-    const currentX = Number.isFinite(event.clientX) ? event.clientX : panelSwipeState.startX;
-    const currentY = Number.isFinite(event.clientY) ? event.clientY : panelSwipeState.startY;
-    const deltaX = currentX - panelSwipeState.startX;
-    const deltaY = currentY - panelSwipeState.startY;
-    if (!panelSwipeState.active) {
-      if (Math.abs(deltaY) > PANEL_SWIPE_VERTICAL_TOLERANCE_PX) {
-        cancelPanelSwipe();
-        return;
-      }
-      if (Math.abs(deltaX) > 18 && Math.abs(deltaX) > Math.abs(deltaY) * 1.2) {
-        panelSwipeState.active = true;
-      }
-    }
-    if (panelSwipeState.active) {
-      event.preventDefault();
-    }
-  }
-
-  function handlePanelSwipeEnd(event) {
-    if (panelSwipeState.pointerId === null || event.pointerId !== panelSwipeState.pointerId) {
-      return;
-    }
-    if (!mobileSheetQuery.matches) {
-      cancelPanelSwipe();
-      return;
-    }
-    const deltaX = Number.isFinite(event.clientX) ? event.clientX - panelSwipeState.startX : 0;
-    const deltaY = Number.isFinite(event.clientY) ? event.clientY - panelSwipeState.startY : 0;
-    const absX = Math.abs(deltaX);
-    const absY = Math.abs(deltaY);
-    if (panelSwipeState.active && absX >= PANEL_SWIPE_MIN_DISTANCE_PX && absX > absY) {
-      if (deltaX < 0) {
-        navigatePanel(1);
-      } else if (deltaX > 0) {
-        navigatePanel(-1);
-      }
-    }
-    cancelPanelSwipe();
-  }
-
-  function handlePanelSwipeCancel(event) {
-    if (panelSwipeState.pointerId === null) {
-      return;
-    }
-    if (event && panelSwipeState.pointerId !== event.pointerId) {
-      return;
-    }
-    cancelPanelSwipe();
   }
 
   function updateEditModeButton() {
@@ -5883,11 +5653,14 @@ export function bootstrapApp() {
     if (sheetState.pointerId === null || event.pointerId !== sheetState.pointerId) return;
     const delta = event.clientY - sheetState.startY;
     const maxOffset = getSheetCompactOffset();
-    const closeBuffer = Math.max(80, Math.round((viewportState.height || window.innerHeight || 0) * 0.12));
-    const limit = maxOffset + closeBuffer;
     let next = sheetState.startOffset + delta;
     if (!Number.isFinite(next)) next = 0;
-    next = Math.max(0, Math.min(limit, next));
+    const hideLimit = maxOffset + SHEET_EXTRA_DRAG_PX;
+    if (next > maxOffset) {
+      const overshoot = Math.min(hideLimit - maxOffset, next - maxOffset);
+      next = maxOffset + overshoot * 0.6;
+    }
+    next = Math.max(0, Math.min(hideLimit, next));
     if (Math.abs(delta) > 6) {
       sheetState.moved = true;
     }
@@ -5906,12 +5679,10 @@ export function bootstrapApp() {
     sheetState.pointerId = null;
     sheetState.moved = false;
     const maxOffset = getSheetCompactOffset();
-    const closeBuffer = Math.max(80, Math.round((viewportState.height || window.innerHeight || 0) * 0.12));
-    const closeTrigger = maxOffset + closeBuffer * 0.6;
-    if (lastOffset >= closeTrigger) {
-      sheetState.preventClick = true;
-      setSheetMode('compact', { force: true });
+    const hideThreshold = maxOffset + SHEET_HIDE_TRIGGER_PX;
+    if (lastOffset >= hideThreshold) {
       setPanelVisible(false);
+      sheetState.preventClick = true;
       return;
     }
     if (moved) {
@@ -6999,10 +6770,25 @@ export function bootstrapApp() {
     });
   }
 
-  panel.addEventListener('pointerdown', handlePanelSwipeStart);
-  panel.addEventListener('pointermove', handlePanelSwipeMove);
-  panel.addEventListener('pointerup', handlePanelSwipeEnd);
-  panel.addEventListener('pointercancel', handlePanelSwipeCancel);
+  if (panelCloseBtn) {
+    panelCloseBtn.addEventListener('click', () => {
+      setPanelVisible(false);
+      if (panelLauncherBtn) {
+        try {
+          panelLauncherBtn.focus({ preventScroll: true });
+        } catch (err) {
+          panelLauncherBtn.focus();
+        }
+      }
+    });
+  }
+
+  if (panelLauncherBtn) {
+    panelLauncherBtn.addEventListener('click', () => {
+      setPanelVisible(true);
+    });
+  }
+
   panel.addEventListener('pointermove', handleSheetDragMove);
   panel.addEventListener('pointerup', finishSheetDrag);
   panel.addEventListener('pointercancel', finishSheetDrag);
