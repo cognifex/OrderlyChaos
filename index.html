@@ -8,70 +8,87 @@
 </head>
 <body>
 <div id="panel" class="is-hidden" aria-hidden="true">
-  <div
-    id="sheetHandle"
-    class="sheet-handle"
-    role="button"
-    aria-controls="panel"
-    aria-label="Panel vergrößern"
-    aria-expanded="false"
-    tabindex="0"
-  ></div>
-  <button
-    id="panelClose"
-    type="button"
-    class="panel-close"
-    data-no-swipe
-    aria-label="Panel schließen"
-    aria-controls="panel"
-  >
-    <span aria-hidden="true">✕</span>
-  </button>
-  <nav class="control-panel-tabs bottom-nav" aria-label="Panel-Navigation">
-    <button
-      type="button"
-      class="control-panel-tab"
-      data-panel-tab="media"
-      aria-controls="audioPanel"
-      aria-pressed="false"
-    >
-      <span class="control-panel-tab__icon" aria-hidden="true">
-        <svg viewBox="0 0 24 24" focusable="false" role="img">
-          <path d="M4 7a3 3 0 0 1 3-3h10a3 3 0 0 1 3 3v10a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3zm3-1a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V7a1 1 0 0 0-1-1zm3 2.5a1 1 0 0 1 1.514-.857l5 3.5a1 1 0 0 1 0 1.714l-5 3.5A1 1 0 0 1 9 15.5z" />
-        </svg>
-      </span>
-      <span class="control-panel-tab__label">Media</span>
+  <div class="sheet-handle">
+    <button id="sheetHandle" type="button" aria-expanded="false" aria-controls="panel">
+      <span class="sheet-handle-bar" aria-hidden="true"></span>
+      <span class="sheet-handle-label">Panel vergrößern</span>
     </button>
-    <button
-      type="button"
-      class="control-panel-tab is-active"
-      data-panel-tab="presets"
-      aria-controls="visualPresetsPanel"
-      aria-pressed="true"
-    >
-      <span class="control-panel-tab__icon" aria-hidden="true">
-        <svg viewBox="0 0 24 24" focusable="false" role="img">
-          <path d="M5.5 4h13a1.5 1.5 0 0 1 1.34 2.162L16.5 13l2.64 5.838A1.5 1.5 0 0 1 17.74 21h-13a1.5 1.5 0 0 1-1.34-2.162L5.5 13 2.86 6.838A1.5 1.5 0 0 1 5.5 4zm1.22 2 2.28 5h6l2.28-5z" />
-        </svg>
-      </span>
-      <span class="control-panel-tab__label">Presets</span>
-    </button>
-    <button
-      type="button"
-      class="control-panel-tab"
-      data-panel-tab="config"
-      aria-controls="configPanel"
-      aria-pressed="false"
-    >
-      <span class="control-panel-tab__icon" aria-hidden="true">
-        <svg viewBox="0 0 24 24" focusable="false" role="img">
-          <path d="M10.325 4.317a1.75 1.75 0 0 1 3.35 0l.254.878a1.75 1.75 0 0 0 1.789 1.243l.904-.05a1.75 1.75 0 0 1 1.667 2.507l-.407.825a1.75 1.75 0 0 0 .405 1.995l.66.66a1.75 1.75 0 0 1-1.237 2.988h-.93a1.75 1.75 0 0 0-1.71 1.27l-.24.86a1.75 1.75 0 0 1-3.374.02l-.24-.88a1.75 1.75 0 0 0-1.71-1.27h-.93a1.75 1.75 0 0 1-1.237-2.988l.66-.66a1.75 1.75 0 0 0 .405-1.995l-.407-.825a1.75 1.75 0 0 1 1.667-2.507l.904.05a1.75 1.75 0 0 0 1.79-1.243zm1.675 6.683a2 2 0 1 0 0 4 2 2 0 0 0 0-4z" />
-        </svg>
-      </span>
-      <span class="control-panel-tab__label">Config</span>
-    </button>
-  </nav>
-  <div class="main-content">
+  </div>
+  <div class="panel-top">
+    <nav class="control-panel-tabs" aria-label="Panel-Navigation">
+      <button
+        type="button"
+        class="control-panel-tab"
+        data-panel-tab="media"
+        aria-controls="audioPanel"
+        aria-pressed="false"
+        aria-label="Media-Player-Reiter öffnen"
+      >
+        <span class="control-panel-tab__label">Media Player</span>
+      </button>
+      <button
+        type="button"
+        class="control-panel-tab is-active"
+        data-panel-tab="presets"
+        aria-controls="visualPresetsPanel"
+        aria-pressed="true"
+        aria-label="Visual-Presets-Reiter öffnen"
+      >
+        <span class="control-panel-tab__label">Visual Presets</span>
+      </button>
+      <button
+        type="button"
+        class="control-panel-tab"
+        data-panel-tab="config"
+        aria-controls="configPanel"
+        aria-pressed="false"
+        aria-label="Config-Reiter öffnen"
+      >
+        <span class="control-panel-tab__label">Config</span>
+      </button>
+    </nav>
+    <div class="panel-top__actions">
+      <div class="playback-mode-group" id="playbackModeGroup" role="group" aria-label="Wiedergabemodus wechseln">
+        <button
+          type="button"
+          class="playback-mode-button is-active"
+          id="playbackModeStatic"
+          data-playback-mode="static"
+          aria-pressed="true"
+          title="Aktuelles Preset bleibt aktiv"
+        >
+          <span class="playback-mode-button__icon" aria-hidden="true">🎛️</span>
+          <span class="playback-mode-button__label">Fixiert</span>
+        </button>
+        <button
+          type="button"
+          class="playback-mode-button"
+          id="playbackModeCustom"
+          data-playback-mode="custom"
+          aria-pressed="false"
+          aria-disabled="true"
+          title="Nur ausgewählte Custom Presets automatisch abspielen"
+        >
+          <span class="playback-mode-button__icon" aria-hidden="true">⭐</span>
+          <span class="playback-mode-button__label">Favoriten</span>
+        </button>
+        <button
+          type="button"
+          class="playback-mode-button"
+          id="playbackModeRandom"
+          data-playback-mode="random"
+          aria-pressed="false"
+          title="Neue Presets zufällig generieren"
+        >
+          <span class="playback-mode-button__icon" aria-hidden="true">🌌</span>
+          <span class="playback-mode-button__label">Zufall</span>
+        </button>
+      </div>
+      <button id="panelClose" type="button" class="panel-close" data-no-swipe aria-label="Panel schließen" aria-controls="panel">
+        ✕
+      </button>
+    </div>
+  </div>
   <section class="control-panel control-panel--presets" id="visualPresetsPanel" data-panel="presets" aria-labelledby="visualPresetsHeading">
     <header class="control-panel__header">
       <div class="control-panel__title">
@@ -153,8 +170,8 @@
           <div class="chip-group" id="patternDistributionChips" role="group" aria-labelledby="patternFormationTitle"></div>
         </div>
         <div class="pattern-actions">
-          <button type="button" id="patternRandomPreset">✨ Zufall</button>
-          <button type="button" id="patternRandomParameters">🎲 Chaos</button>
+          <button type="button" id="patternRandomPreset">✨ Zufallspreset</button>
+          <button type="button" id="patternRandomParameters">🎲 Freies Chaos</button>
         </div>
       </section>
       <section class="panel-card panel-card--studio" id="presetStudio" aria-labelledby="presetStudioTitle">
@@ -178,9 +195,9 @@
           </div>
         </header>
         <div class="preset-studio__actions">
-          <button type="button" id="presetStudioShuffle">🎲 Shuffle</button>
-          <button type="button" id="presetStudioRestore">↩️ Reset</button>
-          <button type="button" id="presetStudioCopy">📋 Kopieren</button>
+          <button type="button" id="presetStudioShuffle">🎲 Zufälliger Mix</button>
+          <button type="button" id="presetStudioRestore">🔁 Ausgangsszene</button>
+          <button type="button" id="presetStudioCopy">📋 Preset kopieren</button>
         </div>
         <div class="preset-studio__status" id="presetStudioStatus" data-state="info" role="status" aria-live="polite">
           Tipp: Kopiere dein aktuelles Preset, um es zu teilen oder später erneut zu laden.
@@ -205,20 +222,11 @@
             </div>
           </div>
           <div class="panel-card__action-group">
-            <div class="view-toggle" role="group" aria-label="Ansicht wählen">
-              <button type="button" class="view-toggle__btn is-active" data-gallery-mode="grid" aria-pressed="true">
-                <span aria-hidden="true">▦</span>
-                <span class="view-toggle__label">Grid</span>
-              </button>
-              <button type="button" class="view-toggle__btn" data-gallery-mode="list" aria-pressed="false">
-                <span aria-hidden="true">≣</span>
-                <span class="view-toggle__label">Liste</span>
-              </button>
-            </div>
-            <button type="button" class="panel-card__action" id="presetRandomPlayback" aria-pressed="false" disabled>🎲 Shuffle</button>
+            <button type="button" class="panel-card__action" id="presetGalleryToggle" aria-pressed="false">🖼️ Galerie</button>
+            <button type="button" class="panel-card__action" id="presetRandomPlayback" aria-pressed="false" disabled>🎲 Zufall aus Auswahl</button>
           </div>
         </header>
-        <div class="preset-gallery gallery-grid" id="userPresetGallery" role="list" aria-label="Eigene Presets"></div>
+        <div class="preset-gallery" id="userPresetGallery" role="list" aria-label="Eigene Presets"></div>
         <p class="preset-gallery__empty" id="userPresetEmpty">Noch keine Presets gespeichert. Erstelle im Config-Panel deine ersten Favoriten.</p>
       </section>
     </div>
@@ -248,7 +256,7 @@
             <textarea id="presetNotes" name="presetNotes" rows="2" maxlength="160" placeholder="Stimmung, Nutzung, Besonderheiten"></textarea>
           </div>
           <div class="preset-form__actions">
-            <button type="submit" id="presetSaveButton">💾 Speichern</button>
+            <button type="submit" id="presetSaveButton">💾 Preset speichern</button>
           </div>
         </form>
         <p class="preset-form__hint" id="presetFormHint">Deine Presets werden lokal gespeichert und stehen in der Galerie bereit.</p>
@@ -261,14 +269,14 @@
     <div class="accordion__panel" id="acc-points-panel" role="region" aria-labelledby="acc-points-trigger">
       <div class="row">
         <label for="pCount">Anzahl Punkte (Summe)</label>
-        <div class="wrap slider-row">
+        <div class="wrap">
           <input id="pCount" type="number" min="0" step="1" readonly />
           <div class="val" id="vCount"></div>
         </div>
       </div>
       <div class="row">
         <label for="pRadius">Radius</label>
-        <div class="wrap slider-row">
+        <div class="wrap">
           <input class="bound-input" type="number" data-target="pRadius" data-bound="min" />
           <input id="pRadius" type="range" min="40" max="260" step="1" />
           <input class="bound-input" type="number" data-target="pRadius" data-bound="max" />
@@ -277,7 +285,7 @@
       </div>
       <div class="row">
         <label for="pSizeVar">Größenvariation (Δ)</label>
-        <div class="wrap slider-row">
+        <div class="wrap">
           <input class="bound-input" type="number" data-target="pSizeVar" data-bound="min" />
           <input id="pSizeVar" type="range" min="0" max="10" step="0.1" />
           <input class="bound-input" type="number" data-target="pSizeVar" data-bound="max" />
@@ -286,7 +294,7 @@
       </div>
       <div class="row">
         <label for="pCluster">Clustering</label>
-        <div class="wrap slider-row">
+        <div class="wrap">
           <input class="bound-input" type="number" data-target="pCluster" data-bound="min" />
           <input id="pCluster" type="range" min="0" max="1" step="0.01" />
           <input class="bound-input" type="number" data-target="pCluster" data-bound="max" />
@@ -295,7 +303,7 @@
       </div>
       <div class="row">
         <label for="pPointAlpha">Deckkraft Punkte</label>
-        <div class="wrap slider-row">
+        <div class="wrap">
           <input class="bound-input" type="number" data-target="pPointAlpha" data-bound="min" />
           <input id="pPointAlpha" type="range" min="0.3" max="1" step="0.01" />
           <input class="bound-input" type="number" data-target="pPointAlpha" data-bound="max" />
@@ -304,7 +312,7 @@
       </div>
       <div class="row">
         <label for="pHue">Punktfarbe (Farbton)</label>
-        <div class="wrap slider-row">
+        <div class="wrap">
           <input class="bound-input" type="number" data-target="pHue" data-bound="min" />
           <input id="pHue" type="range" min="0" max="360" step="1" />
           <input class="bound-input" type="number" data-target="pHue" data-bound="max" />
@@ -313,7 +321,7 @@
       </div>
       <div class="row">
         <label for="pSaturation">Punktfarbe (Sättigung)</label>
-        <div class="wrap slider-row">
+        <div class="wrap">
           <input class="bound-input" type="number" data-target="pSaturation" data-bound="min" />
           <input id="pSaturation" type="range" min="0" max="1" step="0.01" />
           <input class="bound-input" type="number" data-target="pSaturation" data-bound="max" />
@@ -322,7 +330,7 @@
       </div>
       <div class="row">
         <label for="pValue">Punktfarbe (Helligkeit)</label>
-        <div class="wrap slider-row">
+        <div class="wrap">
           <input class="bound-input" type="number" data-target="pValue" data-bound="min" />
           <input id="pValue" type="range" min="0" max="1" step="0.01" />
           <input class="bound-input" type="number" data-target="pValue" data-bound="max" />
@@ -369,7 +377,7 @@
       </div>
       <div class="row">
         <label for="pColorIntensity">Farbintensität</label>
-        <div class="wrap slider-row">
+        <div class="wrap">
           <input class="bound-input" type="number" data-target="pColorIntensity" data-bound="min" />
           <input id="pColorIntensity" type="range" min="0" max="1" step="0.01" />
           <input class="bound-input" type="number" data-target="pColorIntensity" data-bound="max" />
@@ -378,7 +386,7 @@
       </div>
       <div class="row">
         <label for="pColorSpeed">Farbanimation (Tempo)</label>
-        <div class="wrap slider-row">
+        <div class="wrap">
           <input class="bound-input" type="number" data-target="pColorSpeed" data-bound="min" />
           <input id="pColorSpeed" type="range" min="0" max="5" step="0.05" />
           <input class="bound-input" type="number" data-target="pColorSpeed" data-bound="max" />
@@ -387,7 +395,7 @@
       </div>
       <div class="row">
         <label for="pHueSpread">Farbton-Streuung</label>
-        <div class="wrap slider-row">
+        <div class="wrap">
           <input class="bound-input" type="number" data-target="pHueSpread" data-bound="min" />
           <input id="pHueSpread" type="range" min="0" max="180" step="1" />
           <input class="bound-input" type="number" data-target="pHueSpread" data-bound="max" />
@@ -396,7 +404,7 @@
       </div>
       <div class="row">
         <label for="pColorPropagationDistance">Farb-Ausbreitung (Distanz)</label>
-        <div class="wrap slider-row">
+        <div class="wrap">
           <input class="bound-input" type="number" data-target="pColorPropagationDistance" data-bound="min" />
           <input id="pColorPropagationDistance" type="range" min="10" max="600" step="1" />
           <input class="bound-input" type="number" data-target="pColorPropagationDistance" data-bound="max" />
@@ -405,7 +413,7 @@
       </div>
       <div class="row">
         <label for="pColorPropagationDuration">Farb-Ausbreitung (Dauer)</label>
-        <div class="wrap slider-row">
+        <div class="wrap">
           <input class="bound-input" type="number" data-target="pColorPropagationDuration" data-bound="min" />
           <input id="pColorPropagationDuration" type="range" min="0" max="20" step="0.1" />
           <input class="bound-input" type="number" data-target="pColorPropagationDuration" data-bound="max" />
@@ -414,7 +422,7 @@
       </div>
       <div class="row">
         <label for="pColorToneCount">Farbtöne (Anzahl)</label>
-        <div class="wrap slider-row">
+        <div class="wrap">
           <input class="bound-input" type="number" data-target="pColorToneCount" data-bound="min" />
           <input id="pColorToneCount" type="range" min="1" max="12" step="1" />
           <input class="bound-input" type="number" data-target="pColorToneCount" data-bound="max" />
@@ -426,7 +434,7 @@
       </div>
       <div class="row">
         <label for="pSeedStars">Seed Punkte</label>
-        <div class="wrap slider-row">
+        <div class="wrap">
           <input class="bound-input" type="number" data-target="pSeedStars" data-bound="min" />
           <input id="pSeedStars" type="range" min="1" max="9999" step="1" />
           <input class="bound-input" type="number" data-target="pSeedStars" data-bound="max" />
@@ -436,17 +444,17 @@
       <div class="row">
         <label>Punktkategorien (Anzahl)</label>
         <div class="stack">
-          <div class="wrap slider-row">
+          <div class="wrap">
             <span class="tag">Klein</span>
             <input id="pCatSmallCount" type="number" min="0" step="1" />
             <div class="val" id="vCatSmallCount"></div>
           </div>
-          <div class="wrap slider-row">
+          <div class="wrap">
             <span class="tag">Mittel</span>
             <input id="pCatMediumCount" type="number" min="0" step="1" />
             <div class="val" id="vCatMediumCount"></div>
           </div>
-          <div class="wrap slider-row">
+          <div class="wrap">
             <span class="tag">Groß</span>
             <input id="pCatLargeCount" type="number" min="0" step="1" />
             <div class="val" id="vCatLargeCount"></div>
@@ -479,7 +487,7 @@
         <div class="hint">Nach dem Import kannst du wählen, ob die STL-Punkte zusätzlich oder als Verteilungsalgorithmus genutzt werden.</div>
       </div>
       <div class="row">
-        <div class="wrap slider-row">
+        <div class="wrap">
           <button type="button" id="stlClear" disabled>🧹 Modelle entfernen</button>
         </div>
       </div>
@@ -492,7 +500,7 @@
     <div class="accordion__panel" id="acc-size-panel" role="region" aria-labelledby="acc-size-trigger" hidden>
       <div class="row">
         <label for="pSizeTiny">Größe winzige Punkte</label>
-        <div class="wrap slider-row">
+        <div class="wrap">
           <input class="bound-input" type="number" data-target="pSizeTiny" data-bound="min" />
           <input id="pSizeTiny" type="range" min="0.05" max="3" step="0.01" />
           <input class="bound-input" type="number" data-target="pSizeTiny" data-bound="max" />
@@ -501,7 +509,7 @@
       </div>
       <div class="row">
         <label for="pSizeSmall">Größe kleine Punkte</label>
-        <div class="wrap slider-row">
+        <div class="wrap">
           <input class="bound-input" type="number" data-target="pSizeSmall" data-bound="min" />
           <input id="pSizeSmall" type="range" min="0.2" max="3" step="0.05" />
           <input class="bound-input" type="number" data-target="pSizeSmall" data-bound="max" />
@@ -510,7 +518,7 @@
       </div>
       <div class="row">
         <label for="pSizeMedium">Größe mittlere Punkte</label>
-        <div class="wrap slider-row">
+        <div class="wrap">
           <input class="bound-input" type="number" data-target="pSizeMedium" data-bound="min" />
           <input id="pSizeMedium" type="range" min="0.2" max="3" step="0.05" />
           <input class="bound-input" type="number" data-target="pSizeMedium" data-bound="max" />
@@ -519,7 +527,7 @@
       </div>
       <div class="row">
         <label for="pSizeLarge">Größe große Punkte</label>
-        <div class="wrap slider-row">
+        <div class="wrap">
           <input class="bound-input" type="number" data-target="pSizeLarge" data-bound="min" />
           <input id="pSizeLarge" type="range" min="0.2" max="3" step="0.05" />
           <input class="bound-input" type="number" data-target="pSizeLarge" data-bound="max" />
@@ -535,7 +543,7 @@
     <div class="accordion__panel" id="acc-connections-panel" role="region" aria-labelledby="acc-connections-trigger" hidden>
       <div class="row">
         <label for="pTinyCount">Menge winzige Punkte</label>
-        <div class="wrap slider-row">
+        <div class="wrap">
           <input class="bound-input" type="number" data-target="pTinyCount" data-bound="min" />
           <input id="pTinyCount" type="range" min="0" max="5000" step="10" />
           <input class="bound-input" type="number" data-target="pTinyCount" data-bound="max" />
@@ -544,7 +552,7 @@
       </div>
       <div class="row">
         <label for="pConnPercent">Prozent Verbindungen</label>
-        <div class="wrap slider-row">
+        <div class="wrap">
           <input class="bound-input" type="number" data-target="pConnPercent" data-bound="min" />
           <input id="pConnPercent" type="range" min="0" max="1" step="0.01" />
           <input class="bound-input" type="number" data-target="pConnPercent" data-bound="max" />
@@ -553,7 +561,7 @@
       </div>
       <div class="row">
         <label for="pTinyAlpha">Deckkraft winzige Punkte</label>
-        <div class="wrap slider-row">
+        <div class="wrap">
           <input class="bound-input" type="number" data-target="pTinyAlpha" data-bound="min" />
           <input id="pTinyAlpha" type="range" min="0" max="1" step="0.01" />
           <input class="bound-input" type="number" data-target="pTinyAlpha" data-bound="max" />
@@ -562,7 +570,7 @@
       </div>
       <div class="row">
         <label for="pSeedTiny">Seed winzige Punkte</label>
-        <div class="wrap slider-row">
+        <div class="wrap">
           <input class="bound-input" type="number" data-target="pSeedTiny" data-bound="min" />
           <input id="pSeedTiny" type="range" min="1" max="9999" step="1" />
           <input class="bound-input" type="number" data-target="pSeedTiny" data-bound="max" />
@@ -578,7 +586,7 @@
     <div class="accordion__panel" id="acc-display-panel" role="region" aria-labelledby="acc-display-trigger" hidden>
       <div class="row">
         <label for="pEdgeSoft">Randweichheit</label>
-        <div class="wrap slider-row">
+        <div class="wrap">
           <input class="bound-input" type="number" data-target="pEdgeSoft" data-bound="min" />
           <input id="pEdgeSoft" type="range" min="0" max="1" step="0.01" />
           <input class="bound-input" type="number" data-target="pEdgeSoft" data-bound="max" />
@@ -613,7 +621,7 @@
       </div>
       <div class="row">
         <label for="pMotionSpeed">Bewegungsgeschwindigkeit</label>
-        <div class="wrap slider-row">
+        <div class="wrap">
           <input class="bound-input" type="number" data-target="pMotionSpeed" data-bound="min" />
           <input id="pMotionSpeed" type="range" min="0" max="3" step="0.01" />
           <input class="bound-input" type="number" data-target="pMotionSpeed" data-bound="max" />
@@ -622,7 +630,7 @@
       </div>
       <div class="row">
         <label for="pMotionAmplitude">Amplitude</label>
-        <div class="wrap slider-row">
+        <div class="wrap">
           <input class="bound-input" type="number" data-target="pMotionAmplitude" data-bound="min" />
           <input id="pMotionAmplitude" type="range" min="0" max="40" step="0.1" />
           <input class="bound-input" type="number" data-target="pMotionAmplitude" data-bound="max" />
@@ -631,7 +639,7 @@
       </div>
       <div class="row">
         <label for="pMotionNoiseStrength">Noise-Intensität</label>
-        <div class="wrap slider-row">
+        <div class="wrap">
           <input class="bound-input" type="number" data-target="pMotionNoiseStrength" data-bound="min" />
           <input id="pMotionNoiseStrength" type="range" min="0" max="2.5" step="0.01" />
           <input class="bound-input" type="number" data-target="pMotionNoiseStrength" data-bound="max" />
@@ -640,7 +648,7 @@
       </div>
       <div class="row">
         <label for="pMotionNoiseScale">Noise-Skala</label>
-        <div class="wrap slider-row">
+        <div class="wrap">
           <input class="bound-input" type="number" data-target="pMotionNoiseScale" data-bound="min" />
           <input id="pMotionNoiseScale" type="range" min="0.1" max="4" step="0.01" />
           <input class="bound-input" type="number" data-target="pMotionNoiseScale" data-bound="max" />
@@ -649,7 +657,7 @@
       </div>
       <div class="row">
         <label>Rotation</label>
-        <div class="wrap slider-row">
+        <div class="wrap">
           <button id="autoSpin" aria-pressed="false">🌀 Auto-Rotation aus</button>
           <button id="spinStop" aria-disabled="true" disabled>⏹️ Stoppen</button>
         </div>
@@ -657,21 +665,21 @@
       <div class="row">
         <label>Winkelgeschwindigkeit (rad/s)</label>
         <div class="stack">
-          <div class="wrap slider-row">
+          <div class="wrap">
             <span class="tag">X</span>
             <input class="bound-input" type="number" data-target="spinVelX" data-bound="min" />
             <input id="spinVelX" type="range" min="-3" max="3" step="0.01" />
             <input class="bound-input" type="number" data-target="spinVelX" data-bound="max" />
             <div class="val" id="vSpinX"></div>
           </div>
-          <div class="wrap slider-row">
+          <div class="wrap">
             <span class="tag">Y</span>
             <input class="bound-input" type="number" data-target="spinVelY" data-bound="min" />
             <input id="spinVelY" type="range" min="-3" max="3" step="0.01" />
             <input class="bound-input" type="number" data-target="spinVelY" data-bound="max" />
             <div class="val" id="vSpinY"></div>
           </div>
-          <div class="wrap slider-row">
+          <div class="wrap">
             <span class="tag">Z</span>
             <input class="bound-input" type="number" data-target="spinVelZ" data-bound="min" />
             <input id="spinVelZ" type="range" min="-3" max="3" step="0.01" />
@@ -682,7 +690,7 @@
       </div>
       <div class="row">
         <label for="spinSpeed">Geschwindigkeitsfaktor</label>
-        <div class="wrap slider-row">
+        <div class="wrap">
           <input class="bound-input" type="number" data-target="spinSpeed" data-bound="min" />
           <input id="spinSpeed" type="range" min="0" max="20" step="0.01" />
           <input class="bound-input" type="number" data-target="spinSpeed" data-bound="max" />
@@ -691,14 +699,14 @@
       </div>
       <div class="row">
         <label>Trägheit</label>
-        <div class="wrap slider-row">
+        <div class="wrap">
           <button id="spinInertia" aria-pressed="true">🪁 Trägheit an</button>
           <div class="val" id="vInertia"></div>
         </div>
       </div>
       <div class="row">
         <label for="spinDecay">Abklingzeit (s)</label>
-        <div class="wrap slider-row">
+        <div class="wrap">
           <input class="bound-input" type="number" data-target="spinDecay" data-bound="min" />
           <input id="spinDecay" type="range" min="1" max="30" step="1" />
           <input class="bound-input" type="number" data-target="spinDecay" data-bound="max" />
@@ -779,43 +787,43 @@
       <div class="row">
         <label>Reaktionsstärke</label>
         <div class="intensity-grid">
-          <div class="wrap slider-row" data-intensity-row="motion">
+          <div class="wrap" data-intensity-row="motion">
             <span class="tag">Rotation</span>
             <input class="intensity-limit" type="number" min="5" max="200" step="5" value="20" data-intensity-limit="motion" aria-label="Maximale Reaktionsstärke für Rotation in Prozent" />
             <input type="range" min="0" max="100" step="5" value="50" data-intensity-target="motion" />
             <div class="val" data-intensity-value="motion">50%</div>
           </div>
-          <div class="wrap slider-row" data-intensity-row="scale">
+          <div class="wrap" data-intensity-row="scale">
             <span class="tag">Skalierung</span>
             <input class="intensity-limit" type="number" min="5" max="200" step="5" value="100" data-intensity-limit="scale" aria-label="Maximale Reaktionsstärke für Skalierung in Prozent" />
             <input type="range" min="0" max="100" step="5" value="100" data-intensity-target="scale" />
             <div class="val" data-intensity-value="scale">100%</div>
           </div>
-          <div class="wrap slider-row" data-intensity-row="size">
+          <div class="wrap" data-intensity-row="size">
             <span class="tag">Punktgröße</span>
             <input class="intensity-limit" type="number" min="5" max="200" step="5" value="100" data-intensity-limit="size" aria-label="Maximale Reaktionsstärke für Punktgröße in Prozent" />
             <input type="range" min="0" max="100" step="5" value="100" data-intensity-target="size" />
             <div class="val" data-intensity-value="size">100%</div>
           </div>
-          <div class="wrap slider-row" data-intensity-row="hue">
+          <div class="wrap" data-intensity-row="hue">
             <span class="tag">Farbton</span>
             <input class="intensity-limit" type="number" min="5" max="200" step="5" value="100" data-intensity-limit="hue" aria-label="Maximale Reaktionsstärke für Farbton in Prozent" />
             <input type="range" min="0" max="100" step="5" value="100" data-intensity-target="hue" />
             <div class="val" data-intensity-value="hue">100%</div>
           </div>
-          <div class="wrap slider-row" data-intensity-row="saturation">
+          <div class="wrap" data-intensity-row="saturation">
             <span class="tag">Sättigung</span>
             <input class="intensity-limit" type="number" min="5" max="200" step="5" value="100" data-intensity-limit="saturation" aria-label="Maximale Reaktionsstärke für Sättigung in Prozent" />
             <input type="range" min="0" max="100" step="5" value="100" data-intensity-target="saturation" />
             <div class="val" data-intensity-value="saturation">100%</div>
           </div>
-          <div class="wrap slider-row" data-intensity-row="brightness">
+          <div class="wrap" data-intensity-row="brightness">
             <span class="tag">Helligkeit</span>
             <input class="intensity-limit" type="number" min="5" max="200" step="5" value="100" data-intensity-limit="brightness" aria-label="Maximale Reaktionsstärke für Helligkeit in Prozent" />
             <input type="range" min="0" max="100" step="5" value="100" data-intensity-target="brightness" />
             <div class="val" data-intensity-value="brightness">100%</div>
           </div>
-          <div class="wrap slider-row" data-intensity-row="alpha">
+          <div class="wrap" data-intensity-row="alpha">
             <span class="tag">Transparenz</span>
             <input class="intensity-limit" type="number" min="5" max="200" step="5" value="100" data-intensity-limit="alpha" aria-label="Maximale Reaktionsstärke für Transparenz in Prozent" />
             <input type="range" min="0" max="100" step="5" value="100" data-intensity-target="alpha" />
@@ -825,7 +833,7 @@
       </div>
       <div class="row">
         <label for="brightnessAdaptationToggle">Helligkeitsadaption</label>
-        <div class="wrap slider-row">
+        <div class="wrap">
           <button type="button" id="brightnessAdaptationToggle" aria-pressed="true">🌗 Adaption an</button>
         </div>
       </div>
@@ -839,7 +847,6 @@
     </section>
   </div>
   </section>
-  </div>
 </div>
 <div id="audioOverlay" data-visible="false" aria-hidden="true">
   <button type="button" id="audioOverlayButton" aria-label="Musik und Visualisierung starten">
