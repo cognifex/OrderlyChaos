@@ -30,6 +30,7 @@
   --sheet-expanded-height: 84vh;
   --app-viewport-height: 100vh;
   --panel-max-height: 84vh;
+  --bottom-nav-height: 64px;
   --nav-max-width: 28rem;
   color-scheme: dark;
 }
@@ -42,6 +43,13 @@
 
 html {
   font-size: 100%;
+}
+
+*,
+*::before,
+*::after {
+  line-height: 1.4;
+  overflow-wrap: break-word;
 }
 
 body {
@@ -71,6 +79,13 @@ input,
 select,
 textarea {
   font-family: inherit;
+}
+
+label,
+.slider-label,
+button {
+  white-space: normal;
+  overflow: visible;
 }
 
 .sr-only {
@@ -1832,6 +1847,19 @@ input[type='range']::-moz-range-thumb {
   border: 2px solid rgba(18, 20, 23, 0.6);
   box-shadow: 0 4px 12px rgba(93, 141, 255, 0.45);
   cursor: pointer;
+}
+
+@media (max-width: 480px) {
+  .slider-row {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.5rem;
+  }
+
+  .slider-row .val {
+    align-self: flex-end;
+  }
 }
 
 input[type='range']::-ms-track {
