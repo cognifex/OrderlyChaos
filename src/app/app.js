@@ -724,6 +724,33 @@ export function bootstrapApp() {
     customPresetUI.randomBtn.setAttribute('aria-pressed', isActive ? 'true' : 'false');
     const countText = hasSelection ? ` (${userPresetState.selected.size})` : '';
     customPresetUI.randomBtn.textContent = isActive ? `🎲 Preset Shuffle an${countText}` : `🎲 Preset Shuffle aus${countText}`;
+    updatePlaybackModeUI();
+  }
+
+  function updatePlaybackModeUI() {
+    if (!playbackModeUI.group) return;
+    const activeMode = autoRandomState.playbackMode || PLAYBACK_MODES.STATIC;
+    const hasSelection = userPresetState.selected.size > 0;
+    const editing = experienceState.editingMode;
+    const buttonConfigs = [
+      { button: playbackModeUI.staticBtn, mode: PLAYBACK_MODES.STATIC, disabled: false },
+      { button: playbackModeUI.customBtn, mode: PLAYBACK_MODES.CUSTOM, disabled: editing || !hasSelection },
+      { button: playbackModeUI.randomBtn, mode: PLAYBACK_MODES.RANDOM, disabled: editing },
+    ];
+    buttonConfigs.forEach(({ button, mode, disabled }) => {
+      if (!button) return;
+      if (disabled) {
+        button.disabled = true;
+        button.setAttribute('aria-disabled', 'true');
+      } else {
+        button.disabled = false;
+        button.removeAttribute('aria-disabled');
+      }
+      const pressed = !disabled && activeMode === mode;
+      button.setAttribute('aria-pressed', pressed ? 'true' : 'false');
+      button.classList.toggle('is-active', pressed);
+    });
+    playbackModeUI.group.dataset.mode = activeMode;
   }
 
   function renderUserPresets() {
@@ -1681,6 +1708,19 @@ export function bootstrapApp() {
     randomBtn: null,
   };
 
+  const playbackModeUI = {
+    group: null,
+    staticBtn: null,
+    customBtn: null,
+    randomBtn: null,
+  };
+
+  const PLAYBACK_MODES = Object.freeze({
+    STATIC: 'static',
+    CUSTOM: 'custom',
+    RANDOM: 'random',
+  });
+
   const autoRandomState = {
     enabled: false,
     elapsed: 0,
@@ -1691,6 +1731,7 @@ export function bootstrapApp() {
     nudgeInterval: 0.45,
     mode: 'parameters',
     lastPresetId: null,
+    playbackMode: PLAYBACK_MODES.STATIC,
   };
 
   const experienceState = {
@@ -4389,6 +4430,10 @@ export function bootstrapApp() {
   const editModeBtn = $('editMode');
   const lockBtn = $('lock');
   const sheetHandleBtn = $('sheetHandle');
+  playbackModeUI.group = $('playbackModeGroup');
+  playbackModeUI.staticBtn = $('playbackModeStatic');
+  playbackModeUI.customBtn = $('playbackModeCustom');
+  playbackModeUI.randomBtn = $('playbackModeRandom');
   const viewportState = { height: 0 };
   const mobileSheetQuery = window.matchMedia('(max-width: 768px)');
   const sheetState = {
@@ -4855,11 +4900,8 @@ export function bootstrapApp() {
   }
   if (customPresetUI.randomBtn) {
     customPresetUI.randomBtn.addEventListener('click', () => {
-      if (userPresetState.selected.size === 0) {
-        return;
-      }
-      const active = autoRandomState.enabled && autoRandomState.mode === 'presets';
-      setAutoRandomEnabled(!active || autoRandomState.mode !== 'presets', { mode: 'presets' });
+      const active = autoRandomState.playbackMode === PLAYBACK_MODES.CUSTOM && autoRandomState.enabled;
+      setPlaybackMode(active ? PLAYBACK_MODES.STATIC : PLAYBACK_MODES.CUSTOM, { userInitiated: true });
     });
     updatePresetRandomButton();
   }
@@ -4974,7 +5016,7 @@ export function bootstrapApp() {
     autoRandomState.nextTrigger = autoRandomState.elapsed + interval;
   }
 
-  function setAutoRandomEnabled(enabled, { mode = autoRandomState.mode } = {}) {
+  function setAutoRandomEnabled(enabled, { mode = autoRandomState.mode, updatePlaybackMode = true } = {}) {
     const desiredMode = mode === 'presets' ? 'presets' : 'parameters';
     const allow = !experienceState.editingMode && Boolean(enabled);
     const modeChanged = autoRandomState.mode !== desiredMode;
@@ -4985,9 +5027,14 @@ export function bootstrapApp() {
     const statusChanged = autoRandomState.enabled !== shouldEnable || modeChanged;
     autoRandomState.mode = desiredMode;
     if (!statusChanged) {
+      if (updatePlaybackMode) {
+        autoRandomState.playbackMode = autoRandomState.enabled
+          ? (autoRandomState.mode === 'presets' ? PLAYBACK_MODES.CUSTOM : PLAYBACK_MODES.RANDOM)
+          : PLAYBACK_MODES.STATIC;
+      }
       updateAutoRandomButton();
       updatePresetRandomButton();
-      return;
+      return autoRandomState.enabled;
     }
     autoRandomState.enabled = shouldEnable;
     autoRandomState.nudgeAccumulator = 0;
@@ -5000,8 +5047,50 @@ export function bootstrapApp() {
     if (desiredMode !== 'presets' || !autoRandomState.enabled) {
       autoRandomState.lastPresetId = null;
     }
+    if (updatePlaybackMode) {
+      autoRandomState.playbackMode = autoRandomState.enabled
+        ? (autoRandomState.mode === 'presets' ? PLAYBACK_MODES.CUSTOM : PLAYBACK_MODES.RANDOM)
+        : PLAYBACK_MODES.STATIC;
+    }
     updateAutoRandomButton();
     updatePresetRandomButton();
+    return autoRandomState.enabled;
+  }
+
+  function setPlaybackMode(mode, { userInitiated = false } = {}) {
+    const normalized = Object.values(PLAYBACK_MODES).includes(mode) ? mode : PLAYBACK_MODES.STATIC;
+    if (normalized === PLAYBACK_MODES.CUSTOM) {
+      if (userPresetState.selected.size === 0) {
+        if (userInitiated && customPresetUI.hint) {
+          customPresetUI.hint.textContent = 'Bitte wähle mindestens ein Preset für den Shuffle aus.';
+        }
+        autoRandomState.playbackMode = PLAYBACK_MODES.STATIC;
+        updateAutoRandomButton();
+        updatePresetRandomButton();
+        updatePlaybackModeUI();
+        return false;
+      }
+      const success = setAutoRandomEnabled(true, { mode: 'presets', updatePlaybackMode: false });
+      autoRandomState.playbackMode = success ? PLAYBACK_MODES.CUSTOM : PLAYBACK_MODES.STATIC;
+      updateAutoRandomButton();
+      updatePresetRandomButton();
+      updatePlaybackModeUI();
+      return success;
+    }
+    if (normalized === PLAYBACK_MODES.RANDOM) {
+      const success = setAutoRandomEnabled(true, { mode: 'parameters', updatePlaybackMode: false });
+      autoRandomState.playbackMode = success ? PLAYBACK_MODES.RANDOM : PLAYBACK_MODES.STATIC;
+      updateAutoRandomButton();
+      updatePresetRandomButton();
+      updatePlaybackModeUI();
+      return success;
+    }
+    setAutoRandomEnabled(false, { updatePlaybackMode: false });
+    autoRandomState.playbackMode = PLAYBACK_MODES.STATIC;
+    updateAutoRandomButton();
+    updatePresetRandomButton();
+    updatePlaybackModeUI();
+    return true;
   }
 
   function isUserInteractingWithControls() {
@@ -5132,8 +5221,8 @@ export function bootstrapApp() {
 
   if (audioUI.autoRandomBtn) {
     audioUI.autoRandomBtn.addEventListener('click', () => {
-      const active = autoRandomState.enabled && autoRandomState.mode === 'parameters';
-      setAutoRandomEnabled(!active || autoRandomState.mode !== 'parameters', { mode: 'parameters' });
+      const active = autoRandomState.playbackMode === PLAYBACK_MODES.RANDOM && autoRandomState.enabled;
+      setPlaybackMode(active ? PLAYBACK_MODES.STATIC : PLAYBACK_MODES.RANDOM, { userInitiated: true });
     });
     updateAutoRandomButton(false);
   }
@@ -5152,7 +5241,7 @@ export function bootstrapApp() {
     });
   }
 
-  setAutoRandomEnabled(false);
+  setPlaybackMode(PLAYBACK_MODES.STATIC);
   updateAudioOverlayVisibility();
 
   document.addEventListener('keydown', event => {

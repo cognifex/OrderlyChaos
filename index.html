@@ -47,9 +47,47 @@
         <span class="control-panel-tab__label">Config</span>
       </button>
     </nav>
-    <button id="panelClose" type="button" class="panel-close" data-no-swipe aria-label="Panel schließen" aria-controls="panel">
-      ✕
-    </button>
+    <div class="panel-top__actions">
+      <div class="playback-mode-group" id="playbackModeGroup" role="group" aria-label="Wiedergabemodus wechseln">
+        <button
+          type="button"
+          class="playback-mode-button is-active"
+          id="playbackModeStatic"
+          data-playback-mode="static"
+          aria-pressed="true"
+          title="Aktuelles Preset bleibt aktiv"
+        >
+          <span class="playback-mode-button__icon" aria-hidden="true">🎛️</span>
+          <span class="playback-mode-button__label">Fixiert</span>
+        </button>
+        <button
+          type="button"
+          class="playback-mode-button"
+          id="playbackModeCustom"
+          data-playback-mode="custom"
+          aria-pressed="false"
+          aria-disabled="true"
+          title="Nur ausgewählte Custom Presets automatisch abspielen"
+        >
+          <span class="playback-mode-button__icon" aria-hidden="true">⭐</span>
+          <span class="playback-mode-button__label">Favoriten</span>
+        </button>
+        <button
+          type="button"
+          class="playback-mode-button"
+          id="playbackModeRandom"
+          data-playback-mode="random"
+          aria-pressed="false"
+          title="Neue Presets zufällig generieren"
+        >
+          <span class="playback-mode-button__icon" aria-hidden="true">🌌</span>
+          <span class="playback-mode-button__label">Zufall</span>
+        </button>
+      </div>
+      <button id="panelClose" type="button" class="panel-close" data-no-swipe aria-label="Panel schließen" aria-controls="panel">
+        ✕
+      </button>
+    </div>
   </div>
   <section class="control-panel control-panel--presets" id="visualPresetsPanel" data-panel="presets" aria-labelledby="visualPresetsHeading">
     <header class="control-panel__header">
