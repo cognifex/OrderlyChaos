@@ -723,7 +723,34 @@ export function bootstrapApp() {
     const isActive = autoRandomState.enabled && autoRandomState.mode === 'presets';
     customPresetUI.randomBtn.setAttribute('aria-pressed', isActive ? 'true' : 'false');
     const countText = hasSelection ? ` (${userPresetState.selected.size})` : '';
-    customPresetUI.randomBtn.textContent = isActive ? `🎲 Shuffle an${countText}` : `🎲 Shuffle aus${countText}`;
+    customPresetUI.randomBtn.textContent = isActive ? `🎲 Preset Shuffle an${countText}` : `🎲 Preset Shuffle aus${countText}`;
+    updatePlaybackModeUI();
+  }
+
+  function updatePlaybackModeUI() {
+    if (!playbackModeUI.group) return;
+    const activeMode = autoRandomState.playbackMode || PLAYBACK_MODES.STATIC;
+    const hasSelection = userPresetState.selected.size > 0;
+    const editing = experienceState.editingMode;
+    const buttonConfigs = [
+      { button: playbackModeUI.staticBtn, mode: PLAYBACK_MODES.STATIC, disabled: false },
+      { button: playbackModeUI.customBtn, mode: PLAYBACK_MODES.CUSTOM, disabled: editing || !hasSelection },
+      { button: playbackModeUI.randomBtn, mode: PLAYBACK_MODES.RANDOM, disabled: editing },
+    ];
+    buttonConfigs.forEach(({ button, mode, disabled }) => {
+      if (!button) return;
+      if (disabled) {
+        button.disabled = true;
+        button.setAttribute('aria-disabled', 'true');
+      } else {
+        button.disabled = false;
+        button.removeAttribute('aria-disabled');
+      }
+      const pressed = !disabled && activeMode === mode;
+      button.setAttribute('aria-pressed', pressed ? 'true' : 'false');
+      button.classList.toggle('is-active', pressed);
+    });
+    playbackModeUI.group.dataset.mode = activeMode;
   }
 
   function renderUserPresets() {
@@ -732,18 +759,20 @@ export function bootstrapApp() {
     userPresetState.items.forEach(preset => {
       const button = document.createElement('button');
       button.type = 'button';
-      button.className = 'preset-card gallery-card';
+      button.className = 'preset-card';
       button.dataset.presetId = preset.id;
       button.setAttribute('aria-pressed', userPresetState.selected.has(preset.id) ? 'true' : 'false');
       const preview = computePresetPreview(preset.params);
       const thumb = document.createElement('div');
-      thumb.className = 'preset-card__thumb gallery-card__media';
+      thumb.className = 'preset-card__thumb';
       thumb.style.background = preview.gradient;
       button.appendChild(thumb);
 
       const nameEl = document.createElement('h4');
       nameEl.className = 'preset-card__name';
       nameEl.textContent = preset.name;
+      button.appendChild(nameEl);
+
       const metaEl = document.createElement('p');
       metaEl.className = 'preset-card__meta';
       if (preset.notes && preset.notes.trim()) {
@@ -751,11 +780,7 @@ export function bootstrapApp() {
       } else {
         metaEl.textContent = `Erstellt am ${formatPresetTimestamp(preset.createdAt)}`;
       }
-
-      const content = document.createElement('div');
-      content.className = 'preset-card__content';
-      content.appendChild(nameEl);
-      content.appendChild(metaEl);
+      button.appendChild(metaEl);
 
       const actions = document.createElement('div');
       actions.className = 'preset-card__actions';
@@ -792,9 +817,8 @@ export function bootstrapApp() {
       buttonsWrap.appendChild(deleteBtn);
 
       actions.appendChild(buttonsWrap);
-      content.appendChild(actions);
+      button.appendChild(actions);
 
-      button.appendChild(content);
       button.addEventListener('click', () => {
         togglePresetSelection(preset.id);
       });
@@ -981,12 +1005,9 @@ export function bootstrapApp() {
     const next = mode === 'list' ? 'list' : 'grid';
     userPresetState.galleryMode = next;
     customPresetUI.gallery.dataset.mode = next;
-    if (customPresetUI.galleryModeButtons.length) {
-      customPresetUI.galleryModeButtons.forEach(button => {
-        const active = button.dataset.galleryMode === next;
-        button.classList.toggle('is-active', active);
-        button.setAttribute('aria-pressed', active ? 'true' : 'false');
-      });
+    if (customPresetUI.galleryToggle) {
+      customPresetUI.galleryToggle.setAttribute('aria-pressed', next === 'list' ? 'true' : 'false');
+      customPresetUI.galleryToggle.textContent = next === 'list' ? '📃 Listenansicht' : '🖼️ Galerie';
     }
   }
 
@@ -1683,9 +1704,22 @@ export function bootstrapApp() {
     hint: null,
     gallery: null,
     emptyState: null,
-    galleryModeButtons: [],
+    galleryToggle: null,
     randomBtn: null,
   };
+
+  const playbackModeUI = {
+    group: null,
+    staticBtn: null,
+    customBtn: null,
+    randomBtn: null,
+  };
+
+  const PLAYBACK_MODES = Object.freeze({
+    STATIC: 'static',
+    CUSTOM: 'custom',
+    RANDOM: 'random',
+  });
 
   const autoRandomState = {
     enabled: false,
@@ -1697,6 +1731,7 @@ export function bootstrapApp() {
     nudgeInterval: 0.45,
     mode: 'parameters',
     lastPresetId: null,
+    playbackMode: PLAYBACK_MODES.STATIC,
   };
 
   const experienceState = {
@@ -4395,6 +4430,10 @@ export function bootstrapApp() {
   const editModeBtn = $('editMode');
   const lockBtn = $('lock');
   const sheetHandleBtn = $('sheetHandle');
+  playbackModeUI.group = $('playbackModeGroup');
+  playbackModeUI.staticBtn = $('playbackModeStatic');
+  playbackModeUI.customBtn = $('playbackModeCustom');
+  playbackModeUI.randomBtn = $('playbackModeRandom');
   const viewportState = { height: 0 };
   const mobileSheetQuery = window.matchMedia('(max-width: 768px)');
   const sheetState = {
@@ -4435,7 +4474,7 @@ export function bootstrapApp() {
   customPresetUI.hint = $('presetFormHint');
   customPresetUI.gallery = $('userPresetGallery');
   customPresetUI.emptyState = $('userPresetEmpty');
-  customPresetUI.galleryModeButtons = Array.from(document.querySelectorAll('[data-gallery-mode]'));
+  customPresetUI.galleryToggle = $('presetGalleryToggle');
   customPresetUI.randomBtn = $('presetRandomPlayback');
   if (customPresetUI.gallery) {
     customPresetUI.gallery.dataset.mode = userPresetState.galleryMode;
@@ -4853,21 +4892,16 @@ export function bootstrapApp() {
   if (customPresetUI.form) {
     customPresetUI.form.addEventListener('submit', handlePresetFormSubmit);
   }
-  if (customPresetUI.galleryModeButtons.length) {
-    customPresetUI.galleryModeButtons.forEach(button => {
-      button.addEventListener('click', () => {
-        const desired = button.dataset.galleryMode === 'list' ? 'list' : 'grid';
-        setPresetGalleryMode(desired);
-      });
+  if (customPresetUI.galleryToggle) {
+    customPresetUI.galleryToggle.addEventListener('click', () => {
+      const next = userPresetState.galleryMode === 'grid' ? 'list' : 'grid';
+      setPresetGalleryMode(next);
     });
   }
   if (customPresetUI.randomBtn) {
     customPresetUI.randomBtn.addEventListener('click', () => {
-      if (userPresetState.selected.size === 0) {
-        return;
-      }
-      const active = autoRandomState.enabled && autoRandomState.mode === 'presets';
-      setAutoRandomEnabled(!active || autoRandomState.mode !== 'presets', { mode: 'presets' });
+      const active = autoRandomState.playbackMode === PLAYBACK_MODES.CUSTOM && autoRandomState.enabled;
+      setPlaybackMode(active ? PLAYBACK_MODES.STATIC : PLAYBACK_MODES.CUSTOM, { userInitiated: true });
     });
     updatePresetRandomButton();
   }
@@ -4886,6 +4920,22 @@ export function bootstrapApp() {
   stlUI.clearBtn = $('stlClear');
   stlDistributionOption = document.querySelector('#pDistribution option[value="stl"]');
   updateStlOptionAvailability();
+
+  if (playbackModeUI.staticBtn) {
+    playbackModeUI.staticBtn.addEventListener('click', () => {
+      setPlaybackMode(PLAYBACK_MODES.STATIC, { userInitiated: true });
+    });
+  }
+  if (playbackModeUI.customBtn) {
+    playbackModeUI.customBtn.addEventListener('click', () => {
+      setPlaybackMode(PLAYBACK_MODES.CUSTOM, { userInitiated: true });
+    });
+  }
+  if (playbackModeUI.randomBtn) {
+    playbackModeUI.randomBtn.addEventListener('click', () => {
+      setPlaybackMode(PLAYBACK_MODES.RANDOM, { userInitiated: true });
+    });
+  }
 
   if (stlUI.input) {
     stlUI.input.addEventListener('change', event => {
@@ -4982,7 +5032,7 @@ export function bootstrapApp() {
     autoRandomState.nextTrigger = autoRandomState.elapsed + interval;
   }
 
-  function setAutoRandomEnabled(enabled, { mode = autoRandomState.mode } = {}) {
+  function setAutoRandomEnabled(enabled, { mode = autoRandomState.mode, updatePlaybackMode = true } = {}) {
     const desiredMode = mode === 'presets' ? 'presets' : 'parameters';
     const allow = !experienceState.editingMode && Boolean(enabled);
     const modeChanged = autoRandomState.mode !== desiredMode;
@@ -4993,9 +5043,14 @@ export function bootstrapApp() {
     const statusChanged = autoRandomState.enabled !== shouldEnable || modeChanged;
     autoRandomState.mode = desiredMode;
     if (!statusChanged) {
+      if (updatePlaybackMode) {
+        autoRandomState.playbackMode = autoRandomState.enabled
+          ? (autoRandomState.mode === 'presets' ? PLAYBACK_MODES.CUSTOM : PLAYBACK_MODES.RANDOM)
+          : PLAYBACK_MODES.STATIC;
+      }
       updateAutoRandomButton();
       updatePresetRandomButton();
-      return;
+      return autoRandomState.enabled;
     }
     autoRandomState.enabled = shouldEnable;
     autoRandomState.nudgeAccumulator = 0;
@@ -5008,8 +5063,60 @@ export function bootstrapApp() {
     if (desiredMode !== 'presets' || !autoRandomState.enabled) {
       autoRandomState.lastPresetId = null;
     }
+    if (updatePlaybackMode) {
+      autoRandomState.playbackMode = autoRandomState.enabled
+        ? (autoRandomState.mode === 'presets' ? PLAYBACK_MODES.CUSTOM : PLAYBACK_MODES.RANDOM)
+        : PLAYBACK_MODES.STATIC;
+    }
     updateAutoRandomButton();
     updatePresetRandomButton();
+    return autoRandomState.enabled;
+  }
+
+  function setPlaybackMode(mode, { userInitiated = false } = {}) {
+    const normalized = Object.values(PLAYBACK_MODES).includes(mode) ? mode : PLAYBACK_MODES.STATIC;
+    if (normalized === PLAYBACK_MODES.CUSTOM) {
+      if (userPresetState.selected.size === 0) {
+        if (userInitiated && customPresetUI.hint) {
+          customPresetUI.hint.textContent = 'Bitte wähle mindestens ein Preset für den Shuffle aus.';
+        }
+        autoRandomState.playbackMode = PLAYBACK_MODES.STATIC;
+        updateAutoRandomButton();
+        updatePresetRandomButton();
+        updatePlaybackModeUI();
+        return false;
+      }
+      const success = setAutoRandomEnabled(true, { mode: 'presets', updatePlaybackMode: false });
+      autoRandomState.playbackMode = success ? PLAYBACK_MODES.CUSTOM : PLAYBACK_MODES.STATIC;
+      if (success) {
+        const applied = playRandomPresetFromSelection();
+        if (applied) {
+          autoRandomState.elapsed = 0;
+        }
+      }
+      updateAutoRandomButton();
+      updatePresetRandomButton();
+      updatePlaybackModeUI();
+      return success;
+    }
+    if (normalized === PLAYBACK_MODES.RANDOM) {
+      const success = setAutoRandomEnabled(true, { mode: 'parameters', updatePlaybackMode: false });
+      autoRandomState.playbackMode = success ? PLAYBACK_MODES.RANDOM : PLAYBACK_MODES.STATIC;
+      if (success) {
+        randomizeParameters({ syncUI: true });
+        autoRandomState.elapsed = 0;
+      }
+      updateAutoRandomButton();
+      updatePresetRandomButton();
+      updatePlaybackModeUI();
+      return success;
+    }
+    setAutoRandomEnabled(false, { updatePlaybackMode: false });
+    autoRandomState.playbackMode = PLAYBACK_MODES.STATIC;
+    updateAutoRandomButton();
+    updatePresetRandomButton();
+    updatePlaybackModeUI();
+    return true;
   }
 
   function isUserInteractingWithControls() {
@@ -5140,8 +5247,8 @@ export function bootstrapApp() {
 
   if (audioUI.autoRandomBtn) {
     audioUI.autoRandomBtn.addEventListener('click', () => {
-      const active = autoRandomState.enabled && autoRandomState.mode === 'parameters';
-      setAutoRandomEnabled(!active || autoRandomState.mode !== 'parameters', { mode: 'parameters' });
+      const active = autoRandomState.playbackMode === PLAYBACK_MODES.RANDOM && autoRandomState.enabled;
+      setPlaybackMode(active ? PLAYBACK_MODES.STATIC : PLAYBACK_MODES.RANDOM, { userInitiated: true });
     });
     updateAutoRandomButton(false);
   }
@@ -5160,7 +5267,7 @@ export function bootstrapApp() {
     });
   }
 
-  setAutoRandomEnabled(false);
+  setPlaybackMode(PLAYBACK_MODES.STATIC);
   updateAudioOverlayVisibility();
 
   document.addEventListener('keydown', event => {
@@ -6730,30 +6837,11 @@ export function bootstrapApp() {
     panel.classList.toggle('is-open', expanded);
   }
 
-  let firstAccordionExpanded = false;
-  accordionTriggers.forEach((trigger, index) => {
-    let expanded = trigger.getAttribute('aria-expanded') === 'true';
-    if (expanded) {
-      if (firstAccordionExpanded) {
-        expanded = false;
-      } else {
-        firstAccordionExpanded = true;
-      }
-    }
-    if (!firstAccordionExpanded && index === accordionTriggers.length - 1) {
-      expanded = true;
-      firstAccordionExpanded = true;
-    }
-    setAccordionState(trigger, expanded);
+  accordionTriggers.forEach(trigger => {
+    const initial = trigger.getAttribute('aria-expanded') === 'true';
+    setAccordionState(trigger, initial);
     trigger.addEventListener('click', () => {
       const next = trigger.getAttribute('aria-expanded') !== 'true';
-      if (next) {
-        accordionTriggers.forEach(other => {
-          if (other !== trigger) {
-            setAccordionState(other, false);
-          }
-        });
-      }
       setAccordionState(trigger, next);
     });
   });
