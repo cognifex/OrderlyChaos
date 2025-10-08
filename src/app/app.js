@@ -5088,6 +5088,12 @@ export function bootstrapApp() {
       }
       const success = setAutoRandomEnabled(true, { mode: 'presets', updatePlaybackMode: false });
       autoRandomState.playbackMode = success ? PLAYBACK_MODES.CUSTOM : PLAYBACK_MODES.STATIC;
+      if (success) {
+        const applied = playRandomPresetFromSelection();
+        if (applied) {
+          autoRandomState.elapsed = 0;
+        }
+      }
       updateAutoRandomButton();
       updatePresetRandomButton();
       updatePlaybackModeUI();
@@ -5096,6 +5102,10 @@ export function bootstrapApp() {
     if (normalized === PLAYBACK_MODES.RANDOM) {
       const success = setAutoRandomEnabled(true, { mode: 'parameters', updatePlaybackMode: false });
       autoRandomState.playbackMode = success ? PLAYBACK_MODES.RANDOM : PLAYBACK_MODES.STATIC;
+      if (success) {
+        randomizeParameters({ syncUI: true });
+        autoRandomState.elapsed = 0;
+      }
       updateAutoRandomButton();
       updatePresetRandomButton();
       updatePlaybackModeUI();
