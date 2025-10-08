@@ -25,6 +25,8 @@ export function bootstrapApp() {
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
   document.body.appendChild(renderer.domElement);
+  renderer.domElement.setAttribute('tabindex', '-1');
+  renderer.domElement.setAttribute('aria-label', 'Chaos-Kugel Visualisierung');
 
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0x000000);
@@ -721,7 +723,7 @@ export function bootstrapApp() {
     const isActive = autoRandomState.enabled && autoRandomState.mode === 'presets';
     customPresetUI.randomBtn.setAttribute('aria-pressed', isActive ? 'true' : 'false');
     const countText = hasSelection ? ` (${userPresetState.selected.size})` : '';
-    customPresetUI.randomBtn.textContent = isActive ? `🎲 Preset Shuffle an${countText}` : `🎲 Preset Shuffle aus${countText}`;
+    customPresetUI.randomBtn.textContent = isActive ? `🎲 Shuffle an${countText}` : `🎲 Shuffle aus${countText}`;
   }
 
   function renderUserPresets() {
@@ -742,8 +744,6 @@ export function bootstrapApp() {
       const nameEl = document.createElement('h4');
       nameEl.className = 'preset-card__name';
       nameEl.textContent = preset.name;
-      button.appendChild(nameEl);
-
       const metaEl = document.createElement('p');
       metaEl.className = 'preset-card__meta';
       if (preset.notes && preset.notes.trim()) {
@@ -751,7 +751,11 @@ export function bootstrapApp() {
       } else {
         metaEl.textContent = `Erstellt am ${formatPresetTimestamp(preset.createdAt)}`;
       }
-      button.appendChild(metaEl);
+
+      const content = document.createElement('div');
+      content.className = 'preset-card__content';
+      content.appendChild(nameEl);
+      content.appendChild(metaEl);
 
       const actions = document.createElement('div');
       actions.className = 'preset-card__actions';
@@ -788,8 +792,9 @@ export function bootstrapApp() {
       buttonsWrap.appendChild(deleteBtn);
 
       actions.appendChild(buttonsWrap);
-      button.appendChild(actions);
+      content.appendChild(actions);
 
+      button.appendChild(content);
       button.addEventListener('click', () => {
         togglePresetSelection(preset.id);
       });
@@ -976,9 +981,12 @@ export function bootstrapApp() {
     const next = mode === 'list' ? 'list' : 'grid';
     userPresetState.galleryMode = next;
     customPresetUI.gallery.dataset.mode = next;
-    if (customPresetUI.galleryToggle) {
-      customPresetUI.galleryToggle.setAttribute('aria-pressed', next === 'list' ? 'true' : 'false');
-      customPresetUI.galleryToggle.textContent = next === 'list' ? '📃 Listenansicht' : '🖼️ Galerie';
+    if (customPresetUI.galleryModeButtons.length) {
+      customPresetUI.galleryModeButtons.forEach(button => {
+        const active = button.dataset.galleryMode === next;
+        button.classList.toggle('is-active', active);
+        button.setAttribute('aria-pressed', active ? 'true' : 'false');
+      });
     }
   }
 
@@ -1675,7 +1683,7 @@ export function bootstrapApp() {
     hint: null,
     gallery: null,
     emptyState: null,
-    galleryToggle: null,
+    galleryModeButtons: [],
     randomBtn: null,
   };
 
@@ -4384,7 +4392,6 @@ export function bootstrapApp() {
   const $ = id => document.getElementById(id);
   const panel = $('panel');
   const panelCloseBtn = $('panelClose');
-  const panelLauncherBtn = $('panelLauncher');
   const editModeBtn = $('editMode');
   const lockBtn = $('lock');
   const sheetHandleBtn = $('sheetHandle');
@@ -4428,7 +4435,7 @@ export function bootstrapApp() {
   customPresetUI.hint = $('presetFormHint');
   customPresetUI.gallery = $('userPresetGallery');
   customPresetUI.emptyState = $('userPresetEmpty');
-  customPresetUI.galleryToggle = $('presetGalleryToggle');
+  customPresetUI.galleryModeButtons = Array.from(document.querySelectorAll('[data-gallery-mode]'));
   customPresetUI.randomBtn = $('presetRandomPlayback');
   if (customPresetUI.gallery) {
     customPresetUI.gallery.dataset.mode = userPresetState.galleryMode;
@@ -4440,7 +4447,6 @@ export function bootstrapApp() {
 
   const controlPanelRegistry = new Map();
   const controlPanelTabs = new Map();
-  const desktopPanelState = new Map();
   const PANEL_ORDER = ['media', 'presets', 'config'];
   const infoPopoverState = { trigger: null, popover: null, hideTimeoutId: null };
   let infoDocumentListenersReady = false;
@@ -4663,16 +4669,12 @@ export function bootstrapApp() {
     const toggle = panelEl.querySelector('[data-panel-toggle]');
     const expanded = !panelEl.classList.contains('is-collapsed');
     controlPanelRegistry.set(key, { el: panelEl, toggle, expanded });
-    desktopPanelState.set(key, expanded);
     updatePanelToggleLabel(controlPanelRegistry.get(key), expanded);
     if (expanded) {
       lastExpandedPanel = key;
     }
-    if (mobileSheetQuery.matches && !expanded) {
-      panelEl.hidden = true;
-    } else {
-      panelEl.hidden = false;
-    }
+    panelEl.hidden = !expanded;
+    panelEl.setAttribute('aria-hidden', expanded ? 'false' : 'true');
     if (toggle) {
       toggle.addEventListener('click', () => {
         const entry = controlPanelRegistry.get(key);
@@ -4692,17 +4694,13 @@ export function bootstrapApp() {
     controlPanelTabs.set(key, tab);
     tab.addEventListener('click', () => {
       closeActiveInfoPopover();
+      const entry = controlPanelRegistry.get(key);
+      if (!entry) return;
       if (mobileSheetQuery.matches) {
         expandControlPanel(key, { fromTab: true });
         return;
       }
-      const entry = controlPanelRegistry.get(key);
-      if (!entry) return;
-      if (entry.expanded && lastExpandedPanel === key) {
-        collapseControlPanel(key);
-      } else {
-        expandControlPanel(key, { fromTab: true });
-      }
+      expandControlPanel(key, { fromTab: true });
     });
   });
 
@@ -4721,7 +4719,7 @@ export function bootstrapApp() {
     });
   }
 
-  function collapseControlPanel(key, { skipTab = false, preserveDesktop = false } = {}) {
+  function collapseControlPanel(key, { skipTab = false } = {}) {
     const entry = controlPanelRegistry.get(key);
     if (!entry || !entry.expanded) {
       if (!skipTab && mobileSheetQuery.matches) {
@@ -4735,18 +4733,11 @@ export function bootstrapApp() {
     if (entry.toggle) {
       entry.toggle.setAttribute('aria-expanded', 'false');
     }
-    if (mobileSheetQuery.matches) {
-      entry.el.hidden = true;
-    } else {
-      entry.el.hidden = false;
-    }
+    entry.el.hidden = true;
     if (infoPopoverState.popover && entry.el.contains(infoPopoverState.popover)) {
       closeActiveInfoPopover();
     }
     updatePanelToggleLabel(entry, false);
-    if (!preserveDesktop && !mobileSheetQuery.matches) {
-      desktopPanelState.set(key, false);
-    }
     if (mobileSheetQuery.matches) {
       if (!skipTab) {
         syncPanelTabs(mobileActivePanel);
@@ -4760,7 +4751,7 @@ export function bootstrapApp() {
     }
   }
 
-  function expandControlPanel(key, { fromTab = false, preserveDesktop = false } = {}) {
+  function expandControlPanel(key, { fromTab = false } = {}) {
     closeActiveInfoPopover();
     const entry = controlPanelRegistry.get(key);
     if (!entry) return;
@@ -4779,40 +4770,39 @@ export function bootstrapApp() {
       entry.toggle.setAttribute('aria-expanded', 'true');
     }
     updatePanelToggleLabel(entry, true);
-    if (!preserveDesktop && !mobileSheetQuery.matches) {
-      desktopPanelState.set(key, true);
-    }
+    lastExpandedPanel = key;
+    controlPanelRegistry.forEach((otherEntry, otherKey) => {
+      if (otherKey !== key) {
+        collapseControlPanel(otherKey, { skipTab: true });
+      }
+    });
     if (mobileSheetQuery.matches) {
       mobileActivePanel = key;
-      controlPanelRegistry.forEach((otherEntry, otherKey) => {
-        if (otherKey !== key) {
-          collapseControlPanel(otherKey, { skipTab: true, preserveDesktop: true });
-        }
-      });
-      syncPanelTabs(key);
-    } else {
-      lastExpandedPanel = key;
-      syncPanelTabs(key);
     }
+    syncPanelTabs(key);
   }
 
   function initializeControlPanels() {
+    const availablePanels = PANEL_ORDER.filter(panelKey => controlPanelRegistry.has(panelKey));
     if (mobileSheetQuery.matches) {
       if (!controlPanelRegistry.has(mobileActivePanel)) {
-        mobileActivePanel = 'presets';
+        mobileActivePanel = availablePanels[0] || null;
       }
-      expandControlPanel(mobileActivePanel, { fromTab: true, preserveDesktop: true });
+      if (mobileActivePanel) {
+        expandControlPanel(mobileActivePanel, { fromTab: true });
+      }
     } else {
+      if (!controlPanelRegistry.has(lastExpandedPanel)) {
+        lastExpandedPanel = availablePanels[0] || null;
+      }
+      if (lastExpandedPanel) {
+        expandControlPanel(lastExpandedPanel, { fromTab: true });
+      }
       controlPanelRegistry.forEach((entry, key) => {
-        const shouldExpand = desktopPanelState.get(key);
-        if (shouldExpand) {
-          expandControlPanel(key, { fromTab: key === lastExpandedPanel, preserveDesktop: true });
-        } else {
-          collapseControlPanel(key, { preserveDesktop: true });
+        if (key !== lastExpandedPanel) {
+          collapseControlPanel(key, { skipTab: true });
         }
       });
-      const fallback = Array.from(controlPanelRegistry.entries()).find(([, value]) => value.expanded);
-      lastExpandedPanel = fallback ? fallback[0] : null;
       syncPanelTabs(lastExpandedPanel);
     }
   }
@@ -4863,10 +4853,12 @@ export function bootstrapApp() {
   if (customPresetUI.form) {
     customPresetUI.form.addEventListener('submit', handlePresetFormSubmit);
   }
-  if (customPresetUI.galleryToggle) {
-    customPresetUI.galleryToggle.addEventListener('click', () => {
-      const next = userPresetState.galleryMode === 'grid' ? 'list' : 'grid';
-      setPresetGalleryMode(next);
+  if (customPresetUI.galleryModeButtons.length) {
+    customPresetUI.galleryModeButtons.forEach(button => {
+      button.addEventListener('click', () => {
+        const desired = button.dataset.galleryMode === 'list' ? 'list' : 'grid';
+        setPresetGalleryMode(desired);
+      });
     });
   }
   if (customPresetUI.randomBtn) {
@@ -5467,10 +5459,10 @@ export function bootstrapApp() {
 
   function setPanelVisible(show) {
     panelVisible = !!show;
-    if (panelLauncherBtn) {
-      panelLauncherBtn.hidden = panelVisible;
-      panelLauncherBtn.setAttribute('aria-hidden', panelVisible ? 'true' : 'false');
-      panelLauncherBtn.setAttribute('aria-expanded', panelVisible ? 'true' : 'false');
+    if (panelCloseBtn) {
+      panelCloseBtn.hidden = !panelVisible;
+      panelCloseBtn.setAttribute('aria-expanded', panelVisible ? 'true' : 'false');
+      panelCloseBtn.setAttribute('aria-hidden', panelVisible ? 'false' : 'true');
     }
     if (!panel) {
       setAudioPanelVisible(panelVisible);
@@ -6738,11 +6730,30 @@ export function bootstrapApp() {
     panel.classList.toggle('is-open', expanded);
   }
 
-  accordionTriggers.forEach(trigger => {
-    const initial = trigger.getAttribute('aria-expanded') === 'true';
-    setAccordionState(trigger, initial);
+  let firstAccordionExpanded = false;
+  accordionTriggers.forEach((trigger, index) => {
+    let expanded = trigger.getAttribute('aria-expanded') === 'true';
+    if (expanded) {
+      if (firstAccordionExpanded) {
+        expanded = false;
+      } else {
+        firstAccordionExpanded = true;
+      }
+    }
+    if (!firstAccordionExpanded && index === accordionTriggers.length - 1) {
+      expanded = true;
+      firstAccordionExpanded = true;
+    }
+    setAccordionState(trigger, expanded);
     trigger.addEventListener('click', () => {
       const next = trigger.getAttribute('aria-expanded') !== 'true';
+      if (next) {
+        accordionTriggers.forEach(other => {
+          if (other !== trigger) {
+            setAccordionState(other, false);
+          }
+        });
+      }
       setAccordionState(trigger, next);
     });
   });
@@ -6773,30 +6784,26 @@ export function bootstrapApp() {
   if (panelCloseBtn) {
     panelCloseBtn.addEventListener('click', () => {
       setPanelVisible(false);
-      if (panelLauncherBtn) {
+      if (renderer && renderer.domElement && typeof renderer.domElement.focus === 'function') {
         try {
-          panelLauncherBtn.focus({ preventScroll: true });
+          renderer.domElement.focus({ preventScroll: true });
         } catch (err) {
-          panelLauncherBtn.focus();
+          renderer.domElement.focus();
         }
       }
     });
   }
 
-  if (panelLauncherBtn) {
-    panelLauncherBtn.addEventListener('click', () => {
-      setPanelVisible(true);
-    });
+  if (panel) {
+    panel.addEventListener('pointermove', handleSheetDragMove);
+    panel.addEventListener('pointerup', finishSheetDrag);
+    panel.addEventListener('pointercancel', finishSheetDrag);
+
+    panel.addEventListener('pointerdown', startPanelSwipe);
+    panel.addEventListener('pointermove', handlePanelSwipeMove);
+    panel.addEventListener('pointerup', finishPanelSwipe);
+    panel.addEventListener('pointercancel', cancelPanelSwipe);
   }
-
-  panel.addEventListener('pointermove', handleSheetDragMove);
-  panel.addEventListener('pointerup', finishSheetDrag);
-  panel.addEventListener('pointercancel', finishSheetDrag);
-
-  panel.addEventListener('pointerdown', startPanelSwipe);
-  panel.addEventListener('pointermove', handlePanelSwipeMove);
-  panel.addEventListener('pointerup', finishPanelSwipe);
-  panel.addEventListener('pointercancel', cancelPanelSwipe);
 
   if (mobileSheetQuery.addEventListener) {
     mobileSheetQuery.addEventListener('change', handleMobileMediaChange);
