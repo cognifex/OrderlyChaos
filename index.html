@@ -14,43 +14,59 @@
       <span class="sheet-handle-label">Panel vergrößern</span>
     </button>
   </div>
-  <div class="panel-top">
-    <nav class="control-panel-tabs" aria-label="Panel-Navigation">
-      <button
-        type="button"
-        class="control-panel-tab"
-        data-panel-tab="media"
-        aria-controls="audioPanel"
-        aria-pressed="false"
-        aria-label="Media-Player-Reiter öffnen"
-      >
-        <span class="control-panel-tab__label">Media Player</span>
-      </button>
-      <button
-        type="button"
-        class="control-panel-tab is-active"
-        data-panel-tab="presets"
-        aria-controls="visualPresetsPanel"
-        aria-pressed="true"
-        aria-label="Visual-Presets-Reiter öffnen"
-      >
-        <span class="control-panel-tab__label">Visual Presets</span>
-      </button>
-      <button
-        type="button"
-        class="control-panel-tab"
-        data-panel-tab="config"
-        aria-controls="configPanel"
-        aria-pressed="false"
-        aria-label="Config-Reiter öffnen"
-      >
-        <span class="control-panel-tab__label">Config</span>
-      </button>
-    </nav>
-    <button id="panelClose" type="button" class="panel-close" data-no-swipe aria-label="Panel schließen" aria-controls="panel">
-      ✕
+  <header class="panel-header">
+    <div class="panel-header__title">
+      <h1 class="panel-header__heading">Steuerzentrale</h1>
+      <p class="panel-header__subtitle">Passe Audio, Presets und Parameter im kompakten Layout an.</p>
+    </div>
+    <button id="panelClose" type="button" class="panel-header__close" data-no-swipe aria-label="Panel schließen" aria-controls="panel">
+      <span aria-hidden="true">✕</span>
     </button>
-  </div>
+  </header>
+  <nav class="control-panel-tabs" aria-label="Panel-Navigation">
+    <button
+      type="button"
+      class="control-panel-tab"
+      data-panel-tab="media"
+      aria-controls="audioPanel"
+      aria-pressed="false"
+    >
+      <span class="control-panel-tab__icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" focusable="false" role="img">
+          <path d="M4 7a3 3 0 0 1 3-3h10a3 3 0 0 1 3 3v10a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3zm3-1a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V7a1 1 0 0 0-1-1zm3 2.5a1 1 0 0 1 1.514-.857l5 3.5a1 1 0 0 1 0 1.714l-5 3.5A1 1 0 0 1 9 15.5z" />
+        </svg>
+      </span>
+      <span class="control-panel-tab__label">Media</span>
+    </button>
+    <button
+      type="button"
+      class="control-panel-tab is-active"
+      data-panel-tab="presets"
+      aria-controls="visualPresetsPanel"
+      aria-pressed="true"
+    >
+      <span class="control-panel-tab__icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" focusable="false" role="img">
+          <path d="M5.5 4h13a1.5 1.5 0 0 1 1.34 2.162L16.5 13l2.64 5.838A1.5 1.5 0 0 1 17.74 21h-13a1.5 1.5 0 0 1-1.34-2.162L5.5 13 2.86 6.838A1.5 1.5 0 0 1 5.5 4zm1.22 2 2.28 5h6l2.28-5z" />
+        </svg>
+      </span>
+      <span class="control-panel-tab__label">Presets</span>
+    </button>
+    <button
+      type="button"
+      class="control-panel-tab"
+      data-panel-tab="config"
+      aria-controls="configPanel"
+      aria-pressed="false"
+    >
+      <span class="control-panel-tab__icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" focusable="false" role="img">
+          <path d="M10.325 4.317a1.75 1.75 0 0 1 3.35 0l.254.878a1.75 1.75 0 0 0 1.789 1.243l.904-.05a1.75 1.75 0 0 1 1.667 2.507l-.407.825a1.75 1.75 0 0 0 .405 1.995l.66.66a1.75 1.75 0 0 1-1.237 2.988h-.93a1.75 1.75 0 0 0-1.71 1.27l-.24.86a1.75 1.75 0 0 1-3.374.02l-.24-.88a1.75 1.75 0 0 0-1.71-1.27h-.93a1.75 1.75 0 0 1-1.237-2.988l.66-.66a1.75 1.75 0 0 0 .405-1.995l-.407-.825a1.75 1.75 0 0 1 1.667-2.507l.904.05a1.75 1.75 0 0 0 1.79-1.243zm1.675 6.683a2 2 0 1 0 0 4 2 2 0 0 0 0-4z" />
+        </svg>
+      </span>
+      <span class="control-panel-tab__label">Config</span>
+    </button>
+  </nav>
   <section class="control-panel control-panel--presets" id="visualPresetsPanel" data-panel="presets" aria-labelledby="visualPresetsHeading">
     <header class="control-panel__header">
       <div class="control-panel__title">
@@ -132,8 +148,8 @@
           <div class="chip-group" id="patternDistributionChips" role="group" aria-labelledby="patternFormationTitle"></div>
         </div>
         <div class="pattern-actions">
-          <button type="button" id="patternRandomPreset">✨ Zufallspreset</button>
-          <button type="button" id="patternRandomParameters">🎲 Freies Chaos</button>
+          <button type="button" id="patternRandomPreset">✨ Zufall</button>
+          <button type="button" id="patternRandomParameters">🎲 Chaos</button>
         </div>
       </section>
       <section class="panel-card panel-card--studio" id="presetStudio" aria-labelledby="presetStudioTitle">
@@ -157,9 +173,9 @@
           </div>
         </header>
         <div class="preset-studio__actions">
-          <button type="button" id="presetStudioShuffle">🎲 Zufälliger Mix</button>
-          <button type="button" id="presetStudioRestore">🔁 Ausgangsszene</button>
-          <button type="button" id="presetStudioCopy">📋 Preset kopieren</button>
+          <button type="button" id="presetStudioShuffle">🎲 Shuffle</button>
+          <button type="button" id="presetStudioRestore">↩️ Reset</button>
+          <button type="button" id="presetStudioCopy">📋 Kopieren</button>
         </div>
         <div class="preset-studio__status" id="presetStudioStatus" data-state="info" role="status" aria-live="polite">
           Tipp: Kopiere dein aktuelles Preset, um es zu teilen oder später erneut zu laden.
@@ -184,8 +200,17 @@
             </div>
           </div>
           <div class="panel-card__action-group">
-            <button type="button" class="panel-card__action" id="presetGalleryToggle" aria-pressed="false">🖼️ Galerie</button>
-            <button type="button" class="panel-card__action" id="presetRandomPlayback" aria-pressed="false" disabled>🎲 Zufall aus Auswahl</button>
+            <div class="view-toggle" role="group" aria-label="Ansicht wählen">
+              <button type="button" class="view-toggle__btn is-active" data-gallery-mode="grid" aria-pressed="true">
+                <span aria-hidden="true">▦</span>
+                <span class="view-toggle__label">Grid</span>
+              </button>
+              <button type="button" class="view-toggle__btn" data-gallery-mode="list" aria-pressed="false">
+                <span aria-hidden="true">≣</span>
+                <span class="view-toggle__label">Liste</span>
+              </button>
+            </div>
+            <button type="button" class="panel-card__action" id="presetRandomPlayback" aria-pressed="false" disabled>🎲 Shuffle</button>
           </div>
         </header>
         <div class="preset-gallery" id="userPresetGallery" role="list" aria-label="Eigene Presets"></div>
@@ -218,7 +243,7 @@
             <textarea id="presetNotes" name="presetNotes" rows="2" maxlength="160" placeholder="Stimmung, Nutzung, Besonderheiten"></textarea>
           </div>
           <div class="preset-form__actions">
-            <button type="submit" id="presetSaveButton">💾 Preset speichern</button>
+            <button type="submit" id="presetSaveButton">💾 Speichern</button>
           </div>
         </form>
         <p class="preset-form__hint" id="presetFormHint">Deine Presets werden lokal gespeichert und stehen in der Galerie bereit.</p>

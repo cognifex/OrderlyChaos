@@ -723,7 +723,7 @@ export function bootstrapApp() {
     const isActive = autoRandomState.enabled && autoRandomState.mode === 'presets';
     customPresetUI.randomBtn.setAttribute('aria-pressed', isActive ? 'true' : 'false');
     const countText = hasSelection ? ` (${userPresetState.selected.size})` : '';
-    customPresetUI.randomBtn.textContent = isActive ? `🎲 Preset Shuffle an${countText}` : `🎲 Preset Shuffle aus${countText}`;
+    customPresetUI.randomBtn.textContent = isActive ? `🎲 Shuffle an${countText}` : `🎲 Shuffle aus${countText}`;
   }
 
   function renderUserPresets() {
@@ -744,8 +744,6 @@ export function bootstrapApp() {
       const nameEl = document.createElement('h4');
       nameEl.className = 'preset-card__name';
       nameEl.textContent = preset.name;
-      button.appendChild(nameEl);
-
       const metaEl = document.createElement('p');
       metaEl.className = 'preset-card__meta';
       if (preset.notes && preset.notes.trim()) {
@@ -753,7 +751,11 @@ export function bootstrapApp() {
       } else {
         metaEl.textContent = `Erstellt am ${formatPresetTimestamp(preset.createdAt)}`;
       }
-      button.appendChild(metaEl);
+
+      const content = document.createElement('div');
+      content.className = 'preset-card__content';
+      content.appendChild(nameEl);
+      content.appendChild(metaEl);
 
       const actions = document.createElement('div');
       actions.className = 'preset-card__actions';
@@ -790,8 +792,9 @@ export function bootstrapApp() {
       buttonsWrap.appendChild(deleteBtn);
 
       actions.appendChild(buttonsWrap);
-      button.appendChild(actions);
+      content.appendChild(actions);
 
+      button.appendChild(content);
       button.addEventListener('click', () => {
         togglePresetSelection(preset.id);
       });
@@ -978,9 +981,12 @@ export function bootstrapApp() {
     const next = mode === 'list' ? 'list' : 'grid';
     userPresetState.galleryMode = next;
     customPresetUI.gallery.dataset.mode = next;
-    if (customPresetUI.galleryToggle) {
-      customPresetUI.galleryToggle.setAttribute('aria-pressed', next === 'list' ? 'true' : 'false');
-      customPresetUI.galleryToggle.textContent = next === 'list' ? '📃 Listenansicht' : '🖼️ Galerie';
+    if (customPresetUI.galleryModeButtons.length) {
+      customPresetUI.galleryModeButtons.forEach(button => {
+        const active = button.dataset.galleryMode === next;
+        button.classList.toggle('is-active', active);
+        button.setAttribute('aria-pressed', active ? 'true' : 'false');
+      });
     }
   }
 
@@ -1677,7 +1683,7 @@ export function bootstrapApp() {
     hint: null,
     gallery: null,
     emptyState: null,
-    galleryToggle: null,
+    galleryModeButtons: [],
     randomBtn: null,
   };
 
@@ -4429,7 +4435,7 @@ export function bootstrapApp() {
   customPresetUI.hint = $('presetFormHint');
   customPresetUI.gallery = $('userPresetGallery');
   customPresetUI.emptyState = $('userPresetEmpty');
-  customPresetUI.galleryToggle = $('presetGalleryToggle');
+  customPresetUI.galleryModeButtons = Array.from(document.querySelectorAll('[data-gallery-mode]'));
   customPresetUI.randomBtn = $('presetRandomPlayback');
   if (customPresetUI.gallery) {
     customPresetUI.gallery.dataset.mode = userPresetState.galleryMode;
@@ -4847,10 +4853,12 @@ export function bootstrapApp() {
   if (customPresetUI.form) {
     customPresetUI.form.addEventListener('submit', handlePresetFormSubmit);
   }
-  if (customPresetUI.galleryToggle) {
-    customPresetUI.galleryToggle.addEventListener('click', () => {
-      const next = userPresetState.galleryMode === 'grid' ? 'list' : 'grid';
-      setPresetGalleryMode(next);
+  if (customPresetUI.galleryModeButtons.length) {
+    customPresetUI.galleryModeButtons.forEach(button => {
+      button.addEventListener('click', () => {
+        const desired = button.dataset.galleryMode === 'list' ? 'list' : 'grid';
+        setPresetGalleryMode(desired);
+      });
     });
   }
   if (customPresetUI.randomBtn) {
@@ -6722,11 +6730,30 @@ export function bootstrapApp() {
     panel.classList.toggle('is-open', expanded);
   }
 
-  accordionTriggers.forEach(trigger => {
-    const initial = trigger.getAttribute('aria-expanded') === 'true';
-    setAccordionState(trigger, initial);
+  let firstAccordionExpanded = false;
+  accordionTriggers.forEach((trigger, index) => {
+    let expanded = trigger.getAttribute('aria-expanded') === 'true';
+    if (expanded) {
+      if (firstAccordionExpanded) {
+        expanded = false;
+      } else {
+        firstAccordionExpanded = true;
+      }
+    }
+    if (!firstAccordionExpanded && index === accordionTriggers.length - 1) {
+      expanded = true;
+      firstAccordionExpanded = true;
+    }
+    setAccordionState(trigger, expanded);
     trigger.addEventListener('click', () => {
       const next = trigger.getAttribute('aria-expanded') !== 'true';
+      if (next) {
+        accordionTriggers.forEach(other => {
+          if (other !== trigger) {
+            setAccordionState(other, false);
+          }
+        });
+      }
       setAccordionState(trigger, next);
     });
   });
