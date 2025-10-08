@@ -4921,6 +4921,22 @@ export function bootstrapApp() {
   stlDistributionOption = document.querySelector('#pDistribution option[value="stl"]');
   updateStlOptionAvailability();
 
+  if (playbackModeUI.staticBtn) {
+    playbackModeUI.staticBtn.addEventListener('click', () => {
+      setPlaybackMode(PLAYBACK_MODES.STATIC, { userInitiated: true });
+    });
+  }
+  if (playbackModeUI.customBtn) {
+    playbackModeUI.customBtn.addEventListener('click', () => {
+      setPlaybackMode(PLAYBACK_MODES.CUSTOM, { userInitiated: true });
+    });
+  }
+  if (playbackModeUI.randomBtn) {
+    playbackModeUI.randomBtn.addEventListener('click', () => {
+      setPlaybackMode(PLAYBACK_MODES.RANDOM, { userInitiated: true });
+    });
+  }
+
   if (stlUI.input) {
     stlUI.input.addEventListener('change', event => {
       const files = event.target.files ? Array.from(event.target.files).filter(Boolean) : [];
