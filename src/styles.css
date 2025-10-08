@@ -396,46 +396,15 @@ button {
   order: 2;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  align-items: center;
   gap: 0.5rem;
   margin: 0;
-  padding: 0.5rem 0.75rem;
+  padding: 0.75rem 0.5rem calc(0.75rem + env(safe-area-inset-bottom, 0px));
   border-radius: var(--radius-s);
-  background: rgba(35, 40, 50, 0.6);
+  background: rgba(35, 40, 50, 0.68);
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
-}
-
-.bottom-nav {
-  position: fixed;
-  bottom: calc(env(safe-area-inset-bottom, 0px));
-  left: 50%;
-  transform: translateX(-50%);
-  width: min(calc(100% - 2 * var(--spacing-m)), 34rem);
-  min-height: var(--bottom-nav-height);
-  backdrop-filter: blur(10px);
-  background: rgba(20, 22, 26, 0.8);
-  border-top: 1px solid rgba(255, 255, 255, 0.05);
-  box-shadow: 0 -6px 20px rgba(0, 0, 0, 0.35);
-  padding-bottom: calc(0.5rem + env(safe-area-inset-bottom, 0px));
-  box-sizing: border-box;
-  z-index: 20;
-}
-
-.main-content {
-  flex: 1 1 auto;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-m);
-  padding-bottom: calc(var(--bottom-nav-height) + 1rem);
-  padding-right: 0.25rem;
-  box-sizing: border-box;
-  overflow-y: auto;
-}
-
-#panel.is-hidden .bottom-nav {
-  opacity: 0;
-  pointer-events: none;
+  position: sticky;
+  bottom: 0;
+  z-index: 3;
 }
 
 .panel-launcher {
