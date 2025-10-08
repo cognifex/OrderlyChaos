@@ -8,21 +8,25 @@
 </head>
 <body>
 <div id="panel" class="is-hidden" aria-hidden="true">
-  <div class="sheet-handle">
-    <button id="sheetHandle" type="button" aria-expanded="false" aria-controls="panel">
-      <span class="sheet-handle-bar" aria-hidden="true"></span>
-      <span class="sheet-handle-label">Panel vergrößern</span>
-    </button>
-  </div>
-  <header class="panel-header">
-    <div class="panel-header__title">
-      <h1 class="panel-header__heading">Steuerzentrale</h1>
-      <p class="panel-header__subtitle">Passe Audio, Presets und Parameter im kompakten Layout an.</p>
-    </div>
-    <button id="panelClose" type="button" class="panel-header__close" data-no-swipe aria-label="Panel schließen" aria-controls="panel">
-      <span aria-hidden="true">✕</span>
-    </button>
-  </header>
+  <div
+    id="sheetHandle"
+    class="sheet-handle"
+    role="button"
+    aria-controls="panel"
+    aria-label="Panel vergrößern"
+    aria-expanded="false"
+    tabindex="0"
+  ></div>
+  <button
+    id="panelClose"
+    type="button"
+    class="panel-close"
+    data-no-swipe
+    aria-label="Panel schließen"
+    aria-controls="panel"
+  >
+    <span aria-hidden="true">✕</span>
+  </button>
   <nav class="control-panel-tabs bottom-nav" aria-label="Panel-Navigation">
     <button
       type="button"
@@ -214,7 +218,7 @@
             <button type="button" class="panel-card__action" id="presetRandomPlayback" aria-pressed="false" disabled>🎲 Shuffle</button>
           </div>
         </header>
-        <div class="preset-gallery" id="userPresetGallery" role="list" aria-label="Eigene Presets"></div>
+        <div class="preset-gallery gallery-grid" id="userPresetGallery" role="list" aria-label="Eigene Presets"></div>
         <p class="preset-gallery__empty" id="userPresetEmpty">Noch keine Presets gespeichert. Erstelle im Config-Panel deine ersten Favoriten.</p>
       </section>
     </div>

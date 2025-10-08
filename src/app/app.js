@@ -732,12 +732,12 @@ export function bootstrapApp() {
     userPresetState.items.forEach(preset => {
       const button = document.createElement('button');
       button.type = 'button';
-      button.className = 'preset-card';
+      button.className = 'preset-card gallery-card';
       button.dataset.presetId = preset.id;
       button.setAttribute('aria-pressed', userPresetState.selected.has(preset.id) ? 'true' : 'false');
       const preview = computePresetPreview(preset.params);
       const thumb = document.createElement('div');
-      thumb.className = 'preset-card__thumb';
+      thumb.className = 'preset-card__thumb gallery-card__media';
       thumb.style.background = preview.gradient;
       button.appendChild(thumb);
 
