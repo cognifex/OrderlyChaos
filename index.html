@@ -67,12 +67,15 @@
       z-index: 10;
       width: 330px;
       max-height: calc(100vh - 90px);
-      overflow-y: auto;
+      min-width: 260px;
+      min-height: 140px;
+      overflow: auto;
       background: var(--panel);
       border-radius: 10px;
       padding: 12px;
       backdrop-filter: blur(2px);
       transition: opacity .25s ease, transform .25s ease;
+      resize: both;
     }
     #panel.is-hidden {
       opacity: 0;
@@ -402,13 +405,27 @@
       background: rgba(40, 160, 220, 0.65);
       border-color: rgba(90, 190, 255, 0.9);
     }
-    #audioPanel {
-      position: absolute;
+    #leftRail {
+      position: fixed;
       left: 12px;
       bottom: 12px;
+      z-index: 15;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      align-items: flex-start;
+      pointer-events: none;
+    }
+    #leftRail > * {
+      pointer-events: auto;
+    }
+    #audioPanel {
+      position: relative;
       z-index: 11;
-      width: 300px;
-      max-width: calc(100vw - 24px);
+      width: 320px;
+      max-width: min(420px, calc(100vw - 48px));
+      min-width: 260px;
+      min-height: 160px;
       background: var(--panel);
       border-radius: 10px;
       padding: 12px 14px 14px;
@@ -417,6 +434,122 @@
       backdrop-filter: blur(2px);
       box-shadow: 0 12px 28px rgba(0, 0, 0, 0.45);
       transition: transform .25s ease, opacity .25s ease;
+      resize: both;
+      overflow: auto;
+    }
+    #statusDock {
+      width: 340px;
+      min-width: 240px;
+      min-height: 110px;
+      background: var(--panel);
+      border-radius: 10px;
+      padding: 10px 12px;
+      display: grid;
+      gap: .45rem;
+      box-shadow: 0 10px 24px rgba(0, 0, 0, 0.38);
+      backdrop-filter: blur(2px);
+      resize: both;
+      overflow: auto;
+    }
+    .dock-section {
+      display: grid;
+      gap: .35rem;
+    }
+    .log-line {
+      display: flex;
+      align-items: center;
+      gap: .45rem;
+      padding: .35rem .5rem;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.05);
+      min-height: 34px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .log-label {
+      font-size: .75rem;
+      letter-spacing: .02em;
+      text-transform: uppercase;
+      opacity: .7;
+    }
+    .log-message {
+      flex: 1;
+      font-size: .88rem;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .log-timestamp {
+      font-family: 'SFMono-Regular', Consolas, ui-monospace, monospace;
+      font-size: .78rem;
+      opacity: .75;
+    }
+    #progressList {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: grid;
+      gap: .35rem;
+    }
+    .progress-empty {
+      font-size: .78rem;
+      opacity: .7;
+      padding: .25rem 0;
+    }
+    .progress-item {
+      display: grid;
+      gap: .3rem;
+      padding: .4rem .5rem;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.05);
+    }
+    .progress-headline {
+      display: flex;
+      align-items: center;
+      gap: .5rem;
+      font-size: .85rem;
+    }
+    .progress-state {
+      font-size: .72rem;
+      letter-spacing: .02em;
+      text-transform: uppercase;
+      opacity: .75;
+    }
+    .progress-bar {
+      position: relative;
+      width: 100%;
+      height: 6px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.08);
+      overflow: hidden;
+    }
+    .progress-bar__fill {
+      position: absolute;
+      inset: 0;
+      width: 35%;
+      background: linear-gradient(90deg, rgba(127, 255, 212, 0.75), rgba(90, 190, 255, 0.85));
+      transform-origin: left center;
+      transition: width .25s ease, opacity .25s ease;
+    }
+    .progress-item[data-state="done"] .progress-bar__fill {
+      width: 100%;
+      background: rgba(127, 255, 212, 0.9);
+    }
+    .progress-item[data-state="error"] .progress-bar__fill {
+      width: 100%;
+      background: rgba(255, 138, 128, 0.9);
+    }
+    .progress-item[data-state="waiting"] .progress-bar__fill,
+    .progress-item[data-indeterminate="true"] .progress-bar__fill {
+      width: 40%;
+      animation: shimmer 1.2s linear infinite;
+    }
+    @keyframes shimmer {
+      0% { transform: translateX(-60%); }
+      50% { transform: translateX(0); }
+      100% { transform: translateX(120%); }
     }
     #audioPanel.is-hidden {
       opacity: 0;
@@ -526,14 +659,32 @@
         transition: opacity .25s ease, transform .35s ease;
         box-shadow: 0 -12px 28px rgba(0, 0, 0, 0.4);
       }
-      #audioPanel {
-        position: fixed;
-        top: 64px;
-        bottom: auto;
-        left: 12px;
-        right: 12px;
-        width: auto;
+      #leftRail {
+        left: 8px;
+        right: 8px;
+        bottom: 8px;
+        width: calc(100% - 16px);
+        gap: 8px;
+        align-items: stretch;
+      }
+      #leftRail > * {
+        width: 100%;
         max-width: none;
+      }
+      #audioPanel {
+        position: relative;
+        top: auto;
+        bottom: auto;
+        left: auto;
+        right: auto;
+        width: 100%;
+        max-width: none;
+        resize: vertical;
+      }
+      #statusDock {
+        width: 100%;
+        max-width: none;
+        resize: vertical;
       }
       #panel.is-hidden {
         transform: translateY(calc(var(--sheet-expanded-height, 80vh) + 40px));
@@ -1072,7 +1223,8 @@
     </div>
   </section>
 </div>
-<div id="audioPanel" class="is-hidden" role="complementary" aria-label="Audio-Steuerung" aria-hidden="true">
+<div id="leftRail">
+  <div id="audioPanel" class="is-hidden" role="complementary" aria-label="Audio-Steuerung" aria-hidden="true">
   <div class="panel-header">
     <h3>Audio-Reaktivität</h3>
     <button type="button" id="audioPanelToggle" aria-expanded="true" aria-controls="audioPanelBody" aria-label="Audio-Bedienfeld ein- oder ausblenden" title="Audio-Bedienfeld ein- oder ausblenden">▾</button>
@@ -1180,6 +1332,20 @@
       <span class="status-text" id="audioStatus" data-state="idle">Audio-Reaktivität inaktiv</span>
     </div>
     <div class="panel-footnote" id="audioSupportNotice">Nutze eine Datei oder das Mikrofon, um die Punktfarben an Audio zu koppeln.</div>
+  </div>
+  </div>
+  <div id="statusDock" role="complementary" aria-live="polite" aria-label="Log und Fortschritt">
+    <div class="dock-section">
+      <div class="log-line" role="status" aria-live="polite">
+        <span class="log-label">Log</span>
+        <span class="log-message" id="logMessage" title="Bereit">Bereit</span>
+        <span class="log-timestamp" id="logTimestamp">--:--:--</span>
+      </div>
+    </div>
+    <div class="dock-section" aria-live="polite">
+      <div class="progress-empty" id="progressEmpty">Kein Fortschritt aktiv.</div>
+      <ul id="progressList" aria-label="Aktive Fortschritte"></ul>
+    </div>
   </div>
 </div>
 <div id="audioOverlay" data-visible="false" aria-hidden="true">
@@ -1785,6 +1951,19 @@ function updateStlMeta(files = stlState.files || [], { loading = false, error = 
   }
   if (stlUI.input) {
     stlUI.input.disabled = loading;
+  }
+  if (loading) {
+    setLogMessage('Lade STL-Dateien …');
+    upsertProgress('stl-loading', { label: 'STL wird geladen', state: 'waiting', indeterminate: true });
+  } else if (error) {
+    setLogMessage(error, 'error');
+    upsertProgress('stl-loading', { label: error, state: 'error', value: 1, indeterminate: false });
+  } else if (names.length) {
+    const metaText = stlUI.meta ? stlUI.meta.textContent : 'STL-Punkte geladen';
+    setLogMessage(metaText);
+    clearProgress('stl-loading');
+  } else {
+    clearProgress('stl-loading');
   }
 }
 
@@ -3051,6 +3230,24 @@ function setAudioStatus(message, state = 'idle') {
   }
   if (audioUI.statusDot) {
     audioUI.statusDot.dataset.state = state;
+  }
+  setLogMessage(message, state === 'error' ? 'error' : 'info');
+  if (state === 'waiting' || state === 'active') {
+    upsertProgress('audio-status', {
+      label: message,
+      state,
+      value: state === 'active' ? 1 : 0,
+      indeterminate: state === 'waiting',
+    });
+  } else if (state === 'error') {
+    upsertProgress('audio-status', {
+      label: message,
+      state: 'error',
+      value: 1,
+      indeterminate: false,
+    });
+  } else {
+    clearProgress('audio-status');
   }
   updateAudioOverlayVisibility();
 }
@@ -5105,6 +5302,147 @@ const sheetState = {
   preventClick: false,
 };
 
+const logUI = {
+  dock: $('statusDock'),
+  message: $('logMessage'),
+  timestamp: $('logTimestamp'),
+  progressList: $('progressList'),
+  progressEmpty: $('progressEmpty'),
+};
+
+const layoutStorageKey = 'chaosLayoutConfig';
+let layoutState = {};
+try {
+  layoutState = JSON.parse(localStorage.getItem(layoutStorageKey)) || {};
+} catch (error) {
+  layoutState = {};
+}
+
+const progressState = new Map();
+let progressDirty = false;
+
+function persistLayoutState() {
+  try {
+    localStorage.setItem(layoutStorageKey, JSON.stringify(layoutState));
+  } catch (error) {
+    console.warn('Layout konnte nicht gespeichert werden:', error);
+  }
+}
+
+function initResizableSection(element, key, defaults = {}) {
+  if (!element || typeof ResizeObserver === 'undefined') return;
+  if (window.matchMedia('(max-width: 768px)').matches) return;
+  const saved = layoutState[key] || {};
+  const width = saved.width || defaults.width;
+  const height = saved.height || defaults.height;
+  if (width) {
+    element.style.width = width;
+  }
+  if (height) {
+    element.style.height = height;
+  }
+  const observer = new ResizeObserver(entries => {
+    const entry = entries && entries[0];
+    if (!entry || !entry.contentRect) return;
+    const { width: w, height: h } = entry.contentRect;
+    layoutState[key] = {
+      width: `${Math.round(w)}px`,
+      height: `${Math.round(h)}px`,
+    };
+    persistLayoutState();
+  });
+  observer.observe(element);
+}
+
+function setLogMessage(message, level = 'info') {
+  if (logUI.message) {
+    logUI.message.textContent = message;
+    logUI.message.title = message;
+    logUI.message.dataset.level = level;
+  }
+  if (logUI.timestamp) {
+    const now = new Date();
+    logUI.timestamp.textContent = now.toLocaleTimeString([], { hour12: false });
+  }
+}
+
+function upsertProgress(id, { label, state = 'waiting', value = null, indeterminate = null } = {}) {
+  if (!id) return;
+  const existing = progressState.get(id) || {};
+  const entry = {
+    id,
+    label: label || existing.label || 'Aktivität',
+    state: state || existing.state || 'waiting',
+    value: value == null ? existing.value : value,
+    indeterminate: indeterminate != null ? indeterminate : (value == null),
+    updated: Date.now(),
+  };
+  progressState.set(id, entry);
+  progressDirty = true;
+}
+
+function clearProgress(id) {
+  if (!id) return;
+  if (progressState.has(id)) {
+    progressState.delete(id);
+    progressDirty = true;
+  }
+}
+
+function renderProgressList() {
+  if (!logUI.progressList || !logUI.progressEmpty) {
+    progressDirty = false;
+    return;
+  }
+  logUI.progressList.innerHTML = '';
+  const entries = Array.from(progressState.values()).sort((a, b) => (b.updated || 0) - (a.updated || 0));
+  if (!entries.length) {
+    logUI.progressEmpty.hidden = false;
+    logUI.progressList.hidden = true;
+    progressDirty = false;
+    return;
+  }
+  logUI.progressEmpty.hidden = true;
+  logUI.progressList.hidden = false;
+  entries.forEach(entry => {
+    const item = document.createElement('li');
+    item.className = 'progress-item';
+    item.dataset.state = entry.state || 'waiting';
+    if (entry.indeterminate) {
+      item.dataset.indeterminate = 'true';
+    } else {
+      item.removeAttribute('data-indeterminate');
+    }
+    const headline = document.createElement('div');
+    headline.className = 'progress-headline';
+    const labelSpan = document.createElement('span');
+    labelSpan.textContent = entry.label || 'Aktivität';
+    const stateSpan = document.createElement('span');
+    stateSpan.className = 'progress-state';
+    const stateText = entry.state === 'done'
+      ? 'fertig'
+      : entry.state === 'error'
+        ? 'fehler'
+        : entry.state === 'active'
+          ? 'aktiv'
+          : 'laufend';
+    stateSpan.textContent = stateText;
+    headline.append(labelSpan, stateSpan);
+    const bar = document.createElement('div');
+    bar.className = 'progress-bar';
+    const fill = document.createElement('div');
+    fill.className = 'progress-bar__fill';
+    if (Number.isFinite(entry.value)) {
+      const width = Math.max(0, Math.min(100, entry.value * 100));
+      fill.style.width = `${width}%`;
+    }
+    bar.appendChild(fill);
+    item.append(headline, bar);
+    logUI.progressList.appendChild(item);
+  });
+  progressDirty = false;
+}
+
 audioUI.panel = $('audioPanel');
 audioUI.body = $('audioPanelBody');
 audioUI.toggle = $('audioPanelToggle');
@@ -5121,6 +5459,15 @@ audioUI.micStopBtn = $('audioMicStop');
 audioUI.statusText = $('audioStatus');
 audioUI.statusDot = $('audioStatusDot');
 audioUI.modifierButtons = Array.from(document.querySelectorAll('#audioModifierGrid [data-modifier]'));
+
+const resizableSections = [
+  { el: panel, key: 'panel', defaults: { width: '330px' } },
+  { el: audioUI.panel, key: 'audioPanel', defaults: { width: '320px', height: '320px' } },
+  { el: logUI.dock, key: 'statusDock', defaults: { width: '340px', height: '150px' } },
+];
+resizableSections.forEach(section => initResizableSection(section.el, section.key, section.defaults));
+setLogMessage('Bereit');
+renderProgressList();
 
 const barState = {
   visible: bar ? bar.classList.contains('is-visible') : false,
@@ -7112,6 +7459,9 @@ function animate(now) {
   controls.update();
   if (!cameraLocked && !controls.target.equals(clusterGroup.position)) {
     clusterGroup.position.copy(controls.target);
+  }
+  if (progressDirty) {
+    renderProgressList();
   }
   renderer.render(scene, camera);
 }
