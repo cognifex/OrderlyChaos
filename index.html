@@ -10,8 +10,133 @@
       --fg: #ddd;
       --sheet-compact-height: 32vh;
       --sheet-expanded-height: 84vh;
+      --player-panel: rgba(12, 12, 14, 0.78);
+      --player-border: rgba(255,255,255,0.08);
+      --accent: #71c7ff;
     }
     html, body { margin: 0; height: 100%; overflow: hidden; background: #000; color: var(--fg); font-family: system-ui, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }
+    #playerShell {
+      position: fixed;
+      inset: 0;
+      z-index: 18;
+      display: grid;
+      grid-template-rows: auto 1fr auto auto;
+      pointer-events: none;
+    }
+    #playerShell[data-mode="studio"] {
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity .25s ease;
+    }
+    #playerShell[data-mode="player"] {
+      pointer-events: none;
+    }
+    .player-header,
+    .player-controls,
+    .player-visual-panel {
+      pointer-events: auto;
+    }
+    .player-header {
+      display: flex;
+      align-items: center;
+      gap: .65rem;
+      padding: .9rem 1rem .35rem;
+      background: linear-gradient(180deg, rgba(0,0,0,0.8), rgba(0,0,0,0.35));
+      backdrop-filter: blur(8px);
+    }
+    .player-source {
+      padding: .4rem .65rem;
+      border-radius: 999px;
+      border: 1px solid var(--player-border);
+      background: rgba(255,255,255,0.06);
+      font-size: .78rem;
+      letter-spacing: .01em;
+    }
+    .player-track {
+      flex: 1;
+      min-width: 0;
+      display: grid;
+      gap: .15rem;
+    }
+    .player-track-title {
+      font-weight: 700;
+      font-size: 1rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .player-track-meta { font-size: .8rem; opacity: .8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .player-chip {
+      padding: .5rem .75rem;
+      border-radius: 10px;
+      border: 1px solid var(--player-border);
+      background: rgba(255,255,255,0.08);
+      color: inherit;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform .15s ease, background .2s ease, border-color .2s ease;
+    }
+    .player-chip:hover { transform: translateY(-1px); }
+    .player-chip[data-pressed="true"] {
+      border-color: rgba(255,255,255,0.35);
+      background: rgba(113, 199, 255, 0.18);
+      box-shadow: 0 6px 20px rgba(0,0,0,0.35);
+    }
+    .player-controls {
+      margin: 0 .75rem .4rem;
+      padding: .65rem .75rem .9rem;
+      border-radius: 14px;
+      border: 1px solid var(--player-border);
+      background: var(--player-panel);
+      backdrop-filter: blur(14px);
+      box-shadow: 0 16px 40px rgba(0,0,0,0.38);
+    }
+    .player-progress {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      align-items: center;
+      gap: .5rem;
+      font-size: .8rem;
+      opacity: .92;
+    }
+    .player-progress input[type=range] { width: 100%; }
+    .player-transport {
+      margin-top: .55rem;
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: .5rem;
+    }
+    .player-transport button {
+      padding: .65rem .5rem;
+      border-radius: 12px;
+      border: 1px solid var(--player-border);
+      background: rgba(255,255,255,0.08);
+      color: inherit;
+      font-weight: 700;
+      font-size: .95rem;
+      cursor: pointer;
+      transition: background .2s ease, border-color .2s ease, transform .15s ease;
+    }
+    .player-transport button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    .player-transport button:hover { transform: translateY(-1px); }
+    .player-transport button[aria-pressed="true"] { border-color: rgba(255,255,255,0.35); }
+    .player-visual-panel {
+      margin: 0 .75rem 1rem;
+      padding: .75rem .85rem;
+      border-radius: 14px;
+      border: 1px solid var(--player-border);
+      background: rgba(10,10,12,0.82);
+      box-shadow: 0 14px 32px rgba(0,0,0,0.35);
+      display: grid;
+      gap: .6rem;
+    }
+    .macro-row { display: grid; gap: .35rem; }
+    .macro-label { font-size: .82rem; letter-spacing: .01em; opacity: .86; }
+    .macro-chips { display: flex; gap: .4rem; flex-wrap: wrap; }
+    .macro-slider { display: grid; gap: .3rem; }
+    .macro-slider input[type=range] { width: 100%; }
+    .player-compact-actions { display: flex; gap: .5rem; flex-wrap: wrap; }
+    .player-compact-actions .player-chip { flex: 1 1 120px; text-align: center; }
     #audioOverlay {
       position: absolute;
       inset: 0;
@@ -605,9 +730,71 @@
   <!-- Load Three.js and OrbitControls from local files -->
   <script src="./three.min.js"></script>
   <script src="./OrbitControls.js"></script>
-  <script src="./STLLoader.js"></script>
+<script src="./STLLoader.js"></script>
 </head>
 <body>
+<div id="playerShell" data-mode="player">
+  <header class="player-header">
+    <div class="player-source" id="playerSource">Lokale Musik</div>
+    <div class="player-track">
+      <div class="player-track-title" id="playerTitle">Visual Player</div>
+      <div class="player-track-meta" id="playerMeta">Bereit</div>
+    </div>
+    <button class="player-chip" type="button" id="studioToggle">🎛️ Studio</button>
+  </header>
+  <div></div>
+  <div class="player-controls">
+    <div class="player-progress">
+      <span id="playerTime">0:00</span>
+      <input id="playerProgress" type="range" min="0" max="1" step="0.001" value="0" aria-label="Wiedergabeposition" />
+      <span id="playerDuration">–:––</span>
+    </div>
+    <div class="player-transport" role="group" aria-label="Player-Steuerung">
+      <button type="button" id="playerSourceCycle" title="Quelle wechseln">🔊</button>
+      <button type="button" id="playerPrev">⏮️</button>
+      <button type="button" id="playerPlay">▶️</button>
+      <button type="button" id="playerNext">⏭️</button>
+      <button type="button" id="playerRepeat" aria-pressed="false">🔁</button>
+    </div>
+    <div class="player-compact-actions">
+      <button class="player-chip" type="button" id="playerQueue">Playlist</button>
+      <button class="player-chip" type="button" id="playerRandomStyle">🎲 Zufall</button>
+    </div>
+  </div>
+  <div class="player-visual-panel">
+    <div class="macro-row">
+      <div class="macro-label">Stil</div>
+      <div class="macro-chips" id="playerStyles">
+        <button type="button" class="player-chip" data-style="nebula">Nebula</button>
+        <button type="button" class="player-chip" data-style="orbit">Orbit</button>
+        <button type="button" class="player-chip" data-style="spiral">Spirale</button>
+        <button type="button" class="player-chip" data-style="cluster">Cluster</button>
+      </div>
+    </div>
+    <div class="macro-row">
+      <div class="macro-label">Farbstimmung</div>
+      <div class="macro-chips" id="playerMoods">
+        <button type="button" class="player-chip" data-mood="cool">Blau/Türkis</button>
+        <button type="button" class="player-chip" data-mood="warm">Warm</button>
+        <button type="button" class="player-chip" data-mood="pastel">Pastell</button>
+        <button type="button" class="player-chip" data-mood="mono">Monochrom</button>
+        <button type="button" class="player-chip" data-mood="auto">Auto</button>
+      </div>
+    </div>
+    <div class="macro-row macro-slider">
+      <div class="macro-label">Komplexität</div>
+      <input id="playerComplexity" type="range" min="0" max="1" step="0.01" value="0.5" />
+    </div>
+    <div class="macro-row macro-slider">
+      <div class="macro-label">Bewegung</div>
+      <input id="playerMotion" type="range" min="0" max="1" step="0.01" value="0.45" />
+    </div>
+    <div class="macro-row macro-slider">
+      <div class="macro-label">Reaktivität</div>
+      <input id="playerReactivity" type="range" min="0" max="1.5" step="0.05" value="1" />
+    </div>
+  </div>
+</div>
 <div id="barHotspot" aria-hidden="true"></div>
 <div id="bar" role="toolbar" aria-hidden="true">
   <button id="toggle" aria-expanded="true">↕ Panels ausblenden</button>
@@ -1628,6 +1815,137 @@ const EXPERIENCE_BIOMES = Object.freeze([
   },
 ]);
 
+const PLAYER_STYLE_PRESETS = Object.freeze({
+  nebula: {
+    name: 'Nebula',
+    distribution: ['fibonacci', 'spiral'],
+    count: [2200, 3600],
+    radius: [120, 180],
+    sizeVar: [3.2, 5.5],
+    cluster: [0.25, 0.55],
+    pointAlpha: [0.6, 0.8],
+    pointHueRanges: [[180, 240]],
+    pointSaturation: [0.65, 0.95],
+    pointValue: [0.72, 0.95],
+    colorMode: ['radialPulse', 'axisWave'],
+    colorIntensity: [0.6, 0.95],
+    colorSpeed: [0.6, 1.3],
+    hueSpread: [25, 55],
+    colorPropagationDistance: [120, 220],
+    colorPropagationDuration: [5, 10],
+    colorToneCount: [3, 6],
+    motionMode: ['sine', 'orbit'],
+    motionSpeed: [0.6, 1.1],
+    motionAmplitude: [6, 12],
+    motionNoiseStrength: [0.35, 0.6],
+    motionNoiseScale: [0.8, 1.3],
+    catDistribution: [0.36, 0.32],
+    tinyCount: [1500, 2600],
+    connPercent: [0.25, 0.55],
+    tinyAlpha: [0.45, 0.7],
+    edgeSoftness: [0.45, 0.7],
+    blending: ['Additive', 'Normal']
+  },
+  orbit: {
+    name: 'Orbit',
+    distribution: ['random', 'fibonacci'],
+    count: [1800, 2400],
+    radius: [140, 220],
+    sizeVar: [2.5, 4.1],
+    cluster: [0.15, 0.4],
+    pointAlpha: [0.7, 0.9],
+    pointHueRanges: [[180, 260]],
+    pointSaturation: [0.4, 0.8],
+    pointValue: [0.6, 0.95],
+    colorMode: ['axisWave', 'uniform'],
+    colorIntensity: [0.55, 0.9],
+    colorSpeed: [0.35, 0.9],
+    hueSpread: [10, 30],
+    colorPropagationDistance: [90, 160],
+    colorPropagationDuration: [4, 8],
+    colorToneCount: [2, 4],
+    motionMode: ['orbit'],
+    motionSpeed: [0.4, 0.9],
+    motionAmplitude: [4, 10],
+    motionNoiseStrength: [0.2, 0.45],
+    motionNoiseScale: [0.8, 1.2],
+    catDistribution: [0.4, 0.34],
+    tinyCount: [1100, 2200],
+    connPercent: [0.18, 0.48],
+    tinyAlpha: [0.4, 0.65],
+    edgeSoftness: [0.4, 0.65],
+    blending: ['Normal', 'Additive']
+  },
+  spiral: {
+    name: 'Spiral',
+    distribution: ['spiral'],
+    count: [1800, 3200],
+    radius: [140, 220],
+    sizeVar: [2.8, 5.2],
+    cluster: [0.35, 0.6],
+    pointAlpha: [0.6, 0.82],
+    pointHueRanges: [[15, 60], [290, 340]],
+    pointSaturation: [0.65, 0.95],
+    pointValue: [0.7, 1],
+    colorMode: ['phaseFlicker', 'radialPulse'],
+    colorIntensity: [0.65, 1],
+    colorSpeed: [0.9, 1.6],
+    hueSpread: [40, 90],
+    colorPropagationDistance: [140, 240],
+    colorPropagationDuration: [6, 12],
+    colorToneCount: [3, 6],
+    motionMode: ['sine', 'orbit'],
+    motionSpeed: [0.7, 1.3],
+    motionAmplitude: [8, 14],
+    motionNoiseStrength: [0.35, 0.7],
+    motionNoiseScale: [0.9, 1.5],
+    catDistribution: [0.32, 0.36],
+    tinyCount: [1500, 2800],
+    connPercent: [0.35, 0.62],
+    tinyAlpha: [0.42, 0.7],
+    edgeSoftness: [0.5, 0.75],
+    blending: ['Additive', 'Normal']
+  },
+  cluster: {
+    name: 'Cluster',
+    distribution: ['cube', 'cylinder', 'octahedron'],
+    count: [2600, 3800],
+    radius: [120, 200],
+    sizeVar: [3, 6.2],
+    cluster: [0.55, 0.85],
+    pointAlpha: [0.55, 0.78],
+    pointHueRanges: [[120, 210]],
+    pointSaturation: [0.55, 0.9],
+    pointValue: [0.6, 0.9],
+    colorMode: ['axisWave', 'phaseFlicker'],
+    colorIntensity: [0.55, 0.9],
+    colorSpeed: [0.45, 1.15],
+    hueSpread: [20, 55],
+    colorPropagationDistance: [160, 260],
+    colorPropagationDuration: [5, 10],
+    colorToneCount: [2, 5],
+    motionMode: ['noise', 'sine'],
+    motionSpeed: [0.6, 1.2],
+    motionAmplitude: [10, 18],
+    motionNoiseStrength: [0.5, 0.85],
+    motionNoiseScale: [0.9, 1.6],
+    catDistribution: [0.45, 0.3],
+    tinyCount: [2400, 3600],
+    connPercent: [0.35, 0.7],
+    tinyAlpha: [0.45, 0.75],
+    edgeSoftness: [0.55, 0.78],
+    blending: ['Normal', 'Additive']
+  }
+});
+
+const PLAYER_MOOD_PRESETS = Object.freeze({
+  cool: { h: 200, s: 0.75, v: 1, spread: 35 },
+  warm: { h: 28, s: 0.9, v: 1, spread: 30 },
+  pastel: { h: 320, s: 0.45, v: 1, spread: 18 },
+  mono: { h: 210, s: 0.05, v: 0.92, spread: 4 },
+  auto: null
+});
+
 function randomHueFromRanges(ranges, fallbackRange = [0, 360]) {
   if (Array.isArray(ranges) && ranges.length) {
     const choice = randomChoice(ranges);
@@ -1746,6 +2064,81 @@ function generateRandomBiome(options = {}) {
     return null;
   }
   return applyBiomePreset(preset, options);
+}
+
+function setPlayerChipState(group, activeKey) {
+  const chips = group ? Array.from(group.querySelectorAll('button')) : [];
+  chips.forEach(chip => {
+    const pressed = chip.dataset.style === activeKey || chip.dataset.mood === activeKey;
+    chip.dataset.pressed = pressed ? 'true' : 'false';
+    chip.setAttribute('aria-pressed', pressed ? 'true' : 'false');
+  });
+}
+
+function applyPlayerStyle(styleKey) {
+  const preset = PLAYER_STYLE_PRESETS[styleKey];
+  if (!preset) return;
+  applyBiomePreset(preset, { syncUI: true, repositionCamera: false });
+  setPlayerChipState(playerUI.styles, styleKey);
+}
+
+function applyPlayerMood(moodKey) {
+  const preset = PLAYER_MOOD_PRESETS[moodKey];
+  if (!preset) {
+    setPlayerChipState(playerUI.moods, 'auto');
+    return;
+  }
+  params.pointHue = preset.h;
+  params.pointSaturation = preset.s;
+  params.pointValue = preset.v;
+  params.hueSpread = preset.spread;
+  updatePointColor();
+  updateStarUniforms();
+  updateTinyMaterial();
+  setSliders();
+  setPlayerChipState(playerUI.moods, moodKey);
+}
+
+function applyPlayerComplexityMacro(value) {
+  const t = clamp01(Number(value));
+  const baseTotal = 1500 + t * 2200;
+  const cluster = 0.2 + t * 0.55;
+  const tinyCount = 800 + t * 2800;
+  const connections = 0.18 + t * 0.55;
+  const small = Math.floor(baseTotal * (0.42 + t * 0.08));
+  const medium = Math.floor(baseTotal * (0.34 - t * 0.06));
+  params.catSmallCount = small;
+  params.catMediumCount = medium;
+  params.catLargeCount = Math.max(0, Math.floor(baseTotal - small - medium));
+  params.cluster = cluster;
+  params.tinyCount = Math.round(tinyCount);
+  params.connPercent = clamp01(connections);
+  params.sizeVar = 2.8 + t * 3.5;
+  rebuildStars();
+  rebuildTiny();
+  updateStarUniforms();
+  updateTinyMaterial();
+  setSliders();
+}
+
+function applyPlayerMotionMacro(value) {
+  const t = clamp01(Number(value));
+  params.motionMode = t < 0.25 ? 'static' : (t < 0.6 ? 'sine' : 'noise');
+  params.motionSpeed = 0.35 + t * 1.4;
+  params.motionAmplitude = 4 + t * 16;
+  params.motionNoiseStrength = 0.25 + t * 0.8;
+  params.motionNoiseScale = 0.8 + t * 1.0;
+  updateStarUniforms();
+  updateTinyMaterial();
+  setSliders();
+}
+
+function applyPlayerReactivityMacro(value) {
+  const strength = Math.max(0, Number(value));
+  Object.keys(audioState.intensity || {}).forEach(key => {
+    audioState.intensity[key] = strength;
+  });
+  syncAudioIntensityControls();
 }
 const motionState = { time: 0 };
 
@@ -2455,6 +2848,10 @@ const audioState = {
   micStream: null,
   playing: false,
   usingMic: false,
+  trackDuration: 0,
+  playbackStartedAt: 0,
+  pausedAt: 0,
+  currentBuffer: null,
   playlist: [],
   currentIndex: -1,
   selectedFile: null,
@@ -2542,6 +2939,29 @@ const youtubeUI = {
   prevBtn: null,
   nextBtn: null,
   status: null
+};
+
+const playerUI = {
+  shell: null,
+  source: null,
+  title: null,
+  meta: null,
+  studioToggle: null,
+  sourceCycle: null,
+  prev: null,
+  play: null,
+  next: null,
+  repeat: null,
+  queue: null,
+  random: null,
+  styles: null,
+  moods: null,
+  complexity: null,
+  motion: null,
+  reactivity: null,
+  progress: null,
+  time: null,
+  duration: null
 };
 
 const autoRandomState = {
@@ -3062,7 +3482,7 @@ function disconnectAnalyser() {
   }
 }
 
-function stopAudioPlayback({ suspendContext = false, skipUiUpdates = false, stopYouTube = true } = {}) {
+function stopAudioPlayback({ suspendContext = false, skipUiUpdates = false, stopYouTube = true, preserveBuffer = false } = {}) {
   const wasActive = audioState.playing || audioState.usingMic || audioState.youtubeActive;
   if (audioState.source) {
     try { audioState.source.disconnect(); } catch (err) { /* ignore */ }
@@ -3083,6 +3503,12 @@ function stopAudioPlayback({ suspendContext = false, skipUiUpdates = false, stop
   audioState.playing = false;
   audioState.usingMic = false;
   audioState.youtubeActive = false;
+  if (!preserveBuffer) {
+    audioState.trackDuration = 0;
+    audioState.playbackStartedAt = 0;
+    audioState.pausedAt = 0;
+    audioState.currentBuffer = null;
+  }
   disconnectAnalyser();
   resetAudioReactivity();
   if (!skipUiUpdates && (wasActive || experienceState.panelsHiddenForPlayback)) {
@@ -3147,6 +3573,84 @@ function updateAudioOverlayVisibility() {
       audioUI.overlayButton.setAttribute('tabindex', '-1');
     }
   }
+}
+
+function formatTimeShort(seconds) {
+  if (!Number.isFinite(seconds) || seconds < 0) return '–:––';
+  const mins = Math.floor(seconds / 60);
+  const secs = Math.floor(seconds % 60);
+  return `${mins}:${String(secs).padStart(2, '0')}`;
+}
+
+function refreshPlayerTransportUI() {
+  if (!playerUI.play) return;
+  const hasTrack = getPlaylistLength() > 0 || audioState.youtubeActive;
+  const live = audioState.usingMic;
+  const playing = audioState.playing;
+  playerUI.play.textContent = playing ? '⏸️' : '▶️';
+  playerUI.play.disabled = live && playing;
+  if (playerUI.prev) playerUI.prev.disabled = !hasTrack || audioState.usingMic;
+  if (playerUI.next) playerUI.next.disabled = !hasTrack || audioState.usingMic;
+  if (playerUI.repeat) {
+    const pressed = audioState.repeatMode && audioState.repeatMode !== 'off';
+    playerUI.repeat.setAttribute('aria-pressed', pressed ? 'true' : 'false');
+  }
+  if (playerUI.source) {
+    if (live) {
+      playerUI.source.textContent = 'Live/Mic';
+    } else if (audioState.youtubeActive) {
+      playerUI.source.textContent = 'YouTube';
+    } else {
+      playerUI.source.textContent = 'Lokale Musik';
+    }
+  }
+  updatePlayerTrackMeta();
+}
+
+function updatePlayerTrackMeta() {
+  if (!playerUI.title) return;
+  const hasFiles = getPlaylistLength() > 0;
+  const live = audioState.usingMic;
+  if (live) {
+    playerUI.title.textContent = 'Live-Input';
+    playerUI.meta.textContent = 'Visual reagiert auf Mikrofon';
+    return;
+  }
+  if (audioState.youtubeActive) {
+    playerUI.title.textContent = youtubeState.currentVideoTitle || 'YouTube-Playlist';
+    playerUI.meta.textContent = 'Gestreamt von YouTube';
+    return;
+  }
+  if (hasFiles && audioState.selectedFile) {
+    playerUI.title.textContent = audioState.selectedFile.name || 'Audio';
+    const index = clampTrackIndex(audioState.currentIndex);
+    playerUI.meta.textContent = index >= 0 ? `Titel ${index + 1} von ${getPlaylistLength()}` : 'Playlist';
+  } else {
+    playerUI.title.textContent = 'Visual Player';
+    playerUI.meta.textContent = 'Bereit';
+  }
+}
+
+function updatePlayerProgressDisplay() {
+  if (!playerUI.progress) return;
+  const live = audioState.usingMic;
+  const duration = live ? 0 : (audioState.trackDuration || 0);
+  const ctx = audioState.context;
+  let elapsed = 0;
+  if (live) {
+    elapsed = 0;
+  } else if (audioState.playing && ctx) {
+    elapsed = Math.max(0, ctx.currentTime - (audioState.playbackStartedAt || 0));
+  } else if (audioState.pausedAt) {
+    elapsed = audioState.pausedAt;
+  }
+  const clampedDuration = Math.max(duration, 0.0001);
+  const clampedElapsed = Math.max(0, Math.min(elapsed, duration || clampedDuration));
+  playerUI.progress.disabled = live || !duration;
+  playerUI.progress.max = duration || clampedDuration;
+  playerUI.progress.value = clampedElapsed;
+  if (playerUI.time) playerUI.time.textContent = live ? 'Live' : formatTimeShort(clampedElapsed);
+  if (playerUI.duration) playerUI.duration.textContent = live ? '–:––' : formatTimeShort(duration || 0);
 }
 
 function refreshAudioUI() {
@@ -3330,6 +3834,8 @@ function updateAudioFileMeta(file) {
       audioUI.playlistMeta.textContent = `Titel ${displayIndex} von ${total} · ${formatRepeatMode(audioState.repeatMode)}`;
     }
   }
+  refreshPlayerTransportUI();
+  updatePlayerProgressDisplay();
 }
 
 function setPlaylist(files) {
@@ -3868,6 +4374,55 @@ function handleTrackEnded() {
   }
 }
 
+function pauseAudioPlayback() {
+  if (!audioState.playing || audioState.usingMic || audioState.youtubeActive) {
+    return false;
+  }
+  const ctx = audioState.context;
+  if (ctx) {
+    audioState.pausedAt = Math.max(0, ctx.currentTime - (audioState.playbackStartedAt || 0));
+  }
+  if (audioState.source && typeof audioState.source.stop === 'function') {
+    try { audioState.source.stop(); } catch (err) { /* ignore */ }
+  }
+  audioState.source = null;
+  audioState.playing = false;
+  setAudioStatus('Pausiert', 'idle');
+  refreshAudioUI();
+  return true;
+}
+
+function resumePausedTrack() {
+  if (!audioState.currentBuffer || audioState.pausedAt < 0) {
+    playSelectedFile();
+    return;
+  }
+  const context = ensureAudioContext();
+  if (!context) return;
+  const analyser = ensureAnalyser(context);
+  stopAudioPlayback({ skipUiUpdates: true, preserveBuffer: true, stopYouTube: false });
+  disconnectAnalyser();
+  const source = context.createBufferSource();
+  source.buffer = audioState.currentBuffer;
+  const offset = Math.max(0, Math.min(audioState.pausedAt, audioState.currentBuffer.duration || 0));
+  source.onended = () => {
+    if (audioState.source === source) {
+      audioState.source = null;
+      audioState.playing = false;
+      handleTrackEnded();
+    }
+  };
+  source.connect(analyser);
+  analyser.connect(context.destination);
+  source.start(0, offset);
+  audioState.source = source;
+  audioState.playing = true;
+  audioState.playbackStartedAt = context.currentTime - offset;
+  setAudioStatus('Wiedergabe läuft', 'active');
+  refreshAudioUI();
+  notifyPlaybackStarted();
+}
+
 async function playSelectedFile() {
   if (!audioState.selectedFile) {
     setAudioStatus('Bitte eine Audio-Datei auswählen.', 'waiting');
@@ -3911,6 +4466,10 @@ async function playSelectedFile() {
     source.start();
     audioState.source = source;
     audioState.playing = true;
+    audioState.currentBuffer = buffer;
+    audioState.trackDuration = buffer.duration || 0;
+    audioState.playbackStartedAt = context.currentTime;
+    audioState.pausedAt = 0;
     audioState.usingMic = false;
     audioState.fileName = audioState.selectedFile.name || 'Audio';
     setAudioStatus(`Wiedergabe läuft – ${trackDescriptor}`, 'active');
@@ -5545,6 +6104,27 @@ stlUI.clearBtn = $('stlClear');
 stlDistributionOption = document.querySelector('#pDistribution option[value="stl"]');
 updateStlOptionAvailability();
 
+playerUI.shell = $('playerShell');
+playerUI.source = $('playerSource');
+playerUI.title = $('playerTitle');
+playerUI.meta = $('playerMeta');
+playerUI.studioToggle = $('studioToggle');
+playerUI.sourceCycle = $('playerSourceCycle');
+playerUI.prev = $('playerPrev');
+playerUI.play = $('playerPlay');
+playerUI.next = $('playerNext');
+playerUI.repeat = $('playerRepeat');
+playerUI.queue = $('playerQueue');
+playerUI.random = $('playerRandomStyle');
+playerUI.styles = $('playerStyles');
+playerUI.moods = $('playerMoods');
+playerUI.complexity = $('playerComplexity');
+playerUI.motion = $('playerMotion');
+playerUI.reactivity = $('playerReactivity');
+playerUI.progress = $('playerProgress');
+playerUI.time = $('playerTime');
+playerUI.duration = $('playerDuration');
+
 if (stlUI.input) {
   stlUI.input.addEventListener('change', event => {
     const files = event.target.files ? Array.from(event.target.files).filter(Boolean) : [];
@@ -5867,6 +6447,100 @@ if (audioUI.nextBtn) {
   });
 }
 
+if (playerUI.play) {
+  playerUI.play.addEventListener('click', () => {
+    if (audioState.playing && !audioState.usingMic && !audioState.youtubeActive) {
+      pauseAudioPlayback();
+    } else if (audioState.pausedAt > 0 && audioState.currentBuffer) {
+      resumePausedTrack();
+    } else {
+      requestPlaybackStart({ preferCurrent: true });
+    }
+  });
+}
+if (playerUI.prev) {
+  playerUI.prev.addEventListener('click', () => playPreviousTrack({ wrap: true }));
+}
+if (playerUI.next) {
+  playerUI.next.addEventListener('click', () => playNextTrack({ wrap: true }));
+}
+if (playerUI.repeat) {
+  playerUI.repeat.addEventListener('click', () => {
+    cycleRepeatMode();
+    refreshAudioUI();
+  });
+}
+if (playerUI.queue) {
+  playerUI.queue.addEventListener('click', () => {
+    setPanelVisible(true);
+    setAudioPanelVisible(true);
+    showBar({ autoHideDelay: 2400 });
+  });
+}
+if (playerUI.random) {
+  playerUI.random.addEventListener('click', () => {
+    generateRandomBiome({ syncUI: true, repositionCamera: true });
+  });
+}
+if (playerUI.styles) {
+  playerUI.styles.addEventListener('click', event => {
+    const btn = event.target.closest('[data-style]');
+    if (!btn) return;
+    applyPlayerStyle(btn.dataset.style);
+  });
+}
+if (playerUI.moods) {
+  playerUI.moods.addEventListener('click', event => {
+    const btn = event.target.closest('[data-mood]');
+    if (!btn) return;
+    applyPlayerMood(btn.dataset.mood);
+  });
+}
+if (playerUI.complexity) {
+  playerUI.complexity.addEventListener('input', event => {
+    applyPlayerComplexityMacro(event.target.value);
+  });
+}
+if (playerUI.motion) {
+  playerUI.motion.addEventListener('input', event => {
+    applyPlayerMotionMacro(event.target.value);
+  });
+}
+if (playerUI.reactivity) {
+  playerUI.reactivity.addEventListener('input', event => {
+    applyPlayerReactivityMacro(event.target.value);
+  });
+}
+if (playerUI.progress) {
+  playerUI.progress.addEventListener('input', event => {
+    const target = Number(event.target.value);
+    if (!audioState.currentBuffer || audioState.usingMic || audioState.youtubeActive) return;
+    audioState.pausedAt = Math.max(0, Math.min(target, audioState.trackDuration || target));
+    if (audioState.playing) {
+      resumePausedTrack();
+    }
+    updatePlayerProgressDisplay();
+  });
+}
+if (playerUI.studioToggle) {
+  playerUI.studioToggle.addEventListener('click', () => {
+    setEditingMode(!experienceState.editingMode);
+  });
+}
+if (playerUI.sourceCycle) {
+  playerUI.sourceCycle.addEventListener('click', () => {
+    if (audioState.usingMic) {
+      stopAudioFromUser();
+      setAudioStatus('Mikrofon pausiert', 'idle');
+    } else if (isMicSupported()) {
+      startMicrophone();
+    } else {
+      setPanelVisible(true);
+      setAudioPanelVisible(true);
+    }
+  });
+}
+
 if (audioUI.repeatBtn) {
   audioUI.repeatBtn.addEventListener('click', () => {
     cycleRepeatMode();
@@ -5935,6 +6609,10 @@ if (audioUI.fileMeta || audioUI.playlistMeta) {
 }
 setAudioStatus('Audio-Reaktivität inaktiv', 'idle');
 refreshAudioUI();
+refreshPlayerTransportUI();
+updatePlayerProgressDisplay();
+setPlayerChipState(playerUI.styles, 'nebula');
+setPlayerChipState(playerUI.moods, 'auto');
 presetPlaylistPromise = ensurePresetPlaylistInitialized();
 
 function isMobileSheetActive() {
@@ -6105,6 +6783,9 @@ function setEditingMode(enabled, { skipStop = false, skipPanelRestore = false } 
   }
   experienceState.editingMode = next;
   updateEditModeButton();
+  if (playerUI.shell) {
+    playerUI.shell.dataset.mode = next ? 'studio' : 'player';
+  }
   if (next) {
     experienceState.editingPreviousPanel = panelVisible;
     experienceState.editingPreviousBar = barState.visible;
@@ -7425,6 +8106,7 @@ function animate(now) {
   updateAudioReactive(delta);
   updateAutoRandom(delta);
   applyAudioVisuals(delta, true);
+  updatePlayerProgressDisplay();
 
   if (cameraLocked) {
     controls.target.copy(clusterGroup.position);
