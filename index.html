@@ -234,6 +234,11 @@
     .audio-controls button { flex: 1 1 140px; }
     .audio-controls--primary button { flex: 1 1 calc(50% - .5rem); }
     .audio-controls--secondary button { flex: 1 1 100%; }
+    .input-row { display: flex; gap: .5rem; align-items: center; }
+    .input-row input[type=text] { flex: 1 1 auto; min-width: 0; padding: .5rem .7rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2); background: rgba(0,0,0,0.35); color: var(--fg); }
+    .input-row button { flex: 0 0 auto; }
+    .youtube-status { font-size: .8rem; opacity: .85; line-height: 1.4; }
+    .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
     .playlist-meta { font-size: .74rem; line-height: 1.4; opacity: .75; }
     .stl-mode-backdrop {
       position: fixed;
@@ -1093,6 +1098,20 @@
       </div>
     </div>
     <div class="row">
+      <label for="youtubePlaylistUrl">YouTube-Playlist</label>
+      <div class="input-row">
+        <input id="youtubePlaylistUrl" type="text" placeholder="https://www.youtube.com/playlist?list=…" aria-label="YouTube-Playlist-URL oder -ID" />
+        <button type="button" id="youtubeLoad">🔗 Laden</button>
+      </div>
+      <div class="audio-controls">
+        <button type="button" id="youtubePlay" disabled>▶️ Start</button>
+        <button type="button" id="youtubePause" disabled>⏸️ Pause</button>
+        <button type="button" id="youtubePrev" disabled>⏮️ Zurück</button>
+        <button type="button" id="youtubeNext" disabled>⏭️ Weiter</button>
+      </div>
+      <div class="youtube-status" id="youtubeStatus">Keine YouTube-Playlist geladen</div>
+    </div>
+    <div class="row">
       <div class="audio-controls audio-controls--secondary">
         <button type="button" id="audioRepeat" aria-pressed="false" disabled>🔁 Repeat aus</button>
       </div>
@@ -1186,6 +1205,9 @@
   <button type="button" id="audioOverlayButton" aria-label="Musik und Visualisierung starten">
     ▶️ Play – Musik & Visualisierung starten
   </button>
+</div>
+<div class="sr-only" aria-hidden="true">
+  <div id="youtubePlayer"></div>
 </div>
 <script>
 /* Utility: HSV→RGB (for potential future color variations) */
@@ -2429,6 +2451,7 @@ const audioState = {
   freqData: null,
   timeData: null,
   source: null,
+  youtubeActive: false,
   micStream: null,
   playing: false,
   usingMic: false,
@@ -2469,6 +2492,17 @@ const audioState = {
   previousMid: 0
 };
 
+const youtubeState = {
+  apiPromise: null,
+  player: null,
+  ready: false,
+  loading: false,
+  playlistId: '',
+  currentVideoTitle: '',
+  stream: null,
+  streamSource: null
+};
+
 const AUDIO_VISUAL_BASE = Object.freeze({
   motion: 0,
   size: 1,
@@ -2498,6 +2532,16 @@ const audioUI = {
   overlay: null,
   overlayButton: null,
   brightnessAdaptationBtn: null
+};
+
+const youtubeUI = {
+  playlistInput: null,
+  loadBtn: null,
+  playBtn: null,
+  pauseBtn: null,
+  prevBtn: null,
+  nextBtn: null,
+  status: null
 };
 
 const autoRandomState = {
@@ -3018,8 +3062,8 @@ function disconnectAnalyser() {
   }
 }
 
-function stopAudioPlayback({ suspendContext = false, skipUiUpdates = false } = {}) {
-  const wasActive = audioState.playing || audioState.usingMic;
+function stopAudioPlayback({ suspendContext = false, skipUiUpdates = false, stopYouTube = true } = {}) {
+  const wasActive = audioState.playing || audioState.usingMic || audioState.youtubeActive;
   if (audioState.source) {
     try { audioState.source.disconnect(); } catch (err) { /* ignore */ }
     if (typeof audioState.source.stop === 'function') {
@@ -3027,12 +3071,18 @@ function stopAudioPlayback({ suspendContext = false, skipUiUpdates = false } = {
     }
   }
   audioState.source = null;
+  if (stopYouTube) {
+    stopYouTubeStream({ stopPlayback: true });
+  } else {
+    stopYouTubeStream({ detachOnly: true });
+  }
   if (audioState.micStream) {
     audioState.micStream.getTracks().forEach(track => track.stop());
   }
   audioState.micStream = null;
   audioState.playing = false;
   audioState.usingMic = false;
+  audioState.youtubeActive = false;
   disconnectAnalyser();
   resetAudioReactivity();
   if (!skipUiUpdates && (wasActive || experienceState.panelsHiddenForPlayback)) {
@@ -3157,6 +3207,27 @@ function refreshAudioUI() {
       button.setAttribute('aria-pressed', active ? 'true' : 'false');
     });
   }
+  const youtubeReady = youtubeState.ready && youtubeState.player;
+  const hasYouTubePlaylist = youtubeReady && !!youtubeState.playlistId;
+  const youtubeActive = audioState.youtubeActive;
+  if (youtubeUI.loadBtn) {
+    youtubeUI.loadBtn.disabled = youtubeState.loading;
+  }
+  if (youtubeUI.playBtn) {
+    youtubeUI.playBtn.disabled = !hasYouTubePlaylist || youtubeState.loading || youtubeActive;
+  }
+  if (youtubeUI.pauseBtn) {
+    youtubeUI.pauseBtn.disabled = !youtubeActive;
+  }
+  if (youtubeUI.prevBtn) {
+    youtubeUI.prevBtn.disabled = !hasYouTubePlaylist;
+  }
+  if (youtubeUI.nextBtn) {
+    youtubeUI.nextBtn.disabled = !hasYouTubePlaylist;
+  }
+  if (youtubeUI.playlistInput) {
+    youtubeUI.playlistInput.disabled = youtubeState.loading;
+  }
   updateAudioFileMeta(audioState.selectedFile);
   syncAudioIntensityControls();
   if (audioUI.autoRandomBtn) {
@@ -3227,6 +3298,8 @@ function updateRepeatButton(disabled = false) {
 function updateAudioFileMeta(file) {
   const total = getPlaylistLength();
   const hasFiles = total > 0;
+  const youtubeTitle = youtubeState.currentVideoTitle || '';
+  const hasYouTube = Boolean(audioState.youtubeActive || youtubeState.playlistId);
   const currentIndex = hasFiles ? clampTrackIndex(audioState.currentIndex) : -1;
   const activeFile = hasFiles ? (file || audioState.playlist[currentIndex] || null) : null;
   if (hasFiles && activeFile !== audioState.selectedFile) {
@@ -3237,7 +3310,9 @@ function updateAudioFileMeta(file) {
     audioState.fileName = '';
   }
   if (audioUI.fileMeta) {
-    if (!activeFile) {
+    if (!activeFile && hasYouTube) {
+      audioUI.fileMeta.textContent = youtubeTitle || 'YouTube';
+    } else if (!activeFile) {
       audioUI.fileMeta.textContent = hasFiles ? 'Datei nicht verfügbar' : 'Keine Auswahl';
     } else {
       const name = activeFile.name || 'Audio';
@@ -3246,7 +3321,9 @@ function updateAudioFileMeta(file) {
     }
   }
   if (audioUI.playlistMeta) {
-    if (!hasFiles) {
+    if (!hasFiles && hasYouTube) {
+      audioUI.playlistMeta.textContent = youtubeTitle ? `YouTube · ${youtubeTitle}` : 'YouTube-Playlist';
+    } else if (!hasFiles) {
       audioUI.playlistMeta.textContent = 'Keine Playlist geladen';
     } else {
       const displayIndex = currentIndex >= 0 ? currentIndex + 1 : 1;
@@ -3268,6 +3345,195 @@ function setPlaylist(files) {
     audioState.fileName = '';
   }
   updateAudioFileMeta(audioState.selectedFile);
+}
+
+function parseYouTubePlaylistId(value) {
+  if (!value) return '';
+  const trimmed = value.trim();
+  const listMatch = trimmed.match(/[?&#]list=([a-zA-Z0-9_-]+)/i);
+  if (listMatch && listMatch[1]) {
+    return listMatch[1];
+  }
+  if (/^PL|^LL|^OL|^UU/.test(trimmed)) {
+    return trimmed;
+  }
+  return '';
+}
+
+function setYouTubeStatus(message, state = 'idle') {
+  if (youtubeUI.status) {
+    youtubeUI.status.textContent = message;
+    youtubeUI.status.dataset.state = state;
+  }
+}
+
+function ensureYouTubeApiReady() {
+  if (youtubeState.apiPromise) {
+    return youtubeState.apiPromise;
+  }
+  youtubeState.apiPromise = new Promise((resolve, reject) => {
+    if (window.YT && window.YT.Player) {
+      youtubeState.ready = true;
+      resolve(window.YT);
+      return;
+    }
+    const previousCallback = window.onYouTubeIframeAPIReady;
+    window.onYouTubeIframeAPIReady = () => {
+      youtubeState.ready = true;
+      if (typeof previousCallback === 'function') {
+        previousCallback();
+      }
+      resolve(window.YT);
+    };
+    const script = document.createElement('script');
+    script.src = 'https://www.youtube.com/iframe_api';
+    script.async = true;
+    script.onerror = () => reject(new Error('YouTube API konnte nicht geladen werden.'));
+    document.head.appendChild(script);
+  });
+  return youtubeState.apiPromise;
+}
+
+function createYouTubePlayer() {
+  if (youtubeState.player || !window.YT || !window.YT.Player) {
+    return youtubeState.player;
+  }
+  youtubeState.player = new YT.Player('youtubePlayer', {
+    height: '0',
+    width: '0',
+    playerVars: {
+      playsinline: 1,
+      rel: 0,
+      controls: 0,
+      origin: window.location.origin,
+      enablejsapi: 1
+    },
+    events: {
+      onReady: () => {
+        youtubeState.ready = true;
+        setYouTubeStatus('YouTube-Player bereit – Playlist laden, um zu starten.', 'info');
+        refreshAudioUI();
+      },
+      onStateChange: handleYouTubeStateChange
+    }
+  });
+  return youtubeState.player;
+}
+
+function stopYouTubeStream({ stopPlayback = false, detachOnly = false } = {}) {
+  if (youtubeState.streamSource) {
+    try { youtubeState.streamSource.disconnect(); } catch (err) { /* ignore */ }
+  }
+  youtubeState.streamSource = null;
+  if (youtubeState.stream && !detachOnly) {
+    try {
+      youtubeState.stream.getTracks().forEach(track => track.stop());
+    } catch (err) {
+      /* ignore */
+    }
+  }
+  if (stopPlayback && youtubeState.player && typeof youtubeState.player.stopVideo === 'function') {
+    youtubeState.player.stopVideo();
+  }
+  youtubeState.stream = null;
+  audioState.youtubeActive = false;
+}
+
+function getYouTubeAudioStream(player) {
+  const iframe = player && typeof player.getIframe === 'function' ? player.getIframe() : null;
+  if (!iframe) return null;
+  if (typeof iframe.captureStream === 'function') {
+    return iframe.captureStream();
+  }
+  if (typeof iframe.mozCaptureStream === 'function') {
+    return iframe.mozCaptureStream();
+  }
+  return null;
+}
+
+async function connectYouTubeAudio() {
+  const player = youtubeState.player;
+  const stream = getYouTubeAudioStream(player);
+  if (!stream) {
+    throw new Error('Audio-Stream kann nicht aus dem YouTube-Player abgegriffen werden.');
+  }
+  const context = ensureAudioContext();
+  await context.resume();
+  const analyser = ensureAnalyser(context);
+  stopAudioPlayback({ skipUiUpdates: true, stopYouTube: false });
+  disconnectAnalyser();
+  const source = context.createMediaStreamSource(stream);
+  source.connect(analyser);
+  analyser.connect(context.destination);
+  youtubeState.stream = stream;
+  youtubeState.streamSource = source;
+  audioState.source = source;
+  audioState.playing = true;
+  audioState.usingMic = false;
+  audioState.youtubeActive = true;
+  audioState.fileName = youtubeState.currentVideoTitle || 'YouTube';
+  updateAudioFileMeta({ name: audioState.fileName });
+  setAudioStatus(`YouTube: ${audioState.fileName}`, 'active');
+  refreshAudioUI();
+  notifyPlaybackStarted();
+}
+
+function handleYouTubeStateChange(event) {
+  if (!event || !youtubeState.player || typeof YT === 'undefined') return;
+  const videoData = youtubeState.player.getVideoData ? youtubeState.player.getVideoData() : {};
+  youtubeState.currentVideoTitle = videoData && videoData.title ? videoData.title : 'YouTube';
+  if (event.data === YT.PlayerState.PLAYING) {
+    setYouTubeStatus(`Spielt: ${youtubeState.currentVideoTitle}`, 'active');
+    connectYouTubeAudio().catch(error => {
+      console.error('YouTube-Audio konnte nicht verbunden werden:', error);
+      setAudioStatus('YouTube-Audio konnte nicht verbunden werden.', 'error');
+      setYouTubeStatus('Audio-Visualisierung nicht möglich (Browser-Einschränkung).', 'error');
+      refreshAudioUI();
+    });
+    return;
+  }
+  if (event.data === YT.PlayerState.PAUSED) {
+    stopYouTubeStream({ detachOnly: true });
+    audioState.playing = false;
+    audioState.youtubeActive = false;
+    setAudioStatus('YouTube pausiert.', 'idle');
+    refreshAudioUI();
+    return;
+  }
+  if (event.data === YT.PlayerState.ENDED) {
+    stopYouTubeStream();
+    audioState.playing = false;
+    audioState.youtubeActive = false;
+    setAudioStatus('YouTube-Track beendet.', 'idle');
+    refreshAudioUI();
+  }
+}
+
+async function loadYouTubePlaylistFromInput() {
+  const value = youtubeUI.playlistInput ? youtubeUI.playlistInput.value : '';
+  const playlistId = parseYouTubePlaylistId(value);
+  if (!playlistId) {
+    setYouTubeStatus('Ungültige Playlist-URL oder -ID.', 'error');
+    return;
+  }
+  youtubeState.loading = true;
+  setYouTubeStatus('Playlist wird geladen…', 'waiting');
+  refreshAudioUI();
+  try {
+    await ensureYouTubeApiReady();
+    const player = createYouTubePlayer();
+    youtubeState.playlistId = playlistId;
+    if (player && typeof player.loadPlaylist === 'function') {
+      player.loadPlaylist({ listType: 'playlist', list: playlistId, index: 0 });
+      player.playVideo();
+    }
+    setYouTubeStatus('Playlist geladen – Wiedergabe startet.', 'info');
+  } catch (error) {
+    console.error('YouTube-Playlist konnte nicht geladen werden:', error);
+    setYouTubeStatus('Fehler beim Laden der YouTube-Playlist.', 'error');
+  }
+  youtubeState.loading = false;
+  refreshAudioUI();
 }
 
 class PresetAudioFile {
@@ -3611,6 +3877,7 @@ async function playSelectedFile() {
     setAudioStatus('Web Audio API wird nicht unterstützt.', 'error');
     return;
   }
+  stopYouTubeStream({ stopPlayback: true });
   try {
     const playlistIndex = clampTrackIndex(audioState.currentIndex);
     const total = getPlaylistLength();
@@ -3666,6 +3933,7 @@ async function startMicrophone() {
     setAudioStatus('Mikrofon wird nicht unterstützt.', 'error');
     return;
   }
+  stopYouTubeStream({ stopPlayback: true });
   try {
     setAudioStatus('Mikrofon wird gestartet…', 'waiting');
     if (audioUI.micStartBtn) {
@@ -5121,6 +5389,13 @@ audioUI.micStopBtn = $('audioMicStop');
 audioUI.statusText = $('audioStatus');
 audioUI.statusDot = $('audioStatusDot');
 audioUI.modifierButtons = Array.from(document.querySelectorAll('#audioModifierGrid [data-modifier]'));
+youtubeUI.playlistInput = $('youtubePlaylistUrl');
+youtubeUI.loadBtn = $('youtubeLoad');
+youtubeUI.playBtn = $('youtubePlay');
+youtubeUI.pauseBtn = $('youtubePause');
+youtubeUI.prevBtn = $('youtubePrev');
+youtubeUI.nextBtn = $('youtubeNext');
+youtubeUI.status = $('youtubeStatus');
 
 const barState = {
   visible: bar ? bar.classList.contains('is-visible') : false,
@@ -5607,6 +5882,51 @@ if (audioUI.micStartBtn) {
 if (audioUI.micStopBtn) {
   audioUI.micStopBtn.addEventListener('click', () => {
     stopAudioFromUser();
+  });
+}
+
+if (youtubeUI.loadBtn) {
+  youtubeUI.loadBtn.addEventListener('click', () => {
+    loadYouTubePlaylistFromInput();
+  });
+}
+
+if (youtubeUI.playBtn) {
+  youtubeUI.playBtn.addEventListener('click', async () => {
+    if (!youtubeState.player) {
+      await ensureYouTubeApiReady();
+      createYouTubePlayer();
+    }
+    if (youtubeState.player && typeof youtubeState.player.playVideo === 'function') {
+      youtubeState.player.playVideo();
+    }
+  });
+}
+
+if (youtubeUI.pauseBtn) {
+  youtubeUI.pauseBtn.addEventListener('click', () => {
+    stopYouTubeStream({ detachOnly: true });
+    if (youtubeState.player && typeof youtubeState.player.pauseVideo === 'function') {
+      youtubeState.player.pauseVideo();
+    }
+    setAudioStatus('YouTube pausiert.', 'idle');
+    refreshAudioUI();
+  });
+}
+
+if (youtubeUI.prevBtn) {
+  youtubeUI.prevBtn.addEventListener('click', () => {
+    if (youtubeState.player && typeof youtubeState.player.previousVideo === 'function') {
+      youtubeState.player.previousVideo();
+    }
+  });
+}
+
+if (youtubeUI.nextBtn) {
+  youtubeUI.nextBtn.addEventListener('click', () => {
+    if (youtubeState.player && typeof youtubeState.player.nextVideo === 'function') {
+      youtubeState.player.nextVideo();
+    }
   });
 }
 
