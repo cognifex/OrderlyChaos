@@ -4318,6 +4318,101 @@ function parseYouTubeVideoId(value) {
   return '';
 }
 
+function sanitizeFileName(name) {
+  const cleaned = (name || 'Audio').replace(/[<>:"/\\|?*\x00-\x1F]/g, '').trim();
+  return cleaned || 'Audio';
+}
+
+function ensureFileExtension(name, ext) {
+  if (!ext) return name;
+  const normalized = ext.startsWith('.') ? ext.slice(1) : ext;
+  const lower = name.toLowerCase();
+  return lower.endsWith(`.${normalized.toLowerCase()}`) ? name : `${name}.${normalized}`;
+}
+
+function extensionFromMime(mimeType) {
+  const normalized = (mimeType || '').toLowerCase();
+  switch (normalized) {
+    case 'audio/mpeg': return 'mp3';
+    case 'audio/wav': return 'wav';
+    case 'audio/ogg': return 'ogg';
+    case 'audio/flac': return 'flac';
+    case 'audio/mp4':
+    case 'audio/aac': return 'm4a';
+    default: return '';
+  }
+}
+
+function selectBestAudioStream(streams = []) {
+  if (!Array.isArray(streams) || !streams.length) return null;
+  const sorted = streams
+    .filter(stream => stream && stream.url)
+    .sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0));
+  return sorted[0] || null;
+}
+
+async function downloadYouTubeTrackAsFile(videoId, { title = '', playlistId = '' } = {}) {
+  if (!videoId) return null;
+  const safeTitle = sanitizeFileName(title || `YouTube-${videoId}`);
+  let streamUrl = '';
+  let mimeType = 'audio/mpeg';
+  try {
+    const response = await fetch(`https://piped.video/api/v1/streams/${encodeURIComponent(videoId)}`);
+    if (response.ok) {
+      const payload = await response.json();
+      const best = selectBestAudioStream(payload?.audioStreams || []);
+      if (best && best.url) {
+        streamUrl = best.url;
+        mimeType = best.mimeType || mimeType;
+      }
+    }
+  } catch (error) {
+    console.warn('YouTube-Stream-Info konnte nicht geladen werden:', error);
+  }
+  if (!streamUrl) {
+    streamUrl = `https://piped.video/latest_version?id=${encodeURIComponent(videoId)}&itag=140`;
+  }
+  setYouTubeStatus(`Lade ${safeTitle}…`, 'waiting');
+  const response = await fetch(streamUrl);
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status} beim Laden des YouTube-Tracks`);
+  }
+  const blob = await response.blob();
+  const resolvedMime = blob.type || mimeType || 'audio/mpeg';
+  const ext = extensionFromMime(resolvedMime) || 'mp3';
+  const fileName = ensureFileExtension(safeTitle, ext);
+  const file = new File([blob], fileName, { type: resolvedMime, lastModified: Date.now() });
+  return {
+    id: createTrackId(),
+    source: 'local',
+    title: safeTitle,
+    file,
+    youtubeId: videoId,
+    playlistId: playlistId || ''
+  };
+}
+
+async function downloadYouTubeIdsAsTracks(ids, { playlistId = '' } = {}) {
+  const tracks = [];
+  const total = Array.isArray(ids) ? ids.length : 0;
+  if (!total) return tracks;
+  for (let index = 0; index < total; index += 1) {
+    const youtubeId = ids[index];
+    if (!youtubeId) continue;
+    try {
+      setYouTubeStatus(`Lade Titel ${index + 1}/${total}…`, 'waiting');
+      const title = await fetchYouTubeTitle(youtubeId);
+      const track = await downloadYouTubeTrackAsFile(youtubeId, { title, playlistId });
+      if (track) {
+        tracks.push(track);
+      }
+    } catch (error) {
+      console.error(`Titel ${youtubeId} konnte nicht heruntergeladen werden:`, error);
+    }
+  }
+  return tracks;
+}
+
 async function fetchYouTubeTitle(videoId) {
   try {
     const response = await fetch(`https://noembed.com/embed?url=https://www.youtube.com/watch?v=${encodeURIComponent(videoId)}`);
@@ -4362,19 +4457,11 @@ async function resolveYouTubeTracksFromInput(inputValue) {
   const playlistId = parseYouTubePlaylistId(inputValue);
   if (playlistId) {
     const ids = await fetchPlaylistVideoIds(playlistId);
-    const tracks = [];
-    for (const id of ids) {
-      const title = await fetchYouTubeTitle(id);
-      const track = buildYouTubeTrack(id, title, playlistId);
-      if (track) tracks.push(track);
-    }
-    return tracks;
+    return downloadYouTubeIdsAsTracks(ids, { playlistId });
   }
   const videoId = parseYouTubeVideoId(inputValue);
   if (videoId) {
-    const title = await fetchYouTubeTitle(videoId);
-    const track = buildYouTubeTrack(videoId, title);
-    return track ? [track] : [];
+    return downloadYouTubeIdsAsTracks([videoId]);
   }
   throw new Error('Ungültige Playlist- oder Video-URL.');
 }
@@ -4755,7 +4842,7 @@ async function loadYouTubePlaylistFromInput(valueOverride = '') {
     return false;
   }
   youtubeState.loading = true;
-  setYouTubeStatus('YouTube wird geladen…', 'waiting');
+  setYouTubeStatus('Playlist wird heruntergeladen…', 'waiting');
   refreshAudioUI();
   let success = false;
   try {
