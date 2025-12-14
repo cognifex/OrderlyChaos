@@ -4457,11 +4457,15 @@ function stopYouTubeStream({ stopPlayback = false, detachOnly = false } = {}) {
 function getYouTubeAudioStream(player) {
   const iframe = player && typeof player.getIframe === 'function' ? player.getIframe() : null;
   if (!iframe) return null;
-  if (typeof iframe.captureStream === 'function') {
-    return iframe.captureStream();
-  }
-  if (typeof iframe.mozCaptureStream === 'function') {
-    return iframe.mozCaptureStream();
+  try {
+    if (typeof iframe.captureStream === 'function') {
+      return iframe.captureStream();
+    }
+    if (typeof iframe.mozCaptureStream === 'function') {
+      return iframe.mozCaptureStream();
+    }
+  } catch (error) {
+    console.warn('YouTube captureStream fehlgeschlagen:', error);
   }
   return null;
 }
@@ -4475,6 +4479,28 @@ async function connectYouTubeAudio() {
   const stream = getYouTubeAudioStream(player);
   if (!stream) {
     throw new Error('Audio-Stream kann nicht aus dem YouTube-Player abgegriffen werden.');
+  }
+  const hasTrack = () => stream.getAudioTracks().some(track => track.readyState !== 'ended');
+  if (!hasTrack()) {
+    await new Promise((resolve, reject) => {
+      const timeout = window.setTimeout(() => {
+        stream.removeEventListener?.('addtrack', onAddTrack);
+        reject(new Error('YouTube liefert keinen Audiotrack.'));
+      }, 1800);
+      function onAddTrack() {
+        if (hasTrack()) {
+          window.clearTimeout(timeout);
+          stream.removeEventListener?.('addtrack', onAddTrack);
+          resolve();
+        }
+      }
+      stream.addEventListener?.('addtrack', onAddTrack);
+      if (hasTrack()) {
+        window.clearTimeout(timeout);
+        stream.removeEventListener?.('addtrack', onAddTrack);
+        resolve();
+      }
+    });
   }
   const context = ensureAudioContext();
   await context.resume();
@@ -7438,7 +7464,7 @@ function handleMobileMediaChange() {
 }
 
 function setPanelVisible(show) {
-  panelVisible = !!show;
+  panelVisible = !!show && experienceState.editingMode;
   if (!panel) {
     setAudioPanelVisible(panelVisible);
     return;
@@ -7508,20 +7534,15 @@ function setEditingMode(enabled, { skipStop = false, skipPanelRestore = false } 
     restoreInterfaceAfterPlayback();
     updateAudioOverlayVisibility();
   } else {
-    const prevPanel = experienceState.editingPreviousPanel;
     const prevBar = experienceState.editingPreviousBar;
     experienceState.editingPreviousPanel = null;
     experienceState.editingPreviousBar = null;
-    if (!skipPanelRestore) {
-      if (prevPanel !== null) {
-        setPanelVisible(prevPanel);
-      }
-      if (typeof prevBar === 'boolean') {
-        if (prevBar) {
-          showBar({ autoHideDelay: 3200 });
-        } else {
-          hideBar({ immediate: true });
-        }
+    setPanelVisible(false);
+    if (!skipPanelRestore && typeof prevBar === 'boolean') {
+      if (prevBar) {
+        showBar({ autoHideDelay: 3200 });
+      } else {
+        hideBar({ immediate: true });
       }
     }
     updateAudioOverlayVisibility();
@@ -7529,7 +7550,7 @@ function setEditingMode(enabled, { skipStop = false, skipPanelRestore = false } 
 }
 
 function getDefaultPanelVisibility() {
-  return window.innerWidth > 580;
+  return false;
 }
 
 function hideInterfaceForPlayback({ remember = true } = {}) {
