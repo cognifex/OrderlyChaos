@@ -187,8 +187,10 @@
     }
     #audioOverlay[data-visible="true"] {
       opacity: 1;
-      pointer-events: auto;
       transform: translateY(0);
+    }
+    #audioOverlay[data-visible="true"] #audioOverlayButton {
+      pointer-events: auto;
     }
     #audioOverlayButton {
       display: inline-flex;
