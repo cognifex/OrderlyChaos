@@ -2985,6 +2985,58 @@ function getTrackDisplayName(track) {
   return 'Audio';
 }
 
+function getTrackSourceIcon(track) {
+  if (!track) return '🎵';
+  switch (track.source) {
+    case 'preset': return '📀';
+    case 'youtube': return '▶️';
+    case 'local':
+    default: return '🎧';
+  }
+}
+
+function getYoutubeTrackIndices() {
+  const tracks = Array.isArray(audioState.playlist) ? audioState.playlist : [];
+  const indices = [];
+  tracks.forEach((track, index) => {
+    if (track && track.source === 'youtube') {
+      indices.push(index);
+    }
+  });
+  return indices;
+}
+
+function findNextYoutubeIndex(startIndex = -1, direction = 1) {
+  const tracks = Array.isArray(audioState.playlist) ? audioState.playlist : [];
+  if (!tracks.length) return -1;
+  const total = tracks.length;
+  let steps = 0;
+  let index = startIndex;
+  while (steps < total) {
+    index = (index + direction + total) % total;
+    if (tracks[index] && tracks[index].source === 'youtube') {
+      return index;
+    }
+    steps += 1;
+  }
+  return -1;
+}
+
+function focusYoutubeTrack(direction = 'first') {
+  const hasYoutubeTracks = getYoutubeTrackIndices();
+  if (!hasYoutubeTracks.length) return false;
+  let targetIndex = -1;
+  if (direction === 'prev') {
+    targetIndex = findNextYoutubeIndex(audioState.currentIndex, -1);
+  } else if (direction === 'next') {
+    targetIndex = findNextYoutubeIndex(audioState.currentIndex, 1);
+  } else {
+    targetIndex = findNextYoutubeIndex(-1, 1);
+  }
+  if (targetIndex === -1) return false;
+  return setCurrentTrack(targetIndex, { updateMeta: true });
+}
+
 function mapItemToTrack(item, { sourceHint = 'local', playlistId = '' } = {}) {
   if (!item) return null;
   if (item && item.source && item.id) {
@@ -3857,23 +3909,23 @@ function refreshAudioUI() {
       button.setAttribute('aria-pressed', active ? 'true' : 'false');
     });
   }
-  const youtubeReady = youtubeState.ready && youtubeState.player;
-  const hasYouTubePlaylist = youtubeReady && !!youtubeState.playlistId;
   const youtubeActive = audioState.youtubeActive;
+  const youtubeTracks = getYoutubeTrackIndices();
+  const hasYoutubeTracks = youtubeTracks.length > 0;
   if (youtubeUI.loadBtn) {
     youtubeUI.loadBtn.disabled = youtubeState.loading;
   }
   if (youtubeUI.playBtn) {
-    youtubeUI.playBtn.disabled = !hasYouTubePlaylist || youtubeState.loading || youtubeActive;
+    youtubeUI.playBtn.disabled = !hasYoutubeTracks || youtubeState.loading || youtubeActive;
   }
   if (youtubeUI.pauseBtn) {
     youtubeUI.pauseBtn.disabled = !youtubeActive;
   }
   if (youtubeUI.prevBtn) {
-    youtubeUI.prevBtn.disabled = !hasYouTubePlaylist;
+    youtubeUI.prevBtn.disabled = youtubeTracks.length <= 1;
   }
   if (youtubeUI.nextBtn) {
-    youtubeUI.nextBtn.disabled = !hasYouTubePlaylist;
+    youtubeUI.nextBtn.disabled = youtubeTracks.length <= 1;
   }
   if (youtubeUI.playlistInput) {
     youtubeUI.playlistInput.disabled = youtubeState.loading;
@@ -4020,7 +4072,7 @@ function renderQueueList() {
     meta.className = 'queue-item-meta';
     const source = document.createElement('span');
     source.className = 'queue-source';
-    source.textContent = getTrackSourceLabel(track);
+    source.textContent = `${getTrackSourceIcon(track)} ${getTrackSourceLabel(track)}`;
     const position = document.createElement('span');
     position.textContent = `${index + 1}/${tracks.length}`;
     meta.appendChild(source);
@@ -7040,41 +7092,51 @@ if (youtubeUI.loadBtn) {
 }
 
 if (youtubeUI.playBtn) {
-  youtubeUI.playBtn.addEventListener('click', async () => {
-    if (!youtubeState.player) {
-      await ensureYouTubeApiReady();
-      createYouTubePlayer();
+  youtubeUI.playBtn.addEventListener('click', () => {
+    const alreadyYoutube = audioState.currentTrack && audioState.currentTrack.source === 'youtube';
+    const focused = alreadyYoutube ? true : focusYoutubeTrack('first');
+    if (!focused) {
+      setYouTubeStatus('Keine YouTube-Titel in der Playlist.', 'error');
+      return;
     }
-    if (youtubeState.player && typeof youtubeState.player.playVideo === 'function') {
-      youtubeState.player.playVideo();
-    }
+    prepareExperienceForPlayback();
+    playCurrentTrack();
+    setQueueOpen(false);
+    setYouTubeStatus('YouTube-Track aus Playlist gestartet.', 'info');
   });
 }
 
 if (youtubeUI.pauseBtn) {
   youtubeUI.pauseBtn.addEventListener('click', () => {
-    stopYouTubeStream({ detachOnly: true });
-    if (youtubeState.player && typeof youtubeState.player.pauseVideo === 'function') {
-      youtubeState.player.pauseVideo();
+    if (audioState.youtubeActive) {
+      stopAudioPlayback({ stopYouTube: true });
+      setAudioStatus('YouTube pausiert.', 'idle');
+      refreshAudioUI();
+      return;
     }
-    setAudioStatus('YouTube pausiert.', 'idle');
-    refreshAudioUI();
+    setYouTubeStatus('Kein YouTube-Track aktiv.', 'error');
   });
 }
 
 if (youtubeUI.prevBtn) {
   youtubeUI.prevBtn.addEventListener('click', () => {
-    if (youtubeState.player && typeof youtubeState.player.previousVideo === 'function') {
-      youtubeState.player.previousVideo();
+    if (focusYoutubeTrack('prev')) {
+      playCurrentTrack();
+      setYouTubeStatus('Vorheriger YouTube-Titel gestartet.', 'info');
+      return;
     }
+    setYouTubeStatus('Keine vorherigen YouTube-Titel gefunden.', 'error');
   });
 }
 
 if (youtubeUI.nextBtn) {
   youtubeUI.nextBtn.addEventListener('click', () => {
-    if (youtubeState.player && typeof youtubeState.player.nextVideo === 'function') {
-      youtubeState.player.nextVideo();
+    if (focusYoutubeTrack('next')) {
+      playCurrentTrack();
+      setYouTubeStatus('Nächster YouTube-Titel gestartet.', 'info');
+      return;
     }
+    setYouTubeStatus('Keine weiteren YouTube-Titel gefunden.', 'error');
   });
 }
 
