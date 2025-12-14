@@ -2981,7 +2981,9 @@ const youtubeState = {
   playlistId: '',
   currentVideoTitle: '',
   stream: null,
-  streamSource: null
+  streamSource: null,
+  audioWatchTimer: null,
+  audioWatchTimeout: null
 };
 
 const RECENT_YOUTUBE_STORAGE_KEY = 'oc_recent_youtube_playlists';
@@ -4436,6 +4438,7 @@ function createYouTubePlayer() {
 }
 
 function stopYouTubeStream({ stopPlayback = false, detachOnly = false } = {}) {
+  clearYouTubeAudioWatcher();
   if (youtubeState.streamSource) {
     try { youtubeState.streamSource.disconnect(); } catch (err) { /* ignore */ }
   }
@@ -4470,8 +4473,20 @@ function getYouTubeAudioStream(player) {
   return null;
 }
 
-function waitMs(ms = 0) {
-  return new Promise(resolve => setTimeout(resolve, Math.max(0, ms)));
+function hasActiveYouTubeAudioTrack(stream) {
+  if (!stream || typeof stream.getAudioTracks !== 'function') return false;
+  return stream.getAudioTracks().some(track => track.readyState !== 'ended');
+}
+
+function clearYouTubeAudioWatcher() {
+  if (youtubeState.audioWatchTimer) {
+    window.clearTimeout(youtubeState.audioWatchTimer);
+    youtubeState.audioWatchTimer = null;
+  }
+  if (youtubeState.audioWatchTimeout) {
+    window.clearTimeout(youtubeState.audioWatchTimeout);
+    youtubeState.audioWatchTimeout = null;
+  }
 }
 
 async function connectYouTubeAudio() {
@@ -4480,7 +4495,7 @@ async function connectYouTubeAudio() {
   if (!stream) {
     throw new Error('Audio-Stream kann nicht aus dem YouTube-Player abgegriffen werden.');
   }
-  const hasTrack = () => stream.getAudioTracks().some(track => track.readyState !== 'ended');
+  const hasTrack = () => hasActiveYouTubeAudioTrack(stream);
   if (!hasTrack()) {
     await new Promise((resolve, reject) => {
       const timeout = window.setTimeout(() => {
@@ -4531,21 +4546,45 @@ async function connectYouTubeAudio() {
   notifyPlaybackStarted();
 }
 
-async function bindYouTubeAudioWithRetry({ attempts = 3, delayMs = 220 } = {}) {
-  let lastError = null;
-  for (let i = 0; i < attempts; i++) {
-    try {
-      await connectYouTubeAudio();
-      return true;
-    } catch (error) {
-      lastError = error;
-      await waitMs(delayMs);
+async function ensureYouTubeAnalyserBound({ intervalMs = 380, timeoutMs = 8200 } = {}) {
+  const player = youtubeState.player;
+  clearYouTubeAudioWatcher();
+  if (!player) {
+    throw new Error('YouTube-Player nicht bereit.');
+  }
+
+  return new Promise((resolve, reject) => {
+    youtubeState.audioWatchTimeout = window.setTimeout(() => {
+      clearYouTubeAudioWatcher();
+      const error = new Error('YouTube liefert keinen Audiotrack (Timeout).');
+      setYouTubeStatus('YouTube liefert keinen Audiotrack (Timeout).', 'error');
+      setAudioStatus('YouTube-Audio konnte nicht verbunden werden.', 'error');
+      refreshAudioUI();
+      reject(error);
+    }, timeoutMs);
+
+    async function pollStream() {
+      youtubeState.audioWatchTimer = null;
+      const stream = getYouTubeAudioStream(player);
+      if (hasActiveYouTubeAudioTrack(stream)) {
+        clearYouTubeAudioWatcher();
+        try {
+          await connectYouTubeAudio();
+          resolve(true);
+        } catch (error) {
+          reject(error);
+        }
+        return;
+      }
+      youtubeState.audioWatchTimer = window.setTimeout(pollStream, intervalMs);
     }
-  }
-  if (lastError) {
-    throw lastError;
-  }
-  return false;
+
+    pollStream();
+  });
+}
+
+async function bindYouTubeAudioWithRetry({ attempts = 3, delayMs = 220, timeoutMs = 8200 } = {}) {
+  return ensureYouTubeAnalyserBound({ intervalMs: Math.max(120, delayMs), timeoutMs });
 }
 
 async function playYouTubeTrack(track) {
@@ -4564,7 +4603,7 @@ async function playYouTubeTrack(track) {
     if (typeof player.loadVideoById === 'function') {
       player.loadVideoById(track.youtubeId);
     }
-    bindYouTubeAudioWithRetry({ attempts: 4, delayMs: 260 }).catch(error => {
+    bindYouTubeAudioWithRetry({ delayMs: 380, timeoutMs: 8200 }).catch(error => {
       console.warn('Initiale YouTube-Audio-Verbindung fehlgeschlagen:', error);
     });
     audioState.youtubeActive = true;
@@ -4583,11 +4622,14 @@ function handleYouTubeStateChange(event) {
   youtubeState.currentVideoTitle = videoData && videoData.title ? videoData.title : 'YouTube';
   if (event.data === YT.PlayerState.PLAYING) {
     setYouTubeStatus(`Spielt: ${youtubeState.currentVideoTitle}`, 'active');
-    bindYouTubeAudioWithRetry({ attempts: 4, delayMs: 260 }).catch(error => {
+    bindYouTubeAudioWithRetry({ delayMs: 380, timeoutMs: 8200 }).catch(error => {
+      const isTimeout = error && typeof error.message === 'string' && error.message.includes('Timeout');
       console.error('YouTube-Audio konnte nicht verbunden werden:', error);
-      setAudioStatus('YouTube-Audio konnte nicht verbunden werden.', 'error');
-      setYouTubeStatus('Audio-Visualisierung nicht möglich (Browser-Einschränkung).', 'error');
-      refreshAudioUI();
+      if (!isTimeout) {
+        setAudioStatus('YouTube-Audio konnte nicht verbunden werden.', 'error');
+        setYouTubeStatus('Audio-Visualisierung nicht möglich (Browser-Einschränkung).', 'error');
+        refreshAudioUI();
+      }
     });
     return;
   }
