@@ -4587,6 +4587,28 @@ async function bindYouTubeAudioWithRetry({ attempts = 3, delayMs = 220, timeoutM
   return ensureYouTubeAnalyserBound({ intervalMs: Math.max(120, delayMs), timeoutMs });
 }
 
+function scheduleYouTubeDeferredRetry(delayMs = 4200) {
+  window.setTimeout(async () => {
+    const player = youtubeState.player;
+    const needsRetry = !audioState.youtubeActive || !audioState.source;
+    if (!player || !needsRetry) return;
+
+    try {
+      const context = ensureAudioContext();
+      await context.resume();
+      await connectYouTubeAudio();
+    } catch (error) {
+      console.warn('Verzögerter YouTube-Reconnect fehlgeschlagen:', error);
+    }
+
+    if (!audioState.youtubeActive || !audioState.source) {
+      setAudioStatus('YouTube-Audio konnte nicht wiederhergestellt werden.', 'error');
+      setYouTubeStatus('YouTube-Audio konnte nicht wiederhergestellt werden.', 'error');
+      refreshAudioUI();
+    }
+  }, delayMs);
+}
+
 async function playYouTubeTrack(track) {
   if (!track || !track.youtubeId) {
     setAudioStatus('YouTube-Track fehlt.', 'error');
@@ -4609,6 +4631,7 @@ async function playYouTubeTrack(track) {
     audioState.youtubeActive = true;
     updateAudioFileMeta(track);
     refreshAudioUI();
+    scheduleYouTubeDeferredRetry();
   } catch (error) {
     console.error('YouTube-Track konnte nicht gestartet werden:', error);
     setYouTubeStatus('Fehler beim Starten des YouTube-Tracks.', 'error');
@@ -4631,6 +4654,7 @@ function handleYouTubeStateChange(event) {
         refreshAudioUI();
       }
     });
+    scheduleYouTubeDeferredRetry();
     return;
   }
   if (event.data === YT.PlayerState.PAUSED) {
