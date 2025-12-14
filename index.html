@@ -2983,7 +2983,9 @@ const youtubeState = {
   stream: null,
   streamSource: null,
   audioWatchTimer: null,
-  audioWatchTimeout: null
+  audioWatchTimeout: null,
+  displayStream: null,
+  displayCaptureRequested: false
 };
 
 const RECENT_YOUTUBE_STORAGE_KEY = 'oc_recent_youtube_playlists';
@@ -4450,6 +4452,15 @@ function stopYouTubeStream({ stopPlayback = false, detachOnly = false } = {}) {
       /* ignore */
     }
   }
+  if (youtubeState.displayStream && !detachOnly) {
+    try {
+      youtubeState.displayStream.getTracks().forEach(track => track.stop());
+    } catch (err) {
+      /* ignore */
+    }
+    youtubeState.displayStream = null;
+    youtubeState.displayCaptureRequested = false;
+  }
   if (stopPlayback && youtubeState.player && typeof youtubeState.player.stopVideo === 'function') {
     youtubeState.player.stopVideo();
   }
@@ -4473,6 +4484,46 @@ function getYouTubeAudioStream(player) {
   return null;
 }
 
+async function requestDisplayAudioStream({ forceRetry = false } = {}) {
+  if (!navigator.mediaDevices || typeof navigator.mediaDevices.getDisplayMedia !== 'function') {
+    return null;
+  }
+
+  if (youtubeState.displayStream && hasActiveYouTubeAudioTrack(youtubeState.displayStream)) {
+    return youtubeState.displayStream;
+  }
+
+  if (youtubeState.displayCaptureRequested && !forceRetry) {
+    return null;
+  }
+
+  youtubeState.displayCaptureRequested = true;
+
+  const attempts = [
+    { audio: { channelCount: 2, echoCancellation: false, noiseSuppression: false }, video: false },
+    { audio: true, video: { frameRate: 1, width: 1, height: 1 } }
+  ];
+
+  let lastError = null;
+  for (const constraints of attempts) {
+    try {
+      const stream = await navigator.mediaDevices.getDisplayMedia(constraints);
+      youtubeState.displayStream = stream;
+      return stream;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  if (lastError) {
+    console.warn('Bildschirmfreigabe für YouTube-Audio fehlgeschlagen:', lastError);
+    if (lastError.name === 'NotAllowedError') {
+      setYouTubeStatus('Tab-Audio-Freigabe abgebrochen. Starte erneut, um die Freigabe einmalig zu erlauben.', 'error');
+    }
+  }
+  return null;
+}
+
 function hasActiveYouTubeAudioTrack(stream) {
   if (!stream || typeof stream.getAudioTracks !== 'function') return false;
   return stream.getAudioTracks().some(track => track.readyState !== 'ended');
@@ -4489,9 +4540,18 @@ function clearYouTubeAudioWatcher() {
   }
 }
 
-async function connectYouTubeAudio() {
+async function connectYouTubeAudio({ allowDisplayCapture = true } = {}) {
   const player = youtubeState.player;
-  const stream = getYouTubeAudioStream(player);
+  let stream = getYouTubeAudioStream(player);
+
+  if (!stream && allowDisplayCapture) {
+    stream = await requestDisplayAudioStream();
+    if (stream) {
+      setYouTubeStatus('Tab-Audio geteilt – Visualisierung aktiv.', 'info');
+      setAudioStatus('YouTube über Tab-Audio verbunden.', 'active');
+    }
+  }
+
   if (!stream) {
     throw new Error('Audio-Stream kann nicht aus dem YouTube-Player abgegriffen werden.');
   }
@@ -4546,7 +4606,7 @@ async function connectYouTubeAudio() {
   notifyPlaybackStarted();
 }
 
-async function ensureYouTubeAnalyserBound({ intervalMs = 380, timeoutMs = 8200 } = {}) {
+async function ensureYouTubeAnalyserBound({ intervalMs = 380, timeoutMs = 8200, allowDisplayCapture = false } = {}) {
   const player = youtubeState.player;
   clearYouTubeAudioWatcher();
   if (!player) {
@@ -4557,19 +4617,32 @@ async function ensureYouTubeAnalyserBound({ intervalMs = 380, timeoutMs = 8200 }
     youtubeState.audioWatchTimeout = window.setTimeout(() => {
       clearYouTubeAudioWatcher();
       const error = new Error('YouTube liefert keinen Audiotrack (Timeout).');
-      setYouTubeStatus('YouTube liefert keinen Audiotrack (Timeout).', 'error');
-      setAudioStatus('YouTube-Audio konnte nicht verbunden werden.', 'error');
+      setYouTubeStatus('YouTube liefert keinen Audiotrack (Timeout). Tab-Audio-Freigabe prüfen.', 'error');
+      setAudioStatus('YouTube-Audio konnte nicht verbunden werden. Tab-Audio teilen?', 'error');
       refreshAudioUI();
       reject(error);
     }, timeoutMs);
 
     async function pollStream() {
       youtubeState.audioWatchTimer = null;
-      const stream = getYouTubeAudioStream(player);
+      let stream = getYouTubeAudioStream(player);
+
+      if ((!stream || !hasActiveYouTubeAudioTrack(stream)) && allowDisplayCapture) {
+        try {
+          const displayStream = await requestDisplayAudioStream();
+          if (displayStream) {
+            stream = displayStream;
+            setYouTubeStatus('Tab-Audio geteilt – Visualisierung aktiv.', 'info');
+          }
+        } catch (error) {
+          console.warn('Tab-Audio konnte nicht geteilt werden:', error);
+        }
+      }
+
       if (hasActiveYouTubeAudioTrack(stream)) {
         clearYouTubeAudioWatcher();
         try {
-          await connectYouTubeAudio();
+          await connectYouTubeAudio({ allowDisplayCapture: true });
           resolve(true);
         } catch (error) {
           reject(error);
@@ -4583,8 +4656,8 @@ async function ensureYouTubeAnalyserBound({ intervalMs = 380, timeoutMs = 8200 }
   });
 }
 
-async function bindYouTubeAudioWithRetry({ attempts = 3, delayMs = 220, timeoutMs = 8200 } = {}) {
-  return ensureYouTubeAnalyserBound({ intervalMs: Math.max(120, delayMs), timeoutMs });
+async function bindYouTubeAudioWithRetry({ attempts = 3, delayMs = 220, timeoutMs = 8200, allowDisplayCapture = true } = {}) {
+  return ensureYouTubeAnalyserBound({ intervalMs: Math.max(120, delayMs), timeoutMs, allowDisplayCapture });
 }
 
 function scheduleYouTubeDeferredRetry(delayMs = 4200) {
@@ -4596,7 +4669,7 @@ function scheduleYouTubeDeferredRetry(delayMs = 4200) {
     try {
       const context = ensureAudioContext();
       await context.resume();
-      await connectYouTubeAudio();
+      await connectYouTubeAudio({ allowDisplayCapture: true });
     } catch (error) {
       console.warn('Verzögerter YouTube-Reconnect fehlgeschlagen:', error);
     }
