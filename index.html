@@ -4484,7 +4484,7 @@ function getYouTubeAudioStream(player) {
   return null;
 }
 
-async function requestDisplayAudioStream() {
+async function requestDisplayAudioStream({ forceRetry = false } = {}) {
   if (!navigator.mediaDevices || typeof navigator.mediaDevices.getDisplayMedia !== 'function') {
     return null;
   }
@@ -4492,6 +4492,12 @@ async function requestDisplayAudioStream() {
   if (youtubeState.displayStream && hasActiveYouTubeAudioTrack(youtubeState.displayStream)) {
     return youtubeState.displayStream;
   }
+
+  if (youtubeState.displayCaptureRequested && !forceRetry) {
+    return null;
+  }
+
+  youtubeState.displayCaptureRequested = true;
 
   const attempts = [
     { audio: { channelCount: 2, echoCancellation: false, noiseSuppression: false }, video: false },
@@ -4503,7 +4509,6 @@ async function requestDisplayAudioStream() {
     try {
       const stream = await navigator.mediaDevices.getDisplayMedia(constraints);
       youtubeState.displayStream = stream;
-      youtubeState.displayCaptureRequested = true;
       return stream;
     } catch (error) {
       lastError = error;
@@ -4512,6 +4517,9 @@ async function requestDisplayAudioStream() {
 
   if (lastError) {
     console.warn('Bildschirmfreigabe für YouTube-Audio fehlgeschlagen:', lastError);
+    if (lastError.name === 'NotAllowedError') {
+      setYouTubeStatus('Tab-Audio-Freigabe abgebrochen. Starte erneut, um die Freigabe einmalig zu erlauben.', 'error');
+    }
   }
   return null;
 }
