@@ -1,0 +1,7 @@
+services:
+  music-app:
+    build: .
+    image: music-rtfx-fyi:latest
+    ports:
+      - "${MUSIC_HTTP_PORT:-8080}:80"
+    restart: unless-stopped
