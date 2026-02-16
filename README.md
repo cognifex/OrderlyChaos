@@ -46,7 +46,7 @@ Das Skript erstellt bzw. aktualisiert `Musik/playlist.json` und ermittelt Dateig
    curl -I http://localhost:8080
    ```
 
-## Deployment auf Debian (music.rtfx.fyi)
+## Deployment auf Debian (<your-domain.example>)
 
 ### 1) System vorbereiten
 
@@ -67,17 +67,17 @@ sudo ufw enable
 sudo ufw status
 ```
 
-### 3) DNS-Records für music.rtfx.fyi
+### 3) DNS-Records für <your-domain.example>
 
-- Lege einen **A-Record** für `music.rtfx.fyi` auf die öffentliche IPv4-Adresse des Servers.
+- Lege einen **A-Record** für `<your-domain.example>` auf die öffentliche IPv4-Adresse des Servers.
 - Optional: Lege zusätzlich einen **AAAA-Record** auf die IPv6-Adresse an.
-- Typische TTL: 300–600 Sekunden; überprüfe die Propagierung mit `dig music.rtfx.fyi`.
+- Typische TTL: 300–600 Sekunden; überprüfe die Propagierung mit `dig <your-domain.example>`.
 
 ### 4) Quellcode holen und Playlist pflegen
 
 ```bash
 cd /opt
-sudo git clone https://github.com/cognifex/OrderlyChaos.git
+sudo git clone https://github.com/<owner>/<repo>.git
 cd OrderlyChaos
 # Optional: Playlist neu erzeugen, wenn du neue Titel abgelegt hast
 node scripts/generate-preset-playlist.mjs
@@ -98,7 +98,7 @@ sudo docker compose ps
 - Setze vor den Container einen Reverse Proxy (z. B. Caddy, Traefik oder Nginx) auf demselben Host.
 - Beispiel Caddyfile (Container hört auf Port 80):
   ```
-  music.rtfx.fyi {
+  <your-domain.example> {
     reverse_proxy 127.0.0.1:80
   }
   ```
@@ -112,4 +112,4 @@ sudo docker compose pull && sudo docker compose build && sudo docker compose up 
 sudo docker compose down  # Container stoppen, Daten bleiben erhalten
 ```
 
-Nach erfolgreichem Start solltest du die Seite über `http://music.rtfx.fyi` bzw. `https://music.rtfx.fyi` (mit Proxy) erreichen.
+Nach erfolgreichem Start solltest du die Seite über `http://<your-domain.example>` bzw. `https://<your-domain.example>` (mit Proxy) erreichen.
